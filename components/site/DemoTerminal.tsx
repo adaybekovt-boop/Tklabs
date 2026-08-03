@@ -4,6 +4,7 @@ import { FormEvent, useState } from "react";
 import { ArrowUpRight, LoaderCircle, Send, ShieldCheck } from "lucide-react";
 
 interface DemoMeta {
+  provider?: string;
   model: string;
   latencyMs: number;
   cost: string;
@@ -14,6 +15,7 @@ function RouteBadge({ meta }: { meta: DemoMeta }) {
     <div className="route-badge">
       <ShieldCheck size={15} aria-hidden="true" />
       <span>route verified</span>
+      <strong>{meta.provider === "clodex" ? "CLODEX" : "EDGE FALLBACK"}</strong>
       <strong>{meta.model}</strong>
       <span>{meta.latencyMs}ms</span>
       <span>{meta.cost}</span>
@@ -86,7 +88,7 @@ export function DemoTerminal() {
           <i />
         </div>
         <span>proof-console / public route</span>
-        <span className="terminal-lock">edge sandbox</span>
+        <span className="terminal-lock">server route</span>
       </div>
       <div className="terminal-body">
         <div className="terminal-intro">
@@ -94,7 +96,7 @@ export function DemoTerminal() {
           <h2>Ask the machine<br /><em>one thing.</em></h2>
           <p>
             This is the only live action on the page. Your prompt enters a
-            guarded edge route, the theatre load spikes, and the badge tells
+            guarded server route, the theatre load spikes, and the badge tells
             you exactly what happened.
           </p>
         </div>

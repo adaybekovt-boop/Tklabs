@@ -1,63 +1,316 @@
+import { auth } from "@/auth";
+import { getErmaModel, type ErmaModel } from "@/lib/models";
+
 export const runtime = "edge";
 
 const MAX_PROMPT_LENGTH = 180;
 const MAX_REQUESTS_PER_DAY = 3;
+const NVIDIA_ENDPOINT = "https://integrate.api.nvidia.com/v1/chat/completions";
+const NVIDIA_KEY_COOLDOWN_MS = 15 * 60 * 1000;
+const CLODEX_ENDPOINT = "https://clodex.xyz/v1/messages";
+const CLODEX_MODEL = "claude-clodex-5";
 const requestLog = new Map<string, { day: string; count: number }>();
+
+type Language = "ru" | "en";
+type Provider = "nvidia" | "clodex" | "edge-fallback";
+type ProviderResult = { answer: string; provider: Provider; model: string; providerModel?: string };
+type ClodexResponse = { content?: Array<{ text?: string; type?: string }> | string };
+type ChatRequest = { prompt?: unknown; locale?: unknown; model?: unknown; reason?: unknown };
+type NvidiaChunk = { choices?: Array<{ delta?: { content?: string | null } }> };
+
+class NvidiaKeyRotationError extends Error {
+  readonly cooldownMs: number;
+
+  constructor(message: string, cooldownMs = NVIDIA_KEY_COOLDOWN_MS) {
+    super(message);
+    this.name = "NvidiaKeyRotationError";
+    this.cooldownMs = cooldownMs;
+  }
+}
 
 function sleep(milliseconds: number) {
   return new Promise((resolve) => setTimeout(resolve, milliseconds));
 }
 
-function responseFor(prompt: string) {
+function responseFor(prompt: string, language: Language) {
   const normalized = prompt.toLowerCase();
-  if (normalized.includes("honest") || normalized.includes("truth")) {
-    return "The facility is fictional; the label is the product.";
+  if (language === "ru") {
+    if (normalized.includes("чест") || normalized.includes("правд") || normalized.includes("truth")) return "Объект вымышленный; честная маркировка — настоящий продукт.";
+    if (normalized.includes("будущ") || normalized.includes("future")) return "Будущее пришло в виде панели, а потом попросило оформить подписку.";
+    return "Убедительный интерфейс не является доказательством, а ясное раскрытие — является.";
   }
-  if (normalized.includes("future")) {
-    return "The future arrived as a dashboard, then asked for a subscription.";
-  }
+  if (normalized.includes("honest") || normalized.includes("truth")) return "The facility is fictional; the label is the product.";
+  if (normalized.includes("future")) return "The future arrived as a dashboard, then asked for a subscription.";
   return "A convincing interface is not evidence, but a clear disclosure is.";
 }
 
-export async function POST(request: Request) {
-  const body = (await request.json().catch(() => null)) as { prompt?: unknown } | null;
-  const prompt = typeof body?.prompt === "string" ? body.prompt.trim() : "";
+let preferredNvidiaKeyIndex = 0;
+const nvidiaKeyCooldowns = new Map<string, number>();
 
-  if (!prompt || prompt.length > MAX_PROMPT_LENGTH) {
-    return Response.json({ error: `Prompt must be 1–${MAX_PROMPT_LENGTH} characters.` }, { status: 400 });
-  }
+function getNvidiaApiKeys() {
+  const primary = process.env.NVIDIA_API_KEY_PRIMARY?.trim() || process.env.NVIDIA_API_KEY_1?.trim() || process.env.NVIDIA_API_KEY?.trim() || "";
+  const secondary = process.env.NVIDIA_API_KEY_SECONDARY?.trim() || process.env.NVIDIA_API_KEY_2?.trim() || "";
+  return [primary, secondary].filter((key, index, keys): key is string => Boolean(key) && keys.indexOf(key) === index);
+}
 
-  const ip = request.headers.get("cf-connecting-ip") ?? request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "anonymous";
-  const day = new Date().toISOString().slice(0, 10);
-  const previous = requestLog.get(ip);
-  if (previous?.day === day && previous.count >= MAX_REQUESTS_PER_DAY) {
-    return Response.json({ error: "Daily demo limit reached. The imaginary finance team thanks you." }, { status: 429 });
-  }
-  requestLog.set(ip, { day, count: previous?.day === day ? previous.count + 1 : 1 });
+function getAvailableNvidiaKeyIndexes(keys: string[]) {
+  if (!keys.length) return [];
+  const start = preferredNvidiaKeyIndex % keys.length;
+  return keys.map((_, offset) => (start + offset) % keys.length).filter((index) => (nvidiaKeyCooldowns.get(keys[index]) ?? 0) <= Date.now());
+}
 
-  const encoder = new TextEncoder();
-  const answer = responseFor(prompt);
-  const startedAt = Date.now();
-  const stream = new ReadableStream<Uint8Array>({
-    async start(controller) {
-      for (const token of answer.split(" ")) {
-        controller.enqueue(encoder.encode(`data: ${JSON.stringify({ token: `${token} ` })}\n\n`));
-        await sleep(55);
-      }
-      controller.enqueue(
-        encoder.encode(
-          `data: ${JSON.stringify({ done: true, meta: { model: "EDGE FALLBACK / NO KEY", latencyMs: Date.now() - startedAt, cost: "$0.00000" } })}\n\n`,
-        ),
-      );
-      controller.close();
-    },
+function markNvidiaKeyUnavailable(key: string, cooldownMs: number) {
+  nvidiaKeyCooldowns.set(key, Date.now() + Math.max(cooldownMs, 60_000));
+}
+
+function getClodexApiKey() {
+  return process.env.CLODEX_API_KEY?.trim() ?? "";
+}
+
+async function answerWithClodex(prompt: string, apiKey: string, language: Language): Promise<ProviderResult> {
+  const response = await fetch(CLODEX_ENDPOINT, {
+    method: "POST",
+    headers: { "anthropic-version": "2023-06-01", "content-type": "application/json", "x-api-key": apiKey },
+    body: JSON.stringify({
+      model: CLODEX_MODEL,
+      max_tokens: 256,
+      system: language === "ru" ? "Отвечай на русском языке, ясно и кратко. Не выдумывай технические возможности объекта." : "Answer in English, clearly and briefly. Do not invent technical capabilities for the facility.",
+      messages: [{ role: "user", content: prompt }],
+    }),
   });
+  const payload = (await response.json().catch(() => null)) as ClodexResponse | null;
+  if (!response.ok) throw new Error(`Clodex returned HTTP ${response.status}`);
+  const answer = Array.isArray(payload?.content) ? payload.content.filter((part) => part.type === "text" || !part.type).map((part) => part.text ?? "").join("").trim() : typeof payload?.content === "string" ? payload.content.trim() : "";
+  if (!answer) throw new Error("Clodex returned an empty response");
+  return { answer, model: CLODEX_MODEL, provider: "clodex" };
+}
 
+function nvidiaSystemPrompt(language: Language, model: ErmaModel) {
+  if (language === "ru") return `Ты — ${model.name}, AI-ассистент Imaginary Intelligence. Отвечай по-русски, ясно и полезно. Не выдавай вымышленную инфраструктуру сайта за реальную и не раскрывай внутренние рассуждения.`;
+  return `You are ${model.name}, an Imaginary Intelligence AI assistant. Answer in English, clearly and usefully. Do not present the site's fictional infrastructure as real and do not reveal private chain-of-thought.`;
+}
+
+function maxTokensFor(model: ErmaModel) {
+  if (model.tier === "heavy") return 8192;
+  if (model.tier === "medium") return 4096;
+  return 2048;
+}
+
+function buildNvidiaBody(prompt: string, language: Language, model: ErmaModel, requestedReasoning: boolean) {
+  const reasoningEnabled = model.reasoning || requestedReasoning;
+  const body: Record<string, unknown> = {
+    model: model.nvidiaModel,
+    messages: [
+      { role: "system", content: nvidiaSystemPrompt(language, model) },
+      { role: "user", content: prompt },
+    ],
+    temperature: reasoningEnabled ? 0.6 : 0.7,
+    top_p: 0.95,
+    max_tokens: maxTokensFor(model),
+    stream: true,
+  };
+
+  if (reasoningEnabled && model.nvidiaModel?.startsWith("nvidia/nemotron")) {
+    body.chat_template_kwargs = { enable_thinking: true };
+    body.reasoning_budget = model.tier === "heavy" ? 8192 : model.tier === "medium" ? 4096 : 2048;
+  }
+
+  return body;
+}
+
+async function fetchNvidiaBody(prompt: string, language: Language, model: ErmaModel, apiKey: string, requestedReasoning: boolean) {
+  const response = await fetch(NVIDIA_ENDPOINT, {
+    method: "POST",
+    headers: { authorization: `Bearer ${apiKey}`, "content-type": "application/json", accept: "text/event-stream" },
+    body: JSON.stringify(buildNvidiaBody(prompt, language, model, requestedReasoning)),
+  });
+  if (!response.ok) {
+    const errorText = await response.text().catch(() => "");
+    const shouldRotate = [401, 402, 403, 429].includes(response.status) || /quota|rate[ -]?limit|too many|credit|limit exceeded|exhausted|throttl/i.test(errorText);
+    if (shouldRotate) throw new NvidiaKeyRotationError(`NVIDIA key rejected with HTTP ${response.status}`);
+    throw new Error(`NVIDIA returned HTTP ${response.status}`);
+  }
+  if (!response.body) throw new Error("NVIDIA returned an empty stream");
+  return response.body;
+}
+
+async function fetchNvidiaWithKeyRotation(prompt: string, language: Language, model: ErmaModel, requestedReasoning: boolean) {
+  const keys = getNvidiaApiKeys();
+  const candidateIndexes = getAvailableNvidiaKeyIndexes(keys);
+  if (!candidateIndexes.length) throw new Error("No NVIDIA API key is available");
+
+  let lastRotationError: NvidiaKeyRotationError | undefined;
+  for (const keyIndex of candidateIndexes) {
+    const apiKey = keys[keyIndex];
+    try {
+      const body = await fetchNvidiaBody(prompt, language, model, apiKey, requestedReasoning);
+      preferredNvidiaKeyIndex = keyIndex;
+      return body;
+    } catch (error) {
+      if (!(error instanceof NvidiaKeyRotationError)) throw error;
+      lastRotationError = error;
+      markNvidiaKeyUnavailable(apiKey, error.cooldownMs);
+    }
+  }
+
+  throw lastRotationError ?? new Error("NVIDIA API keys are unavailable");
+}
+
+async function resolveFallback(prompt: string, language: Language, model: ErmaModel): Promise<ProviderResult> {
+  const clodexApiKey = getClodexApiKey();
+  if (clodexApiKey) {
+    try {
+      const result = await answerWithClodex(prompt, clodexApiKey, language);
+      return { ...result, model: model.name, providerModel: result.model };
+    } catch {
+      // The deterministic answer keeps the demo usable when an optional provider is unavailable.
+    }
+  }
+
+  return {
+    answer: responseFor(prompt, language),
+    model: model.name,
+    provider: "edge-fallback",
+    providerModel: language === "ru" ? "локальный резерв" : "local fallback",
+  };
+}
+
+type ResponseMeta = { model: string; provider: Provider; providerModel?: string; latencyMs: number; cost: string };
+
+function metaFor(result: ProviderResult, startedAt: number): ResponseMeta {
+  return {
+    model: result.model,
+    provider: result.provider,
+    ...(result.providerModel ? { providerModel: result.providerModel } : {}),
+    latencyMs: Date.now() - startedAt,
+    cost: result.provider === "edge-fallback" ? "$0.00000" : "provider billed",
+  };
+}
+
+function pushEvent(controller: ReadableStreamDefaultController<Uint8Array>, encoder: TextEncoder, payload: unknown) {
+  controller.enqueue(encoder.encode(`data: ${JSON.stringify(payload)}\n\n`));
+}
+
+async function emitTextAnswer(controller: ReadableStreamDefaultController<Uint8Array>, encoder: TextEncoder, result: ProviderResult, startedAt: number) {
+  for (const [index, token] of result.answer.split(" ").entries()) {
+    pushEvent(controller, encoder, { token: `${index ? " " : ""}${token}` });
+    await sleep(result.provider === "clodex" ? 18 : 55);
+  }
+  pushEvent(controller, encoder, { done: true, meta: metaFor(result, startedAt) });
+}
+
+async function emitNvidiaStream(
+  body: ReadableStream<Uint8Array>,
+  controller: ReadableStreamDefaultController<Uint8Array>,
+  encoder: TextEncoder,
+  prompt: string,
+  language: Language,
+  model: ErmaModel,
+  startedAt: number,
+) {
+  const reader = body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+  let emittedText = false;
+
+  const handleLine = (line: string) => {
+    if (!line.startsWith("data:")) return;
+    const data = line.slice(5).trim();
+    if (!data || data === "[DONE]") return;
+    let payload: NvidiaChunk;
+    try {
+      payload = JSON.parse(data) as NvidiaChunk;
+    } catch {
+      return;
+    }
+    const token = payload.choices?.[0]?.delta?.content;
+    if (typeof token === "string" && token) {
+      emittedText = true;
+      pushEvent(controller, encoder, { token });
+    }
+  };
+
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split(/\r?\n/);
+      buffer = lines.pop() ?? "";
+      for (const line of lines) handleLine(line);
+    }
+    buffer += decoder.decode();
+    if (buffer) handleLine(buffer);
+    if (!emittedText) throw new Error("NVIDIA returned no visible content");
+    pushEvent(controller, encoder, {
+      done: true,
+      meta: metaFor({ answer: "", provider: "nvidia", model: model.name, providerModel: model.nvidiaModel ?? undefined }, startedAt),
+    });
+  } catch {
+    if (emittedText) {
+      pushEvent(controller, encoder, {
+        done: true,
+        meta: metaFor({ answer: "", provider: "nvidia", model: model.name, providerModel: model.nvidiaModel ?? undefined }, startedAt),
+      });
+      return;
+    }
+    const fallback = await resolveFallback(prompt, language, model);
+    await emitTextAnswer(controller, encoder, fallback, startedAt);
+  }
+}
+
+function eventStream(stream: ReadableStream<Uint8Array>) {
   return new Response(stream, {
     headers: {
       "cache-control": "no-cache, no-transform",
       "content-type": "text/event-stream; charset=utf-8",
       connection: "keep-alive",
+      "x-accel-buffering": "no",
     },
   });
+}
+
+export async function POST(request: Request) {
+  const session = await auth();
+  if (!session) return Response.json({ error: "Authentication required." }, { status: 401 });
+
+  const body = (await request.json().catch(() => null)) as ChatRequest | null;
+  const prompt = typeof body?.prompt === "string" ? body.prompt.trim() : "";
+  const language: Language = body?.locale === "en" ? "en" : "ru";
+  const model = getErmaModel(typeof body?.model === "string" ? body.model : undefined);
+  const requestedReasoning = body?.reason === true;
+
+  if (!prompt || prompt.length > MAX_PROMPT_LENGTH) return Response.json({ error: language === "ru" ? `Запрос должен содержать от 1 до ${MAX_PROMPT_LENGTH} символов.` : `Prompt must be 1-${MAX_PROMPT_LENGTH} characters.` }, { status: 400 });
+
+  const ip = request.headers.get("cf-connecting-ip") ?? request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "anonymous";
+  const day = new Date().toISOString().slice(0, 10);
+  const previous = requestLog.get(ip);
+  if (previous?.day === day && previous.count >= MAX_REQUESTS_PER_DAY) return Response.json({ error: language === "ru" ? "Дневной лимит демо исчерпан. Воображаемая финансовая команда благодарит вас." : "Daily demo limit reached. The imaginary finance team thanks you." }, { status: 429 });
+  requestLog.set(ip, { day, count: previous?.day === day ? previous.count + 1 : 1 });
+
+  const startedAt = Date.now();
+  const encoder = new TextEncoder();
+  if (getNvidiaApiKeys().length && model.nvidiaModel) {
+    try {
+      const upstreamBody = await fetchNvidiaWithKeyRotation(prompt, language, model, requestedReasoning);
+      const stream = new ReadableStream<Uint8Array>({
+        async start(controller) {
+          await emitNvidiaStream(upstreamBody, controller, encoder, prompt, language, model, startedAt);
+          controller.close();
+        },
+      });
+      return eventStream(stream);
+    } catch {
+      // NVIDIA is the primary route; the existing provider/fallback keeps the public preview resilient.
+    }
+  }
+
+  const result = await resolveFallback(prompt, language, model);
+  const stream = new ReadableStream<Uint8Array>({
+    async start(controller) {
+      await emitTextAnswer(controller, encoder, result, startedAt);
+      controller.close();
+    },
+  });
+  return eventStream(stream);
 }

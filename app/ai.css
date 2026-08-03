@@ -1,380 +1,41 @@
+@import url("https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,100..1000;1,9..40,100..1000&display=swap");
+
 .ai-assistant-shell {
-  width: min(100% - 2rem, 72rem);
-  margin: 0 auto;
-  overflow: hidden;
-  border: 1px solid rgb(17 21 22 / 0.75);
-  border-radius: 0.25rem;
-  background:
-    radial-gradient(circle at 50% 0%, rgb(231 255 73 / 0.09), transparent 20rem),
-    #111516;
-  box-shadow: 1rem 1rem 0 rgb(17 21 22 / 0.2);
-  color: #f3f1eb;
-}
-
-.ai-assistant-inner {
-  width: min(100% - 2rem, 54rem);
-  margin: 0 auto;
-  padding: clamp(1.4rem, 5vw, 4rem) 0 1.4rem;
-}
-
-.ai-assistant-kicker {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 1rem;
-  margin-bottom: clamp(3rem, 8vw, 6rem);
-}
-
-.ai-kicker-status {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.55rem;
-  color: rgb(255 255 255 / 0.4);
-  font-family: "Courier New", Courier, monospace;
-  font-size: 0.58rem;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-}
-
-.ai-logo {
-  position: relative;
-  width: 4.6rem;
-  height: 4.6rem;
-  border: 1px solid rgb(231 255 73 / 0.65);
-  border-radius: 50%;
-  background: radial-gradient(circle at 35% 32%, rgb(255 106 61 / 0.9), rgb(231 255 73 / 0.08) 38%, transparent 62%);
-  box-shadow: 0 0 2.5rem rgb(231 255 73 / 0.14), inset 0 0 1.2rem rgb(231 255 73 / 0.14);
-}
-
-.ai-logo::before,
-.ai-logo::after {
-  position: absolute;
-  inset: 0.45rem;
-  border: 1px dashed rgb(231 255 73 / 0.45);
-  border-radius: inherit;
-  content: "";
-  animation: spin 18s linear infinite;
-}
-
-.ai-logo::after {
-  inset: 1.35rem;
-  border-style: solid;
-  border-color: rgb(255 106 61 / 0.7) transparent;
-  animation-direction: reverse;
-  animation-duration: 9s;
-}
-
-.ai-logo-orbit {
-  position: absolute;
-  top: 0.65rem;
-  left: 2.15rem;
-  width: 0.32rem;
-  height: 0.32rem;
-  border-radius: 50%;
-  background: var(--primary);
-  box-shadow: 0 0 1rem var(--primary);
-}
-
-.ai-logo-core {
-  position: absolute;
-  top: 1.92rem;
-  left: 1.92rem;
-  width: 0.7rem;
-  height: 0.7rem;
-  border: 1px solid var(--primary);
-  border-radius: 50%;
-  background: var(--orange);
-  box-shadow: 0 0 1.3rem var(--orange);
-}
-
-.ai-assistant-title {
+  min-height: 100svh;
+  width: 100%;
   margin: 0;
-  font-family: var(--font-display);
-  font-size: clamp(3rem, 7vw, 6.7rem);
-  font-weight: 400;
-  letter-spacing: -0.07em;
-  line-height: 0.86;
-  text-transform: uppercase;
-}
-
-.ai-assistant-title em {
-  color: var(--primary);
-  font-style: normal;
-}
-
-.ai-input-card {
-  overflow: hidden;
-  border: 1px solid rgb(255 255 255 / 0.22);
-  background: rgb(0 0 0 / 0.22);
-}
-
-.ai-input-row {
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto;
-  gap: 0.7rem;
-  align-items: center;
-  padding: 0.9rem 0.9rem 0.9rem 1rem;
-}
-
-.ai-input-prompt {
-  color: var(--primary);
-  font-family: "Courier New", Courier, monospace;
-  font-size: 1.5rem;
-}
-
-.ai-input-row input {
-  min-width: 0;
+  overflow: visible;
   border: 0;
-  outline: 0;
-  background: transparent;
-  color: white;
-  font-family: "Courier New", Courier, monospace;
-  font-size: 0.9rem;
+  border-radius: 0;
+  background:
+    radial-gradient(circle at 50% 0%, rgb(231 255 73 / 0.08), transparent 28rem),
+    #111516;
+  box-shadow: none;
+  color: #f3f1eb;
+  font-family: "DM Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+    Helvetica, Arial, sans-serif;
 }
 
-.ai-input-row input::placeholder {
+.ai-assistant-shell input::placeholder {
   color: rgb(255 255 255 / 0.35);
 }
 
-.ai-send-button,
-.ai-mic-button {
-  display: grid;
-  place-items: center;
-  border: 0;
-  cursor: pointer;
+.ai-assistant-shell button {
+  font-family: inherit;
 }
 
-.ai-send-button {
-  width: 2.45rem;
-  height: 2.45rem;
-  border: 1px solid var(--primary);
-  background: var(--primary);
-  color: #0b0d0e;
+@keyframes gradient-shift {
+  0% {
+    transform: rotate(0deg) scale(1);
+  }
+
+  100% {
+    transform: rotate(360deg) scale(1);
+  }
 }
 
-.ai-send-button:hover { background: #f3ff9a; }
-.ai-send-button:disabled { cursor: not-allowed; opacity: 0.35; }
-
-.ai-files-row {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.45rem;
-  padding: 0 1rem 0.8rem;
-}
-
-.ai-file-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.35rem;
-  max-width: 100%;
-  padding: 0.35rem 0.45rem;
-  border: 1px solid rgb(231 255 73 / 0.28);
-  color: var(--primary);
-  font-family: "Courier New", Courier, monospace;
-  font-size: 0.58rem;
-}
-
-.ai-file-chip span {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.ai-file-chip button { display: grid; place-items: center; color: rgb(255 255 255 / 0.45); }
-.ai-file-chip button:hover { color: var(--orange); }
-
-.ai-tools-row,
-.ai-upload-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.8rem;
-  padding: 0.65rem 1rem;
-  border-top: 1px solid rgb(255 255 255 / 0.1);
-}
-
-.ai-tool-toggles {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.4rem;
-}
-
-.ai-tool {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.35rem;
-  padding: 0.4rem 0.6rem;
-  border: 1px solid transparent;
-  border-radius: 999px;
-  background: rgb(255 255 255 / 0.07);
-  color: rgb(255 255 255 / 0.46);
-  cursor: pointer;
-  font-family: "Courier New", Courier, monospace;
-  font-size: 0.56rem;
-  letter-spacing: 0.03em;
-  text-transform: uppercase;
-}
-
-.ai-tool:hover,
-.ai-tool.active {
-  border-color: rgb(231 255 73 / 0.42);
-  background: rgb(231 255 73 / 0.1);
-  color: var(--primary);
-}
-
-.ai-mic-button {
-  width: 2rem;
-  height: 2rem;
-  background: transparent;
-  color: rgb(255 255 255 / 0.45);
-}
-
-.ai-upload-row {
-  justify-content: space-between;
-  color: rgb(255 255 255 / 0.32);
-  font-family: "Courier New", Courier, monospace;
-  font-size: 0.56rem;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-}
-
-.ai-upload-button {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.45rem;
-  color: rgb(255 255 255 / 0.65);
-  cursor: pointer;
-  font-family: "Courier New", Courier, monospace;
-  font-size: 0.6rem;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-}
-
-.ai-upload-button:hover { color: var(--primary); }
-
-.ai-upload-dots { display: inline-flex; gap: 0.16rem; }
-.ai-upload-dots i { width: 0.3rem; height: 0.3rem; border-radius: 50%; background: var(--primary); animation: blink 0.8s ease-in-out infinite alternate; }
-.ai-upload-dots i:nth-child(2) { animation-delay: 0.15s; }
-.ai-upload-dots i:nth-child(3) { animation-delay: 0.3s; }
-
-.ai-command-grid {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 0.6rem;
-  margin-top: 0.8rem;
-}
-
-.ai-command-button {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 0.55rem;
-  min-height: 5rem;
-  border: 1px solid rgb(255 255 255 / 0.16);
-  background: rgb(255 255 255 / 0.035);
-  color: rgb(255 255 255 / 0.52);
-  cursor: pointer;
-  font-family: "Courier New", Courier, monospace;
-  font-size: 0.6rem;
-  letter-spacing: 0.13em;
-  text-transform: uppercase;
-  transition: border-color 180ms ease, background 180ms ease, color 180ms ease;
-}
-
-.ai-command-button:hover,
-.ai-command-button.active {
-  border-color: rgb(231 255 73 / 0.5);
-  background: rgb(231 255 73 / 0.08);
-  color: var(--primary);
-}
-
-.ai-suggestions {
-  margin-top: 0.65rem;
-  overflow: hidden;
-  border: 1px solid rgb(255 255 255 / 0.15);
-  background: rgb(0 0 0 / 0.2);
-}
-
-.ai-suggestions-heading {
-  padding: 0.7rem 0.8rem;
-  border-bottom: 1px solid rgb(255 255 255 / 0.1);
-  color: var(--primary);
-  font-family: "Courier New", Courier, monospace;
-  font-size: 0.58rem;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-}
-
-.ai-suggestions button {
-  display: flex;
-  align-items: center;
-  gap: 0.65rem;
-  width: 100%;
-  padding: 0.75rem 0.8rem;
-  border-bottom: 1px solid rgb(255 255 255 / 0.08);
-  color: rgb(255 255 255 / 0.62);
-  cursor: pointer;
-  text-align: left;
-}
-
-.ai-suggestions button:last-child { border-bottom: 0; }
-.ai-suggestions button:hover { background: rgb(231 255 73 / 0.06); color: var(--primary); }
-.ai-suggestions button svg { flex: 0 0 auto; color: var(--primary); }
-.ai-suggestions button span { font-size: 0.78rem; }
-
-.ai-message-feed {
-  display: grid;
-  gap: 0.7rem;
-  margin-top: 1rem;
-}
-
-.ai-message {
-  padding: 0.8rem;
-  border: 1px solid rgb(255 255 255 / 0.13);
-  background: rgb(0 0 0 / 0.17);
-}
-
-.ai-message span {
-  color: rgb(255 255 255 / 0.36);
-  font-family: "Courier New", Courier, monospace;
-  font-size: 0.55rem;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-}
-
-.ai-message p {
-  margin: 0.55rem 0 0;
-  color: rgb(255 255 255 / 0.75);
-  font-family: "Courier New", Courier, monospace;
-  font-size: 0.78rem;
-  line-height: 1.5;
-}
-
-.ai-message.user { border-color: rgb(231 255 73 / 0.2); }
-.ai-message.user span { color: var(--primary); }
-.ai-message-caret { color: var(--primary); animation: blink 1s steps(2, jump-none) infinite; }
-
-.ai-assistant-footnote {
-  display: flex;
-  justify-content: space-between;
-  gap: 1rem;
-  margin-top: 2rem;
-  padding-top: 0.8rem;
-  border-top: 1px solid rgb(255 255 255 / 0.12);
-  color: rgb(255 255 255 / 0.32);
-  font-family: "Courier New", Courier, monospace;
-  font-size: 0.56rem;
-  letter-spacing: 0.1em;
-  line-height: 1.45;
-  text-transform: uppercase;
-}
-
-@media (max-width: 650px) {
-  .ai-assistant-kicker,
-  .ai-assistant-footnote,
-  .ai-upload-row { align-items: flex-start; flex-direction: column; }
-  .ai-kicker-status { align-self: flex-end; }
-  .ai-upload-row { gap: 0.55rem; }
-  .ai-tool { font-size: 0.5rem; }
+.animate-gradient {
+  animation: gradient-shift 8s linear infinite;
+  transform-origin: center;
+  transform-box: fill-box;
 }

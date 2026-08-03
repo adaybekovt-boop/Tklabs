@@ -1,125 +1,74 @@
 "use client";
 
-import type React from "react";
-import { useRef, useState } from "react";
-import {
-  ArrowUp,
-  BookOpen,
-  BrainCircuit,
-  Code,
-  FileText,
-  Mic,
-  PenTool,
-  Plus,
-  Search,
-  Send,
-  Sparkles,
-  X,
-} from "lucide-react";
+import { useMemo, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
+import { BookOpen, BrainCircuit, Code2, Globe2, MessageSquarePlus, PenLine, Search, ShieldCheck, Sparkles, X } from "lucide-react";
+
+import { useLanguage } from "@/components/providers/LanguageProvider";
+import { AIChatInput, type ChatModelOption, type ChatSubmitMeta } from "@/components/ui/ai-chat-input";
+import { ERMA_MODELS } from "@/lib/models";
 
 type CommandCategory = "learn" | "code" | "write";
-type Message = { role: "user" | "assistant"; text: string };
-
-const commandSuggestions: Record<CommandCategory, string[]> = {
-  learn: [
-    "Explain the Big Bang theory in one dry sentence",
-    "How does photosynthesis work?",
-    "What are black holes?",
-    "Explain quantum computing",
-    "How does the human brain work?",
-  ],
-  code: [
-    "Create a React component for a todo list",
-    "Write a Python function to sort a list",
-    "How to implement authentication in Next.js",
-    "Explain async/await in JavaScript",
-    "Create a CSS animation for a button",
-  ],
-  write: [
-    "Write a professional email to a client",
-    "Create a product description for a smartphone",
-    "Draft a blog post about AI",
-    "Write a creative story about space exploration",
-    "Create a social media post about sustainability",
-  ],
-};
-
-const categoryMeta: Record<CommandCategory, { label: string; icon: React.ReactNode }> = {
-  learn: { label: "Learn", icon: <BookOpen className="h-4 w-4" /> },
-  code: { label: "Code", icon: <Code className="h-4 w-4" /> },
-  write: { label: "Write", icon: <PenTool className="h-4 w-4" /> },
-};
-
-function AssistantLogo() {
-  return (
-    <div className="ai-logo" aria-hidden="true">
-      <span className="ai-logo-orbit" />
-      <span className="ai-logo-core" />
-    </div>
-  );
-}
+type ProviderMeta = { provider?: string; model: string; providerModel?: string; latencyMs?: number; cost?: string };
+type Message = { id: string; role: "user" | "assistant"; text: string; meta?: ProviderMeta };
 
 export function AIAssistantInterface() {
-  const [inputValue, setInputValue] = useState("");
-  const [searchEnabled, setSearchEnabled] = useState(false);
-  const [deepResearchEnabled, setDeepResearchEnabled] = useState(false);
-  const [reasonEnabled, setReasonEnabled] = useState(false);
-  const [uploadedFiles, setUploadedFiles] = useState<string[]>([]);
-  const [showUploadAnimation, setShowUploadAnimation] = useState(false);
-  const [activeCommandCategory, setActiveCommandCategory] = useState<CommandCategory | null>(null);
+  const { copy, language } = useLanguage();
   const [messages, setMessages] = useState<Message[]>([]);
+  const [activeCategory, setActiveCategory] = useState<CommandCategory | null>(null);
+  const [composerSeed, setComposerSeed] = useState(0);
+  const [composerValue, setComposerValue] = useState("");
   const [isSending, setIsSending] = useState(false);
-  const inputRef = useRef<HTMLInputElement>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [searchEnabled, setSearchEnabled] = useState(false);
+  const [researchEnabled, setResearchEnabled] = useState(false);
+  const [reasonEnabled, setReasonEnabled] = useState(false);
 
-  const addUploadedFiles = (names: string[]) => {
-    setShowUploadAnimation(true);
-    window.setTimeout(() => {
-      setUploadedFiles((previous) => [...previous, ...names]);
-      setShowUploadAnimation(false);
-    }, 650);
+  const models: ChatModelOption[] = useMemo(() => {
+    const tierLabels = {
+      light: copy.chat.modelTierLight,
+      medium: copy.chat.modelTierMedium,
+      heavy: copy.chat.modelTierHeavy,
+    };
+    return ERMA_MODELS.map((model) => ({
+      id: model.key,
+      name: model.name,
+      status: model.status === "preview" ? copy.chat.modelPreview : model.available ? copy.chat.modelReady : copy.chat.modelSoon,
+      available: model.available,
+      tierLabel: tierLabels[model.tier],
+    }));
+  }, [copy]);
+
+  const categories = [
+    { id: "learn" as const, label: copy.chat.learn, icon: <BookOpen size={17} /> },
+    { id: "code" as const, label: copy.chat.code, icon: <Code2 size={17} /> },
+    { id: "write" as const, label: copy.chat.write, icon: <PenLine size={17} /> },
+  ];
+
+  const appendToLastAssistant = (update: (message: Message) => Message) => {
+    setMessages((current) => {
+      const next = [...current];
+      const last = next[next.length - 1];
+      if (last?.role === "assistant") next[next.length - 1] = update(last);
+      return next;
+    });
   };
 
-  const handleUploadFile = () => {
-    fileInputRef.current?.click();
-  };
-
-  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const names = Array.from(event.target.files ?? []).map((file) => file.name);
-    if (names.length > 0) addUploadedFiles(names);
-    event.target.value = "";
-  };
-
-  const handleCommandSelect = (command: string) => {
-    setInputValue(command);
-    setActiveCommandCategory(null);
-    inputRef.current?.focus();
-  };
-
-  async function handleSendMessage(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    const prompt = inputValue.trim();
-    if (!prompt || isSending) return;
-
-    setInputValue("");
-    setActiveCommandCategory(null);
-    setMessages((current) => [
-      ...current,
-      { role: "user", text: prompt },
-      { role: "assistant", text: "" },
-    ]);
+  async function handleSubmit(prompt: string, meta: ChatSubmitMeta) {
+    const userMessage: Message = { id: `${Date.now()}-user`, role: "user", text: prompt };
+    const assistantMessage: Message = { id: `${Date.now()}-assistant`, role: "assistant", text: "" };
+    setMessages((current) => [...current, userMessage, assistantMessage]);
     setIsSending(true);
+    setActiveCategory(null);
+    setComposerValue("");
     window.dispatchEvent(new CustomEvent("facility:demo-start"));
 
     try {
-      const response = await fetch("/api/demo", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ prompt }),
-      });
-      if (!response.ok || !response.body) throw new Error("Demo unavailable");
-
+      const response = await fetch("/api/demo", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ prompt, locale: language, model: meta.model, effort: meta.effort, search: searchEnabled, research: researchEnabled, reason: reasonEnabled }) });
+      if (response.status === 401) {
+        appendToLastAssistant((message) => ({ ...message, text: copy.auth.required }));
+        return;
+      }
+      if (!response.ok || !response.body) throw new Error("AI response unavailable");
       const reader = response.body.getReader();
       const decoder = new TextDecoder();
       let buffer = "";
@@ -130,171 +79,71 @@ export function AIAssistantInterface() {
         const events = buffer.split("\n\n");
         buffer = events.pop() ?? "";
         for (const eventChunk of events) {
-          const dataLine = eventChunk.split("\n").find((line) => line.startsWith("data: "));
-          if (!dataLine) continue;
-          const payload = JSON.parse(dataLine.slice(6)) as { token?: string };
-          if (payload.token) {
-            setMessages((current) => {
-              const next = [...current];
-              const last = next[next.length - 1];
-              if (last?.role === "assistant") next[next.length - 1] = { ...last, text: last.text + payload.token };
-              return next;
-            });
-          }
+          const line = eventChunk.split("\n").find((part) => part.startsWith("data: "));
+          if (!line) continue;
+          const payload = JSON.parse(line.slice(6)) as { token?: string; done?: boolean; meta?: ProviderMeta };
+          if (payload.token) appendToLastAssistant((message) => ({ ...message, text: message.text + payload.token }));
+          if (payload.meta) appendToLastAssistant((message) => ({ ...message, meta: payload.meta }));
         }
       }
-    } catch {
-      setMessages((current) => {
-        const next = [...current];
-        const last = next[next.length - 1];
-        if (last?.role === "assistant") {
-          next[next.length - 1] = {
-            ...last,
-            text: "The facility declined to hallucinate. That is, technically, a good sign.",
-          };
-        }
-        return next;
-      });
+    } catch (error) {
+      const errorText = error instanceof Error && error.message === copy.auth.required ? error.message : copy.chat.apiError;
+      appendToLastAssistant((message) => ({ ...message, text: errorText }));
     } finally {
       setIsSending(false);
     }
   }
 
+  const chooseSuggestion = (suggestion: string) => {
+    setComposerValue(suggestion);
+    setComposerSeed((seed) => seed + 1);
+  };
+
+  const clearChat = () => {
+    setMessages([]);
+    setActiveCategory(null);
+    setComposerValue("");
+    setComposerSeed((seed) => seed + 1);
+  };
+
+  const providerLabel = (provider?: string) => provider === "nvidia" ? copy.chat.nvidia : provider === "clodex" ? copy.chat.clodex : copy.chat.edgeFallback;
+  const providerCost = (provider?: string) => provider === "edge-fallback" ? copy.chat.localCost : copy.chat.providerBilled;
+
   return (
-    <div className="ai-assistant-shell">
-      <div className="ai-assistant-inner">
-        <div className="ai-assistant-kicker">
-          <span className="eyebrow text-[#e7ff49]">04 / PROOF CONSOLE</span>
-          <span className="ai-kicker-status"><span className="status-dot" /> edge fallback / no key</span>
-        </div>
+    <div className="ai-chat-interface">
+      <aside className="ai-chat-sidebar">
+        <div className="ai-sidebar-brand"><span className="ai-sidebar-mark">II</span><div><strong>{copy.nav.aiChats.toUpperCase()}</strong><small>{copy.chat.workspace}</small></div></div>
+        <button type="button" className="ai-new-chat-button" onClick={clearChat}><MessageSquarePlus size={16} /> {copy.chat.newChat}<span>⌘K</span></button>
+        <div className="ai-sidebar-section-label">{copy.chat.history}</div>
+        <div className="ai-history-item is-active"><span className="status-dot" /><div><strong>{copy.chat.session}</strong><small>{messages.length ? `${messages.length} / ${copy.chat.response.toLowerCase()}` : copy.chat.noHistory}</small></div></div>
+        <div className="ai-sidebar-spacer" />
+        <div className="ai-sidebar-note"><ShieldCheck size={15} /><span>{copy.chat.noAccount}</span></div>
+      </aside>
 
-        <div className="mb-7 flex flex-col items-center text-center">
-          <motion.div
-            initial={{ opacity: 0, scale: 0.86 }}
-            animate={{ opacity: 1, scale: 1 }}
-            transition={{ duration: 0.35 }}
-            className="mb-5"
-          >
-            <AssistantLogo />
-          </motion.div>
-          <motion.div
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.3, delay: 0.1 }}
-          >
-            <h2 className="ai-assistant-title">Ready to assist<br /><em>your premise.</em></h2>
-            <p className="mx-auto mt-3 max-w-md text-sm text-white/50">
-              Ask a short question. The facility will stream an answer, spike
-              its fictional load, and disclose the route underneath.
-            </p>
-          </motion.div>
-        </div>
+      <section className="ai-chat-workspace">
+        <header className="ai-chat-topbar"><div><span className="eyebrow text-[#e7ff49]">{copy.chat.eyebrow}</span><span className="ai-chat-topline"><span className="status-dot" /> {copy.chat.workspace}</span></div><div className="ai-chat-top-actions"><span className="ai-route-chip"><Globe2 size={14} /> {language.toUpperCase()}</span><span className="ai-route-chip"><ShieldCheck size={14} /> {copy.chat.nvidiaRoute}</span></div></header>
 
-        <form className="ai-input-card" onSubmit={handleSendMessage}>
-          <div className="ai-input-row">
-            <span className="ai-input-prompt" aria-hidden="true">›</span>
-            <input
-              ref={inputRef}
-              type="text"
-              maxLength={180}
-              placeholder="Ask the facility something…"
-              value={inputValue}
-              onChange={(event) => setInputValue(event.target.value)}
-              aria-label="Ask the AI facility a question"
-            />
-            <button className="ai-send-button" type="submit" disabled={!inputValue.trim() || isSending} aria-label="Send message">
-              {isSending ? <Sparkles className="h-4 w-4 animate-pulse" /> : <ArrowUp className="h-4 w-4" />}
-            </button>
-          </div>
+        <div className="ai-chat-content">
+          {messages.length === 0 ? (
+            <div className="ai-empty-state"><div className="ai-empty-orb"><span>II</span><i /><i /><i /></div><h1>{copy.chat.title}</h1><p>{copy.chat.subtitle}</p><span className="ai-empty-hint">{copy.chat.emptyHint}</span></div>
+          ) : (
+            <motion.div className="ai-message-list" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}>
+              {messages.map((message) => <article className={`ai-message ai-message-${message.role}`} key={message.id}><div className="ai-message-label">{message.role === "user" ? copy.chat.userMessage : copy.chat.response}</div><div className="ai-message-body">{message.text || copy.common.thinking}{message.role === "assistant" && isSending && !message.text && <span className="ai-message-caret">▌</span>}</div>{message.meta && <div className="ai-response-meta"><ShieldCheck size={14} /> {copy.chat.routeVerified}<strong>{providerLabel(message.meta.provider)}</strong><strong>{message.meta.model}</strong>{message.meta.latencyMs !== undefined && <span>{copy.chat.latency} {message.meta.latencyMs}ms</span>}<span>{providerCost(message.meta.provider)}</span></div>}</article>)}
+            </motion.div>
+          )}
 
-          <AnimatePresence initial={false}>
-            {uploadedFiles.length > 0 && (
-              <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }} className="ai-files-row">
-                {uploadedFiles.map((file, index) => (
-                  <div className="ai-file-chip" key={`${file}-${index}`}>
-                    <FileText className="h-3 w-3" />
-                    <span>{file}</span>
-                    <button type="button" aria-label={`Remove ${file}`} onClick={() => setUploadedFiles((current) => current.filter((_, fileIndex) => fileIndex !== index))}>
-                      <X className="h-3 w-3" />
-                    </button>
-                  </div>
-                ))}
-              </motion.div>
-            )}
+          <AnimatePresence>
+            {activeCategory && <motion.div className="ai-suggestion-panel" initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }}><div className="ai-suggestion-heading"><span>{copy.chat.suggestionLabel}</span><button type="button" onClick={() => setActiveCategory(null)} aria-label="Close"><X size={15} /></button></div>{copy.chat.suggestions[activeCategory].map((suggestion) => <button type="button" className="ai-suggestion-row" key={suggestion} onClick={() => chooseSuggestion(suggestion)}>{categories.find((category) => category.id === activeCategory)?.icon}<span>{suggestion}</span></button>)}</motion.div>}
           </AnimatePresence>
 
-          <div className="ai-tools-row">
-            <div className="ai-tool-toggles">
-              <button type="button" onClick={() => setSearchEnabled((current) => !current)} className={searchEnabled ? "ai-tool active" : "ai-tool"} aria-pressed={searchEnabled}>
-                <Search className="h-3.5 w-3.5" /> Search
-              </button>
-              <button type="button" onClick={() => setDeepResearchEnabled((current) => !current)} className={deepResearchEnabled ? "ai-tool active" : "ai-tool"} aria-pressed={deepResearchEnabled}>
-                <BookOpen className="h-3.5 w-3.5" /> Deep research
-              </button>
-              <button type="button" onClick={() => setReasonEnabled((current) => !current)} className={reasonEnabled ? "ai-tool active" : "ai-tool"} aria-pressed={reasonEnabled}>
-                <BrainCircuit className="h-3.5 w-3.5" /> Reason
-              </button>
-            </div>
-            <button className="ai-mic-button" type="button" aria-label="Voice input unavailable in public preview"><Mic className="h-4 w-4" /></button>
+          <div className="ai-chat-bottom">
+            <div className="ai-chat-category-row">{categories.map((category) => <button type="button" key={category.id} className={activeCategory === category.id ? "is-active" : ""} onClick={() => setActiveCategory((current) => current === category.id ? null : category.id)}>{category.icon}{category.label}</button>)}</div>
+            <div className="ai-chat-tools"><button type="button" className={searchEnabled ? "is-active" : ""} onClick={() => setSearchEnabled((enabled) => !enabled)}><Search size={14} /> {copy.chat.search}</button><button type="button" className={researchEnabled ? "is-active" : ""} onClick={() => setResearchEnabled((enabled) => !enabled)}><Globe2 size={14} /> {copy.chat.research}</button><button type="button" className={reasonEnabled ? "is-active" : ""} onClick={() => setReasonEnabled((enabled) => !enabled)}><BrainCircuit size={14} /> {copy.chat.reason}</button></div>
+            <AIChatInput key={composerSeed} defaultValue={composerValue} placeholder={copy.chat.promptPlaceholder} ariaLabel={copy.chat.promptAria} disabled={isSending} models={models} effortLabels={[copy.chat.effortLow, copy.chat.effortMedium, copy.chat.effortMax]} labels={{ send: copy.chat.send, addFile: copy.chat.addFile, removeFile: copy.chat.removeFile, model: copy.chat.model, effort: copy.chat.effort, modelMenu: copy.chat.modelMenu, comingSoon: copy.chat.modelSoon }} onSubmit={handleSubmit} />
+            <div className="ai-chat-input-footnote"><span><Sparkles size={13} /> {copy.chat.modelNotice}</span><span>{copy.chat.voice}</span></div>
           </div>
-
-          <div className="ai-upload-row">
-            <input ref={fileInputRef} type="file" className="hidden" multiple onChange={handleFileChange} />
-            <button type="button" onClick={handleUploadFile} className="ai-upload-button">
-              {showUploadAnimation ? <span className="ai-upload-dots"><i /><i /><i /></span> : <Plus className="h-4 w-4" />}
-              <span>Upload files</span>
-            </button>
-            <span>{inputValue.length} / 180 · 3 requests / day</span>
-          </div>
-        </form>
-
-        <div className="ai-command-grid">
-          {(Object.keys(categoryMeta) as CommandCategory[]).map((category) => (
-            <motion.button
-              key={category}
-              type="button"
-              whileTap={{ scale: 0.98 }}
-              onClick={() => setActiveCommandCategory((current) => current === category ? null : category)}
-              className={activeCommandCategory === category ? "ai-command-button active" : "ai-command-button"}
-            >
-              {categoryMeta[category].icon}
-              <span>{categoryMeta[category].label}</span>
-            </motion.button>
-          ))}
         </div>
-
-        <AnimatePresence>
-          {activeCommandCategory && (
-            <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }} className="ai-suggestions">
-              <div className="ai-suggestions-heading">{categoryMeta[activeCommandCategory].label} suggestions</div>
-              {commandSuggestions[activeCommandCategory].map((suggestion, index) => (
-                <motion.button key={suggestion} type="button" initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: index * 0.03 }} onClick={() => handleCommandSelect(suggestion)}>
-                  {categoryMeta[activeCommandCategory].icon}
-                  <span>{suggestion}</span>
-                </motion.button>
-              ))}
-            </motion.div>
-          )}
-        </AnimatePresence>
-
-        <AnimatePresence initial={false}>
-          {messages.length > 0 && (
-            <motion.div className="ai-message-feed" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
-              {messages.slice(-4).map((message, index) => (
-                <div className={message.role === "user" ? "ai-message user" : "ai-message assistant"} key={`${message.role}-${index}-${message.text.slice(0, 12)}`}>
-                  <span>{message.role === "user" ? "you" : "route / fallback"}</span>
-                  <p>{message.text || "…"}{isSending && index === messages.slice(-4).length - 1 && <i className="ai-message-caret">▋</i>}</p>
-                </div>
-              ))}
-            </motion.div>
-          )}
-        </AnimatePresence>
-
-        <div className="ai-assistant-footnote">
-          <span>truth layer: enabled · no account · no history</span>
-          <span>processed locally in the public preview</span>
-        </div>
-      </div>
+      </section>
     </div>
   );
 }
