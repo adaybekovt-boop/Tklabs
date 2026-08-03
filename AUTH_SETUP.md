@@ -26,6 +26,8 @@ Copy .env.example to .env.local and set:
     AUTH_SECRET=...
     AUTH_GOOGLE_ID=...
     AUTH_GOOGLE_SECRET=...
+    NVIDIA_API_KEY_PRIMARY=...
+    NVIDIA_API_KEY_SECONDARY=...
 
 Generate AUTH_SECRET with:
 
@@ -45,5 +47,7 @@ The Deploy Cloudflare Worker workflow is manual. Add these repository secrets be
     AUTH_GOOGLE_ID
     AUTH_GOOGLE_SECRET
     CLODEX_API_KEY (optional)
+    NVIDIA_API_KEY_PRIMARY (recommended)
+    NVIDIA_API_KEY_SECONDARY (recommended)
 
 The workflow builds the Vinext Worker, uploads runtime secrets to Cloudflare, and deploys the generated Worker configuration. A custom domain can be attached in Cloudflare later; then add its exact callback URL in Google Cloud Console.
