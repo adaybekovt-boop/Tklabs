@@ -7,6 +7,7 @@ const isCodexSeatbeltSandbox = process.env.CODEX_SANDBOX === "seatbelt";
 const localWorkerConfig = {
   main: "./worker/index.ts",
   compatibility_flags: ["nodejs_compat"],
+  workers_dev: true,
 };
 
 export default defineConfig(async () => {

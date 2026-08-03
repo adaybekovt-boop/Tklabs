@@ -48,4 +48,19 @@ jobs:
             fi
           done
       - name: Deploy
-        run: npx wrangler deploy --config dist/server/wrangler.json
+        id: deploy
+        shell: bash
+        run: |
+          set -euo pipefail
+          npx wrangler deploy --config dist/server/wrangler.json 2>&1 | tee deploy.log
+          url="$(grep -Eo 'https://[A-Za-z0-9._-]+\\.workers\\.dev' deploy.log | tail -n 1 || true)"
+          if [ -z "$url" ]; then
+            echo "Cloudflare did not return a workers.dev URL"
+            exit 1
+          fi
+          echo "url=$url" >> "$GITHUB_OUTPUT"
+          {
+            echo "## Cloudflare Worker"
+            echo
+            echo "[Open deployed site]($url)"
+          } >> "$GITHUB_STEP_SUMMARY"
