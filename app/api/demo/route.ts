@@ -1,22 +1,26 @@
-import { auth } from "@/auth";
+import { DemoRateLimitUnavailableError, consumeDemoRequest } from "@/lib/demo-rate-limit-access";
+import { AI_SAFETY_SYSTEM_PROMPT, classifyPromptSafety, isUnsafeAssistantOutput, safetyRefusal } from "@/lib/ai-safety";
+import { promptWithAttachments } from "@/lib/chat-prompt";
 import { getErmaModel, getErmaSystemPrompt, type ErmaModel } from "@/lib/models";
+import { parseJsonBody, RequestBodyTooLargeError } from "@/lib/request-body";
+import { isTrustedRequestOrigin } from "@/lib/request-security";
 
 export const runtime = "edge";
 
 const MAX_PROMPT_LENGTH = 180;
-const MAX_REQUESTS_PER_DAY = 3;
 const NVIDIA_ENDPOINT = "https://integrate.api.nvidia.com/v1/chat/completions";
 const NVIDIA_KEY_COOLDOWN_MS = 15 * 60 * 1000;
+const PROVIDER_TIMEOUT_MS = 30 * 1000;
 const CLODEX_ENDPOINT = "https://clodex.xyz/v1/messages";
 const CLODEX_MODEL = "claude-clodex-5";
-const requestLog = new Map<string, { day: string; count: number }>();
 
 type Language = "ru" | "en";
 type Provider = "nvidia" | "clodex" | "edge-fallback";
 type ProviderResult = { answer: string; provider: Provider; model: string; providerModel?: string };
 type ClodexResponse = { content?: Array<{ text?: string; type?: string }> | string };
-type ChatRequest = { prompt?: unknown; locale?: unknown; model?: unknown; reason?: unknown };
+type ChatRequest = { prompt?: unknown; locale?: unknown; model?: unknown; reason?: unknown; effort?: unknown; attachments?: unknown };
 type NvidiaChunk = { choices?: Array<{ delta?: { content?: string | null } }> };
+type ReasoningEffort = "low" | "medium" | "high";
 
 class NvidiaKeyRotationError extends Error {
   readonly cooldownMs: number;
@@ -30,6 +34,23 @@ class NvidiaKeyRotationError extends Error {
 
 function sleep(milliseconds: number) {
   return new Promise((resolve) => setTimeout(resolve, milliseconds));
+}
+
+function withTimeout<T>(promise: Promise<T>, timeoutMs: number) {
+  return new Promise<T>((resolve, reject) => {
+    const timeout = setTimeout(() => reject(new Error("Provider request timed out")), timeoutMs);
+    promise.then(resolve, reject).finally(() => clearTimeout(timeout));
+  });
+}
+
+function fetchWithTimeout(input: RequestInfo | URL, init: RequestInit, timeoutMs = PROVIDER_TIMEOUT_MS) {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
+  return fetch(input, { ...init, signal: controller.signal }).finally(() => clearTimeout(timeout));
+}
+
+function normalizeEffort(value: unknown): ReasoningEffort {
+  return value === "low" || value === "high" ? value : "medium";
 }
 
 function responseFor(prompt: string, language: Language) {
@@ -68,20 +89,21 @@ function getClodexApiKey() {
 }
 
 async function answerWithClodex(prompt: string, apiKey: string, language: Language): Promise<ProviderResult> {
-  const response = await fetch(CLODEX_ENDPOINT, {
+  const response = await fetchWithTimeout(CLODEX_ENDPOINT, {
     method: "POST",
     headers: { "anthropic-version": "2023-06-01", "content-type": "application/json", "x-api-key": apiKey },
     body: JSON.stringify({
       model: CLODEX_MODEL,
       max_tokens: 256,
-      system: language === "ru" ? "Отвечай на русском языке, ясно и кратко. Не выдумывай технические возможности объекта." : "Answer in English, clearly and briefly. Do not invent technical capabilities for the facility.",
+      system: `${language === "ru" ? "Отвечай на русском языке, ясно и кратко. Не выдумывай технические возможности объекта." : "Answer in English, clearly and briefly. Do not invent technical capabilities for the facility."}\n\n${AI_SAFETY_SYSTEM_PROMPT}`,
       messages: [{ role: "user", content: prompt }],
     }),
   });
-  const payload = (await response.json().catch(() => null)) as ClodexResponse | null;
+  const payload = (await withTimeout(response.json().catch(() => null), PROVIDER_TIMEOUT_MS)) as ClodexResponse | null;
   if (!response.ok) throw new Error(`Clodex returned HTTP ${response.status}`);
   const answer = Array.isArray(payload?.content) ? payload.content.filter((part) => part.type === "text" || !part.type).map((part) => part.text ?? "").join("").trim() : typeof payload?.content === "string" ? payload.content.trim() : "";
   if (!answer) throw new Error("Clodex returned an empty response");
+  if (isUnsafeAssistantOutput(answer)) throw new Error("Provider output blocked by safety policy");
   return { answer, model: CLODEX_MODEL, provider: "clodex" };
 }
 
@@ -91,7 +113,7 @@ function nvidiaSystemPrompt(language: Language, model: ErmaModel) {
     language === "ru"
       ? "Отвечай на русском языке."
       : "Reply in English, but keep the persona's Russian catchphrases and quirks untranslated.";
-  return `${persona}\n\n${languageNote}`;
+  return `${persona}\n\n${languageNote}\n\n${AI_SAFETY_SYSTEM_PROMPT}`;
 }
 
 function maxTokensFor(model: ErmaModel) {
@@ -100,8 +122,15 @@ function maxTokensFor(model: ErmaModel) {
   return 2048;
 }
 
-function buildNvidiaBody(prompt: string, language: Language, model: ErmaModel, requestedReasoning: boolean) {
-  const reasoningEnabled = model.reasoning || requestedReasoning;
+function reasoningBudgetFor(model: ErmaModel, effort: ReasoningEffort) {
+  const maxBudget = model.tier === "heavy" ? 8192 : model.tier === "medium" ? 4096 : 2048;
+  if (effort === "low") return Math.min(1024, maxBudget);
+  if (effort === "high") return maxBudget;
+  return Math.min(2048, maxBudget);
+}
+
+function buildNvidiaBody(prompt: string, language: Language, model: ErmaModel, requestedReasoning: boolean, effort: ReasoningEffort) {
+  const reasoningEnabled = model.reasoning || requestedReasoning || effort === "high";
   const body: Record<string, unknown> = {
     model: model.nvidiaModel,
     messages: [
@@ -116,17 +145,17 @@ function buildNvidiaBody(prompt: string, language: Language, model: ErmaModel, r
 
   if (reasoningEnabled && model.nvidiaModel?.startsWith("nvidia/nemotron")) {
     body.chat_template_kwargs = { enable_thinking: true };
-    body.reasoning_budget = model.tier === "heavy" ? 8192 : model.tier === "medium" ? 4096 : 2048;
+    body.reasoning_budget = reasoningBudgetFor(model, effort);
   }
 
   return body;
 }
 
-async function fetchNvidiaBody(prompt: string, language: Language, model: ErmaModel, apiKey: string, requestedReasoning: boolean) {
-  const response = await fetch(NVIDIA_ENDPOINT, {
+async function fetchNvidiaBody(prompt: string, language: Language, model: ErmaModel, apiKey: string, requestedReasoning: boolean, effort: ReasoningEffort) {
+  const response = await fetchWithTimeout(NVIDIA_ENDPOINT, {
     method: "POST",
     headers: { authorization: `Bearer ${apiKey}`, "content-type": "application/json", accept: "text/event-stream" },
-    body: JSON.stringify(buildNvidiaBody(prompt, language, model, requestedReasoning)),
+    body: JSON.stringify(buildNvidiaBody(prompt, language, model, requestedReasoning, effort)),
   });
   if (!response.ok) {
     const errorText = await response.text().catch(() => "");
@@ -138,7 +167,7 @@ async function fetchNvidiaBody(prompt: string, language: Language, model: ErmaMo
   return response.body;
 }
 
-async function fetchNvidiaWithKeyRotation(prompt: string, language: Language, model: ErmaModel, requestedReasoning: boolean) {
+async function fetchNvidiaWithKeyRotation(prompt: string, language: Language, model: ErmaModel, requestedReasoning: boolean, effort: ReasoningEffort) {
   const keys = getNvidiaApiKeys();
   const candidateIndexes = getAvailableNvidiaKeyIndexes(keys);
   if (!candidateIndexes.length) throw new Error("No NVIDIA API key is available");
@@ -147,7 +176,7 @@ async function fetchNvidiaWithKeyRotation(prompt: string, language: Language, mo
   for (const keyIndex of candidateIndexes) {
     const apiKey = keys[keyIndex];
     try {
-      const body = await fetchNvidiaBody(prompt, language, model, apiKey, requestedReasoning);
+      const body = await fetchNvidiaBody(prompt, language, model, apiKey, requestedReasoning, effort);
       preferredNvidiaKeyIndex = keyIndex;
       return body;
     } catch (error) {
@@ -215,7 +244,7 @@ async function emitNvidiaStream(
   const reader = body.getReader();
   const decoder = new TextDecoder();
   let buffer = "";
-  let emittedText = false;
+  let generatedText = "";
 
   const handleLine = (line: string) => {
     if (!line.startsWith("data:")) return;
@@ -228,15 +257,12 @@ async function emitNvidiaStream(
       return;
     }
     const token = payload.choices?.[0]?.delta?.content;
-    if (typeof token === "string" && token) {
-      emittedText = true;
-      pushEvent(controller, encoder, { token });
-    }
+    if (typeof token === "string" && token) generatedText += token;
   };
 
   try {
     while (true) {
-      const { done, value } = await reader.read();
+      const { done, value } = await withTimeout(reader.read(), PROVIDER_TIMEOUT_MS);
       if (done) break;
       buffer += decoder.decode(value, { stream: true });
       const lines = buffer.split(/\r?\n/);
@@ -245,21 +271,22 @@ async function emitNvidiaStream(
     }
     buffer += decoder.decode();
     if (buffer) handleLine(buffer);
-    if (!emittedText) throw new Error("NVIDIA returned no visible content");
-    pushEvent(controller, encoder, {
-      done: true,
-      meta: metaFor({ answer: "", provider: "nvidia", model: model.name, providerModel: model.nvidiaModel ?? undefined }, startedAt),
-    });
-  } catch {
-    if (emittedText) {
-      pushEvent(controller, encoder, {
-        done: true,
-        meta: metaFor({ answer: "", provider: "nvidia", model: model.name, providerModel: model.nvidiaModel ?? undefined }, startedAt),
-      });
+    if (!generatedText) throw new Error("NVIDIA returned no visible content");
+    if (isUnsafeAssistantOutput(generatedText)) {
+      await emitTextAnswer(controller, encoder, { answer: safetyRefusal(language), provider: "edge-fallback", model: model.name, providerModel: "safety policy" }, startedAt);
       return;
     }
+    await emitTextAnswer(controller, encoder, { answer: generatedText, provider: "nvidia", model: model.name, providerModel: model.nvidiaModel ?? undefined }, startedAt);
+  } catch {
     const fallback = await resolveFallback(prompt, language, model);
-    await emitTextAnswer(controller, encoder, fallback, startedAt);
+    await emitTextAnswer(
+      controller,
+      encoder,
+      isUnsafeAssistantOutput(fallback.answer)
+        ? { answer: safetyRefusal(language), provider: "edge-fallback", model: model.name, providerModel: "safety policy" }
+        : fallback,
+      startedAt,
+    );
   }
 }
 
@@ -275,31 +302,57 @@ function eventStream(stream: ReadableStream<Uint8Array>) {
 }
 
 export async function POST(request: Request) {
-  const session = await auth();
-  if (!session) return Response.json({ error: "Authentication required." }, { status: 401 });
+  if (!isTrustedRequestOrigin(request)) return Response.json({ error: "Request origin is not allowed." }, { status: 403, headers: { "cache-control": "no-store" } });
 
-  const body = (await request.json().catch(() => null)) as ChatRequest | null;
+  let body: ChatRequest | null;
+  try {
+    body = await parseJsonBody<ChatRequest>(request);
+  } catch (error) {
+    if (error instanceof RequestBodyTooLargeError) return Response.json({ error: "Request body is too large." }, { status: 413 });
+    throw error;
+  }
   const prompt = typeof body?.prompt === "string" ? body.prompt.trim() : "";
   const language: Language = body?.locale === "en" ? "en" : "ru";
   const model = getErmaModel(typeof body?.model === "string" ? body.model : undefined);
   const requestedReasoning = body?.reason === true;
+  const effort = normalizeEffort(body?.effort);
+  const providerPrompt = promptWithAttachments(prompt, body?.attachments);
 
   if (!prompt || prompt.length > MAX_PROMPT_LENGTH) return Response.json({ error: language === "ru" ? `Запрос должен содержать от 1 до ${MAX_PROMPT_LENGTH} символов.` : `Prompt must be 1-${MAX_PROMPT_LENGTH} characters.` }, { status: 400 });
+  if (classifyPromptSafety(providerPrompt).blocked) {
+    return Response.json({ error: safetyRefusal(language) }, { status: 403, headers: { "cache-control": "no-store" } });
+  }
 
-  const ip = request.headers.get("cf-connecting-ip") ?? request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "anonymous";
-  const day = new Date().toISOString().slice(0, 10);
-  const previous = requestLog.get(ip);
-  if (previous?.day === day && previous.count >= MAX_REQUESTS_PER_DAY) return Response.json({ error: language === "ru" ? "Дневной лимит демо исчерпан. Воображаемая финансовая команда благодарит вас." : "Daily demo limit reached. The imaginary finance team thanks you." }, { status: 429 });
-  requestLog.set(ip, { day, count: previous?.day === day ? previous.count + 1 : 1 });
+  const clientIdentifier = request.headers.get("cf-connecting-ip")?.trim() || "anonymous";
+  let allowance;
+  try {
+    allowance = await consumeDemoRequest(clientIdentifier);
+  } catch (error) {
+    if (!(error instanceof DemoRateLimitUnavailableError)) console.error("Unable to consume demo allowance", error);
+    return Response.json({ error: language === "ru" ? "Демо временно недоступно. Попробуйте позже." : "The demo is temporarily unavailable. Please try again later." }, { status: 503 });
+  }
+  if (!allowance.allowed) {
+    const retryAfter = allowance.resetAt ? Math.max(1, Math.ceil((allowance.resetAt - Date.now()) / 1000)) : undefined;
+    return Response.json(
+      { error: language === "ru" ? "Дневной лимит демо исчерпан. Попробуйте завтра." : "Daily demo limit reached. Please try again tomorrow.", retryAt: allowance.resetAt },
+      {
+        status: 429,
+        headers: {
+          "cache-control": "no-store",
+          ...(retryAfter ? { "retry-after": String(retryAfter) } : {}),
+        },
+      },
+    );
+  }
 
   const startedAt = Date.now();
   const encoder = new TextEncoder();
   if (getNvidiaApiKeys().length && model.nvidiaModel) {
     try {
-      const upstreamBody = await fetchNvidiaWithKeyRotation(prompt, language, model, requestedReasoning);
+      const upstreamBody = await fetchNvidiaWithKeyRotation(providerPrompt, language, model, requestedReasoning, effort);
       const stream = new ReadableStream<Uint8Array>({
         async start(controller) {
-          await emitNvidiaStream(upstreamBody, controller, encoder, prompt, language, model, startedAt);
+          await emitNvidiaStream(upstreamBody, controller, encoder, providerPrompt, language, model, startedAt);
           controller.close();
         },
       });
@@ -309,7 +362,7 @@ export async function POST(request: Request) {
     }
   }
 
-  const result = await resolveFallback(prompt, language, model);
+  const result = await resolveFallback(providerPrompt, language, model);
   const stream = new ReadableStream<Uint8Array>({
     async start(controller) {
       await emitTextAnswer(controller, encoder, result, startedAt);

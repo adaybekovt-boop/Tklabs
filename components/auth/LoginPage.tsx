@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { ArrowLeft, ShieldCheck } from "lucide-react";
 
 import { useLanguage } from "@/components/providers/LanguageProvider";
@@ -16,12 +17,12 @@ export function LoginPage() {
       <div className="auth-vignette" aria-hidden="true" />
 
       <Link className="auth-brand-lockup" href="/" aria-label="Imaginary Intelligence — главная">
-        <span className="brand-mark" aria-hidden="true"><img src="/tk-logo.png" alt="" /></span>
+        <span className="brand-mark" aria-hidden="true"><Image src="/tk-logo.png" alt="" width={28} height={28} /></span>
         <span><strong>IMAGINARY</strong><small>INTELLIGENCE / FACILITY</small></span>
       </Link>
 
       <section className="auth-card">
-        <div className="auth-mark auth-mark-image" aria-hidden="true"><img src="/tk-logo.png" alt="" /></div>
+        <div className="auth-mark auth-mark-image" aria-hidden="true"><Image src="/tk-logo.png" alt="" width={64} height={64} /></div>
         <span className="eyebrow text-[#e7ff49]">AUTH / GOOGLE</span>
         <h1>{copy.auth.title}</h1>
         <p>{copy.auth.subtitle}</p>

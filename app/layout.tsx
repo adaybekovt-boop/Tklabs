@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 
 import { LanguageProvider } from "@/components/providers/LanguageProvider";
 
@@ -16,6 +16,13 @@ export const metadata: Metadata = {
     icon: "/tk-logo.png",
     shortcut: "/tk-logo.png",
   },
+};
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
+  colorScheme: "dark",
 };
 
 export default function RootLayout({

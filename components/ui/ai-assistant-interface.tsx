@@ -1,19 +1,19 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import Image from "next/image";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import {
   BookOpen,
   BrainCircuit,
-  Code2,
   Globe2,
   Home,
   MessageSquarePlus,
   PenLine,
-  Search,
   ShieldCheck,
   Sparkles,
+  Square,
   UserRound,
   X,
 } from "lucide-react";
@@ -25,11 +25,12 @@ import type { ClodexAccessStatus } from "@/lib/clodex-access";
 import { CLODEX_MODELS } from "@/lib/clodex-models";
 import { ERMA_MODELS } from "@/lib/models";
 
-type CommandCategory = "learn" | "code" | "write";
+type CommandCategory = "learn" | "write";
 type ProviderMeta = { provider?: string; model: string; providerModel?: string; latencyMs?: number; cost?: string };
 type Message = { id: string; role: "user" | "assistant"; text: string; meta?: ProviderMeta };
 type AccessPayload = ClodexAccessStatus & { error?: string };
 type AccountSummary = { name: string; email: string; image: string | null };
+type SpeechState = { messageId: string | null; status: "idle" | "speaking" | "paused" };
 
 function initials(name: string) {
   return name.split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part[0]).join("").toUpperCase() || "TK";
@@ -42,10 +43,17 @@ export function AIAssistantInterface({ account }: { account: AccountSummary }) {
   const [composerSeed, setComposerSeed] = useState(0);
   const [composerValue, setComposerValue] = useState("");
   const [isSending, setIsSending] = useState(false);
-  const [searchEnabled, setSearchEnabled] = useState(false);
-  const [researchEnabled, setResearchEnabled] = useState(false);
   const [reasonEnabled, setReasonEnabled] = useState(false);
   const [clodexAccess, setClodexAccess] = useState<ClodexAccessStatus | null>(null);
+  const [speechState, setSpeechState] = useState<SpeechState>({ messageId: null, status: "idle" });
+  const [speechNotice, setSpeechNotice] = useState<{ messageId: string; text: string } | null>(null);
+  const speechUtteranceRef = useRef<SpeechSynthesisUtterance | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (typeof window !== "undefined") window.speechSynthesis?.cancel();
+    };
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -90,7 +98,6 @@ export function AIAssistantInterface({ account }: { account: AccountSummary }) {
 
   const categories = [
     { id: "learn" as const, label: copy.chat.learn, icon: <BookOpen size={15} /> },
-    { id: "code" as const, label: copy.chat.code, icon: <Code2 size={15} /> },
     { id: "write" as const, label: copy.chat.write, icon: <PenLine size={15} /> },
   ];
 
@@ -103,7 +110,61 @@ export function AIAssistantInterface({ account }: { account: AccountSummary }) {
     });
   };
 
+  const stopSpeech = () => {
+    if (typeof window !== "undefined") window.speechSynthesis?.cancel();
+    speechUtteranceRef.current = null;
+    setSpeechState({ messageId: null, status: "idle" });
+  };
+
+  const speakMessage = (message: Message) => {
+    if (!message.text.trim()) return;
+    if (typeof window === "undefined" || !("speechSynthesis" in window) || typeof SpeechSynthesisUtterance === "undefined") {
+      setSpeechNotice({ messageId: message.id, text: copy.chat.voiceUnsupported });
+      return;
+    }
+
+    if (speechState.messageId === message.id && speechState.status === "speaking") {
+      window.speechSynthesis.pause();
+      setSpeechState({ messageId: message.id, status: "paused" });
+      return;
+    }
+    if (speechState.messageId === message.id && speechState.status === "paused") {
+      window.speechSynthesis.resume();
+      setSpeechState({ messageId: message.id, status: "speaking" });
+      return;
+    }
+
+    window.speechSynthesis.cancel();
+    const utterance = new SpeechSynthesisUtterance(message.text);
+    const languagePrefix = language === "ru" ? "ru" : "en";
+    const voice = window.speechSynthesis.getVoices().find((candidate) => candidate.lang.toLowerCase().startsWith(languagePrefix));
+    if (voice) utterance.voice = voice;
+    utterance.lang = language === "ru" ? "ru-RU" : "en-US";
+    utterance.rate = 0.9;
+    utterance.pitch = 0.62;
+    utterance.volume = 1;
+    speechUtteranceRef.current = utterance;
+    setSpeechNotice(null);
+    setSpeechState({ messageId: message.id, status: "speaking" });
+    utterance.onstart = () => {
+      if (speechUtteranceRef.current === utterance) setSpeechState({ messageId: message.id, status: "speaking" });
+    };
+    utterance.onend = () => {
+      if (speechUtteranceRef.current !== utterance) return;
+      speechUtteranceRef.current = null;
+      setSpeechState({ messageId: null, status: "idle" });
+    };
+    utterance.onerror = () => {
+      if (speechUtteranceRef.current !== utterance) return;
+      speechUtteranceRef.current = null;
+      setSpeechState({ messageId: null, status: "idle" });
+      setSpeechNotice({ messageId: message.id, text: copy.chat.voiceUnsupported });
+    };
+    window.speechSynthesis.speak(utterance);
+  };
+
   async function handleSubmit(prompt: string, meta: ChatSubmitMeta) {
+    stopSpeech();
     const stamp = Date.now();
     const userMessage: Message = { id: String(stamp) + "-user", role: "user", text: prompt };
     const assistantMessage: Message = { id: String(stamp) + "-assistant", role: "assistant", text: "" };
@@ -123,9 +184,8 @@ export function AIAssistantInterface({ account }: { account: AccountSummary }) {
           locale: language,
           model: meta.model,
           effort: meta.effort,
-          search: searchEnabled,
-          research: researchEnabled,
-          reason: reasonEnabled,
+          attachments: meta.attachments,
+          reason: reasonEnabled || meta.effort === "high",
         }),
       });
       if (response.status === 401) {
@@ -148,9 +208,13 @@ export function AIAssistantInterface({ account }: { account: AccountSummary }) {
         for (const eventChunk of events) {
           const line = eventChunk.split("\n").find((part) => part.startsWith("data: "));
           if (!line) continue;
-          const payload = JSON.parse(line.slice(6)) as { token?: string; done?: boolean; meta?: ProviderMeta };
-          if (payload.token) appendToLastAssistant((message) => ({ ...message, text: message.text + payload.token }));
-          if (payload.meta) appendToLastAssistant((message) => ({ ...message, meta: payload.meta }));
+          try {
+            const payload = JSON.parse(line.slice(6)) as { token?: string; done?: boolean; meta?: ProviderMeta };
+            if (payload.token) appendToLastAssistant((message) => ({ ...message, text: message.text + payload.token }));
+            if (payload.meta) appendToLastAssistant((message) => ({ ...message, meta: payload.meta }));
+          } catch {
+            // Ignore malformed keep-alive chunks without breaking the conversation.
+          }
         }
       }
     } catch (error) {
@@ -167,6 +231,7 @@ export function AIAssistantInterface({ account }: { account: AccountSummary }) {
   };
 
   const clearChat = () => {
+    stopSpeech();
     setMessages([]);
     setActiveCategory(null);
     setComposerValue("");
@@ -181,7 +246,7 @@ export function AIAssistantInterface({ account }: { account: AccountSummary }) {
     <div className="ai-chat-interface">
       <aside className="ai-chat-sidebar">
         <Link className="ai-sidebar-brand" href="/" aria-label="Imaginary Intelligence">
-          <span className="ai-sidebar-mark"><img src="/tk-logo.png" alt="" /></span>
+          <span className="ai-sidebar-mark"><Image src="/tk-logo.png" alt="" width={24} height={24} /></span>
           <span><strong>TK LABS</strong><small>{copy.nav.aiChats}</small></span>
         </Link>
 
@@ -205,7 +270,7 @@ export function AIAssistantInterface({ account }: { account: AccountSummary }) {
         <div className="ai-sidebar-account">
           <Link className="ai-sidebar-profile" href="/profile">
             <span className="ai-account-avatar">
-              {account.image ? <img src={account.image} alt="" referrerPolicy="no-referrer" /> : accountInitials}
+              {account.image ? <Image src={account.image} alt="" width={34} height={34} unoptimized referrerPolicy="no-referrer" /> : accountInitials}
             </span>
             <span><strong>{account.name}</strong><small>{account.email}</small></span>
           </Link>
@@ -221,7 +286,7 @@ export function AIAssistantInterface({ account }: { account: AccountSummary }) {
       <section className="ai-chat-workspace">
         <header className="ai-chat-topbar">
           <div className="ai-chat-heading">
-            <img className="ai-mobile-logo" src="/tk-logo.png" alt="" />
+            <Image className="ai-mobile-logo" src="/tk-logo.png" alt="" width={24} height={24} />
             <span>
               <span className="eyebrow">{copy.chat.eyebrow}</span>
               <span className="ai-chat-topline"><span className="status-dot" /> {copy.chat.workspace}</span>
@@ -232,7 +297,7 @@ export function AIAssistantInterface({ account }: { account: AccountSummary }) {
             <span className="ai-route-chip"><Globe2 size={13} /> {language.toUpperCase()}</span>
             <span className="ai-route-chip is-route"><ShieldCheck size={13} /> {copy.chat.nvidiaRoute}</span>
             <Link className="ai-mobile-profile" href="/profile" aria-label={account.name}>
-              {account.image ? <img src={account.image} alt="" referrerPolicy="no-referrer" /> : <UserRound size={14} />}
+              {account.image ? <Image src={account.image} alt="" width={28} height={28} unoptimized referrerPolicy="no-referrer" /> : <UserRound size={14} />}
             </Link>
           </div>
         </header>
@@ -242,7 +307,7 @@ export function AIAssistantInterface({ account }: { account: AccountSummary }) {
             {messages.length === 0 ? (
               <div className="ai-empty-state">
                 <div className="ai-empty-portrait">
-                  <img src="/erma-model.png" alt="" />
+                  <Image src="/erma-model.png" alt="" width={96} height={96} />
                   <span>ERMA / ONLINE</span>
                 </div>
                 <p className="ai-empty-kicker">PLAYGROUND / 01</p>
@@ -257,9 +322,9 @@ export function AIAssistantInterface({ account }: { account: AccountSummary }) {
                     <div className="ai-message-identity">
                       <span className="ai-message-avatar">
                         {message.role === "assistant"
-                          ? <img src="/erma-model.png" alt="" />
+                          ? <Image src="/erma-model.png" alt="" width={42} height={42} />
                           : account.image
-                            ? <img src={account.image} alt="" referrerPolicy="no-referrer" />
+                            ? <Image src={account.image} alt="" width={42} height={42} unoptimized referrerPolicy="no-referrer" />
                             : accountInitials}
                       </span>
                       <span>
@@ -272,6 +337,34 @@ export function AIAssistantInterface({ account }: { account: AccountSummary }) {
                         {message.text || copy.common.thinking}
                         {message.role === "assistant" && isSending && !message.text && <span className="ai-message-caret">▌</span>}
                       </div>
+                      {message.role === "assistant" && message.text && (
+                        <div className="ai-message-actions">
+                          <button
+                            type="button"
+                            className={"ai-voice-button" + (speechState.messageId === message.id ? " is-active" : "")}
+                            onClick={() => speakMessage(message)}
+                            aria-label={speechState.messageId === message.id && speechState.status === "speaking"
+                              ? copy.chat.pauseSpeech
+                              : speechState.messageId === message.id && speechState.status === "paused"
+                                ? copy.chat.resumeSpeech
+                                : copy.chat.speak}
+                          >
+                            <span className="ai-pixel-voice" aria-hidden="true"><i /><i /><i /><i /></span>
+                            {speechState.messageId === message.id && speechState.status === "speaking"
+                              ? copy.chat.pauseSpeech
+                              : speechState.messageId === message.id && speechState.status === "paused"
+                                ? copy.chat.resumeSpeech
+                                : copy.chat.speak}
+                          </button>
+                          {speechState.messageId === message.id && (
+                            <button type="button" className="ai-voice-stop-button" onClick={stopSpeech} aria-label={copy.chat.stopSpeech}>
+                              <Square size={12} />
+                              <span>{copy.chat.stopSpeech}</span>
+                            </button>
+                          )}
+                          {speechNotice?.messageId === message.id && <span className="ai-voice-notice" role="status">{speechNotice.text}</span>}
+                        </div>
+                      )}
                       {message.meta && (
                         <div className="ai-response-meta">
                           <span><ShieldCheck size={13} /> {copy.chat.routeVerified}</span>
@@ -315,9 +408,7 @@ export function AIAssistantInterface({ account }: { account: AccountSummary }) {
                 ))}
               </div>
               <div className="ai-chat-tools">
-                <button type="button" className={searchEnabled ? "is-active" : ""} onClick={() => setSearchEnabled((enabled) => !enabled)}><Search size={13} /> {copy.chat.search}</button>
-                <button type="button" className={researchEnabled ? "is-active" : ""} onClick={() => setResearchEnabled((enabled) => !enabled)}><Globe2 size={13} /> {copy.chat.research}</button>
-                <button type="button" className={reasonEnabled ? "is-active" : ""} onClick={() => setReasonEnabled((enabled) => !enabled)}><BrainCircuit size={13} /> {copy.chat.reason}</button>
+                <button type="button" className={reasonEnabled ? "is-active" : ""} aria-pressed={reasonEnabled} onClick={() => setReasonEnabled((enabled) => !enabled)}><BrainCircuit size={13} /> {copy.chat.reason}</button>
               </div>
               <AIChatInput
                 key={composerSeed}
@@ -336,7 +427,14 @@ export function AIAssistantInterface({ account }: { account: AccountSummary }) {
                   effort: copy.chat.effort,
                   modelMenu: copy.chat.modelMenu,
                   comingSoon: copy.chat.modelSoon,
+                  voice: copy.chat.voice,
+                  voiceInput: copy.chat.voiceInput,
+                  voiceStopInput: copy.chat.voiceStopInput,
+                  voiceListening: copy.chat.voiceListening,
+                  voiceUnsupported: copy.chat.voiceUnsupported,
+                  voiceDenied: copy.chat.voiceDenied,
                 }}
+                voiceLanguage={language === "ru" ? "ru-RU" : "en-US"}
                 onSubmit={handleSubmit}
               />
               <div className="ai-chat-input-footnote">
