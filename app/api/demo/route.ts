@@ -1,5 +1,5 @@
 import { auth } from "@/auth";
-import { getErmaModel, type ErmaModel } from "@/lib/models";
+import { getErmaModel, getErmaSystemPrompt, type ErmaModel } from "@/lib/models";
 
 export const runtime = "edge";
 
@@ -86,8 +86,12 @@ async function answerWithClodex(prompt: string, apiKey: string, language: Langua
 }
 
 function nvidiaSystemPrompt(language: Language, model: ErmaModel) {
-  if (language === "ru") return `Ты — ${model.name}, AI-ассистент Imaginary Intelligence. Отвечай по-русски, ясно и полезно. Не выдавай вымышленную инфраструктуру сайта за реальную и не раскрывай внутренние рассуждения.`;
-  return `You are ${model.name}, an Imaginary Intelligence AI assistant. Answer in English, clearly and usefully. Do not present the site's fictional infrastructure as real and do not reveal private chain-of-thought.`;
+  const persona = getErmaSystemPrompt(model);
+  const languageNote =
+    language === "ru"
+      ? "Отвечай на русском языке."
+      : "Reply in English, but keep the persona's Russian catchphrases and quirks untranslated.";
+  return `${persona}\n\n${languageNote}`;
 }
 
 function maxTokensFor(model: ErmaModel) {

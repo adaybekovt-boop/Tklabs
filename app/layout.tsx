@@ -8,8 +8,8 @@ import "./chat.css";
 import "./chat-launch.css";
 
 export const metadata: Metadata = {
-  title: "Imaginary Intelligence вЂ” РІС‹РјС‹С€Р»РµРЅРЅС‹Р№ AI-РѕР±СЉРµРєС‚",
-  description: "РЎР°С‚РёСЂРёС‡РµСЃРєРёР№ AI-РѕР±СЉРµРєС‚ СЃ С‚РµР°С‚СЂР°Р»СЊРЅРѕР№ С‚РµР»РµРјРµС‚СЂРёРµР№, С‡РµСЃС‚РЅС‹Рј СЂР°СЃРєСЂС‹С‚РёРµРј Рё РѕС‚РґРµР»СЊРЅС‹РјРё AI-С‡Р°С‚Р°РјРё.",
+  title: "Imaginary Intelligence — вымышленный AI-объект",
+  description: "Сатирический AI-объект с театральной телеметрией, честным раскрытием и отдельными AI-чатами.",
   icons: {
     icon: "/favicon.svg",
     shortcut: "/favicon.svg",
