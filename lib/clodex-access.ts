@@ -3,6 +3,7 @@ export const CLODEX_REQUEST_WINDOW_MS = 15 * 60 * 1000;
 
 export type ClodexAccessStatus = {
   active: boolean;
+  unlimited?: boolean;
   limit: number;
   windowMs: number;
   remaining: number;
@@ -19,4 +20,8 @@ export type ClodexConsumeResult = ClodexAccessStatus & {
   allowed: boolean;
   error?: "access_required" | "limit_reached";
   retryAt?: number;
+};
+
+export type ClodexReleaseResult = ClodexAccessStatus & {
+  released: boolean;
 };

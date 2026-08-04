@@ -1,32 +1,26 @@
 import type { Metadata } from "next";
 
-import { LanguageProvider } from "@/components/providers/LanguageProvider";
+import "@/app/globals.css";
+import { getLocale } from "@/lib/locale";
 
-import "./globals.css";
-import "./ai.css";
-import "./auth.css";
-import "./chat.css";
-import "./chat-launch.css";
+export async function generateMetadata(): Promise<Metadata> {
+  const locale = await getLocale();
+  return locale === "en"
+    ? {
+        title: "TK Lab — Quiet Luxury",
+        description: "A calm, precise AI laboratory for focused work.",
+      }
+    : {
+        title: "TK Lab — Тихая точность",
+        description: "Спокойная AI-лаборатория для сосредоточенной работы.",
+      };
+}
 
-export const metadata: Metadata = {
-  title: "Imaginary Intelligence — вымышленный AI-объект",
-  description: "Сатирический AI-объект с театральной телеметрией, честным раскрытием и отдельными AI-чатами.",
-  icons: {
-    icon: "/favicon.svg",
-    shortcut: "/favicon.svg",
-  },
-};
-
-export default function RootLayout({
-  children,
-}: Readonly<{
-  children: React.ReactNode;
-}>) {
+export default async function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
+  const locale = await getLocale();
   return (
-    <html lang="ru">
-      <body>
-        <LanguageProvider>{children}</LanguageProvider>
-      </body>
+    <html lang={locale}>
+      <body>{children}</body>
     </html>
   );
 }
