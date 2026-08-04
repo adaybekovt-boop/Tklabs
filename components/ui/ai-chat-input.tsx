@@ -282,7 +282,13 @@ export const PromptInput = React.forwardRef<HTMLDivElement, PromptInputProps>(fu
 
     recognitionRef.current = recognition;
     setIsRecording(true);
-    recognition.start();
+    try {
+      recognition.start();
+    } catch {
+      recognitionRef.current = null;
+      setIsRecording(false);
+      setVoiceError(labels.voiceDenied);
+    }
   }
 
   return (

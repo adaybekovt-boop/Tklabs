@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Image from "next/image";
 
 import { StitchFooter } from "@/components/site/StitchFooter";
 import { StitchHeader } from "@/components/site/StitchHeader";
@@ -37,8 +38,14 @@ export default async function DevelopersPage() {
                   <span className="label-caps text-secondary">0{index + 1} / TK LAB</span>
                   <span className="label-caps text-secondary">{person.role}</span>
                 </div>
-                <div className="mt-10 grid aspect-[4/3] place-items-center border border-outline-variant bg-surface-container-low">
-                  <span className="font-serif text-[clamp(64px,10vw,130px)] leading-none text-primary">{person.initials}</span>
+                <div className="relative mt-10 aspect-[4/5] overflow-hidden border border-outline-variant bg-surface-container-low">
+                  <Image
+                    src={person.image}
+                    alt={`${person.name} portrait`}
+                    fill
+                    sizes="(min-width: 768px) 42vw, 100vw"
+                    className="object-cover object-top grayscale"
+                  />
                 </div>
                 <h3 className="mt-8 font-serif text-[34px]">{person.name}</h3>
                 <p className="mt-4 max-w-md leading-[1.7] text-on-surface-variant">{person.description}</p>

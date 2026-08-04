@@ -15,9 +15,10 @@ The Playground requires a signed-in account. Conversation history is intentional
 - `POST /api/demo` — public Erma route with Durable Object-backed IP limits.
 - `POST /api/clodex` — authenticated, account-gated Clodex route.
 - `GET|POST /api/profile/access` — Clodex entitlement status and redemption.
+- `GET /api/status` — live configuration and provider health checks with bounded timeouts.
 - `/api/auth/*` — Auth.js Google OAuth endpoints.
 - `/playground` — authenticated AI workspace.
-- `/models`, `/access`, `/documentation`, `/developers`, `/truth`, `/status` — product and transparency pages.
+- `/models`, `/access`, `/documentation`, `/developers`, `/patch-notes`, `/truth`, `/status` — product, release, and transparency pages.
 
 ## Backend safeguards
 

@@ -6,6 +6,7 @@ import { StitchFooter } from "@/components/site/StitchFooter";
 import { StitchHeader } from "@/components/site/StitchHeader";
 import { getDictionary } from "@/lib/i18n";
 import { getLocale } from "@/lib/locale";
+import { isPrivilegedAiEmail } from "@/lib/privileged-access";
 
 const PROFILE_IMAGE = "https://lh3.googleusercontent.com/aida-public/AB6AXuCWJNH6gaRimySA18W0082K9sOfWkIKN6NwipZpJiJZVy_j7XjCrXXqac5gAJdHn-tZmEkXoatlJww2v3Kw_QfK9xG7g2cT_RZStoyHpo_kbkKRXzbO3p5EO8Y82-_yUuL2LyARX8m_WsnFFe8RxUqWpoo0I4SQ-Qmdujy2jLdU7r92SVNMO19tPJjPnCW2Xfe6Mntaqyr-tVY7ssWBgg7hi4zzOuRZSJk_6Lxc_JXa8abdgeYcUfVI";
 
@@ -14,6 +15,7 @@ export default async function ProfilePage() {
   if (!session?.user && process.env.NODE_ENV !== "development") redirect("/login");
 
   const text = getDictionary(await getLocale());
+  const unlimited = isPrivilegedAiEmail(session?.user?.email);
 
   return (
     <>
@@ -42,10 +44,10 @@ export default async function ProfilePage() {
           </div>
           <div className="border-t-[0.5px] border-primary md:col-span-7 md:col-start-6">
             {[
-              [text.profile.availableModels, text.profile.modelsValue],
-              [text.profile.dailyLimit, text.profile.dailyValue],
+              [text.profile.availableModels, unlimited ? text.profile.unlimitedModelsValue : text.profile.modelsValue],
+              [text.profile.dailyLimit, unlimited ? text.profile.unlimitedDailyValue : text.profile.dailyValue],
               [text.profile.archive, text.profile.archiveValue],
-              [text.profile.clodex, text.profile.clodexValue],
+              [text.profile.clodex, unlimited ? text.profile.clodexUnlimitedValue : text.profile.clodexValue],
             ].map(([item, value]) => (
               <div key={item} className="flex items-center justify-between border-b-[0.5px] border-primary/25 py-7">
                 <span>{item}</span><span className="label-caps text-secondary">{value}</span>
