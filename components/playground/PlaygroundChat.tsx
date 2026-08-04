@@ -43,7 +43,9 @@ type Message = {
 };
 
 function uid() {
-  return Math.random().toString(36).slice(2, 10);
+  return typeof crypto !== "undefined" && "randomUUID" in crypto
+    ? crypto.randomUUID()
+    : Math.random().toString(36).slice(2, 10);
 }
 
 function titleFrom(prompt: string) {

@@ -53,15 +53,10 @@ function normalizeEffort(value: unknown): ReasoningEffort {
 }
 
 function responseFor(prompt: string, language: Language) {
-  const normalized = prompt.toLowerCase();
-  if (language === "ru") {
-    if (normalized.includes("чест") || normalized.includes("правд") || normalized.includes("truth")) return "Объект вымышленный; честная маркировка — настоящий продукт.";
-    if (normalized.includes("будущ") || normalized.includes("future")) return "Будущее пришло в виде панели, а потом попросило оформить подписку.";
-    return "Убедительный интерфейс не является доказательством, а ясное раскрытие — является.";
-  }
-  if (normalized.includes("honest") || normalized.includes("truth")) return "The facility is fictional; the label is the product.";
-  if (normalized.includes("future")) return "The future arrived as a dashboard, then asked for a subscription.";
-  return "A convincing interface is not evidence, but a clear disclosure is.";
+  void prompt;
+  return language === "ru"
+    ? "Основной модельный маршрут сейчас недоступен. Повторите запрос через несколько секунд."
+    : "The primary model route is temporarily unavailable. Please retry in a few seconds.";
 }
 
 let preferredNvidiaKeyIndex = 0;

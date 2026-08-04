@@ -1,4 +1,5 @@
 import Link from "next/link";
+import Image from "next/image";
 
 import { StitchFooter } from "@/components/site/StitchFooter";
 import { StitchHeader } from "@/components/site/StitchHeader";
@@ -24,7 +25,7 @@ export default async function TruthPage() {
         </section>
         <section className="mb-section-gap grid gap-6 md:grid-cols-12">
           <div className="relative min-h-[560px] md:col-span-8">
-            <img src={STRUCTURE_IMAGE} alt={text.truth.structureAlt} className="absolute inset-0 h-full w-full object-cover grayscale" />
+            <Image src={STRUCTURE_IMAGE} alt={text.truth.structureAlt} fill sizes="(min-width: 768px) 67vw, 100vw" unoptimized className="object-cover grayscale" />
           </div>
           <div className="flex flex-col justify-between border border-primary bg-white p-10 md:col-span-4">
             <span className="label-caps text-secondary">{text.truth.principle}</span>
@@ -50,7 +51,7 @@ export default async function TruthPage() {
           </div>
         </section>
         <section className="relative min-h-[360px] overflow-hidden">
-          <img src={PAPER_IMAGE} alt={text.truth.paperAlt} className="absolute inset-0 h-full w-full object-cover grayscale opacity-80" />
+          <Image src={PAPER_IMAGE} alt={text.truth.paperAlt} fill sizes="100vw" unoptimized className="object-cover grayscale opacity-80" />
           <div className="absolute inset-0 bg-white/55" />
           <div className="relative z-10 flex min-h-[360px] flex-col items-center justify-center px-8 text-center">
             <h2 className="headline-title max-w-xl">{text.truth.docsTitle}</h2>

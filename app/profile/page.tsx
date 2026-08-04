@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import Image from "next/image";
 
 import { auth } from "@/auth";
 import { StitchFooter } from "@/components/site/StitchFooter";
@@ -20,7 +21,7 @@ export default async function ProfilePage() {
       <main className="stitch-container min-h-screen pb-section-gap pt-12">
         <section className="editorial-enter mb-section-gap grid gap-10 border-b-[0.5px] border-primary pb-16 md:grid-cols-12">
           <div className="relative aspect-[4/5] md:col-span-4">
-            <img src={PROFILE_IMAGE} alt={text.profile.portraitAlt} className="h-full w-full object-cover grayscale" />
+            <Image src={PROFILE_IMAGE} alt={text.profile.portraitAlt} fill sizes="(min-width: 768px) 33vw, 100vw" unoptimized className="object-cover grayscale" />
           </div>
           <div className="flex flex-col justify-between md:col-span-7 md:col-start-6">
             <div>

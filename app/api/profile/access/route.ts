@@ -21,9 +21,18 @@ function unavailableResponse() {
   );
 }
 
+async function getAuthenticatedEmail() {
+  try {
+    return sessionEmail(await auth());
+  } catch (error) {
+    console.error("Unable to read authentication session for profile access", error);
+    return null;
+  }
+}
+
 export async function GET() {
-  const session = await auth();
-  const email = sessionEmail(session);
+  const email = await getAuthenticatedEmail();
+  if (email === null) return unavailableResponse();
   if (!email) return Response.json({ error: "Authentication required." }, { status: 401, headers: { "cache-control": "no-store" } });
   if (isPrivilegedAiEmail(email)) return Response.json(privilegedAccessStatus(), { headers: { "cache-control": "no-store" } });
 
@@ -39,8 +48,8 @@ export async function GET() {
 export async function POST(request: Request) {
   if (!isTrustedRequestOrigin(request)) return Response.json({ error: "Request origin is not allowed." }, { status: 403, headers: { "cache-control": "no-store" } });
 
-  const session = await auth();
-  const email = sessionEmail(session);
+  const email = await getAuthenticatedEmail();
+  if (email === null) return unavailableResponse();
   if (!email) return Response.json({ error: "Authentication required." }, { status: 401, headers: { "cache-control": "no-store" } });
   if (isPrivilegedAiEmail(email)) return Response.json(privilegedAccessStatus(), { headers: { "cache-control": "no-store" } });
 

@@ -46,16 +46,16 @@ function fetchWithTimeout(input: RequestInfo | URL, init: RequestInit, timeoutMs
   return fetch(input, { ...init, signal: controller.signal }).finally(() => clearTimeout(timeout));
 }
 
-function errorText(language: Language, type: "prompt" | "access" | "limit" | "provider" | "configuration") {
+function errorText(language: Language, type: "prompt" | "access" | "limit" | "provider" | "configuration", promptLimit = MAX_PROMPT_LENGTH) {
   const ru = {
-    prompt: `Запрос должен содержать от 1 до ${MAX_PROMPT_LENGTH} символов.`,
+    prompt: `Запрос должен содержать от 1 до ${promptLimit} символов.`,
     access: "Сначала активируйте доступ к моделям в профиле.",
     limit: "Лимит Clodex исчерпан. Попробуйте снова после сброса окна.",
     provider: "Clodex не ответил. Попробуйте ещё раз.",
     configuration: "Доступ к моделям пока настраивается.",
   };
   const en = {
-    prompt: `Prompt must be 1-${MAX_PROMPT_LENGTH} characters.`,
+    prompt: `Prompt must be 1-${promptLimit} characters.`,
     access: "Activate model access in your profile first.",
     limit: "The Clodex limit is exhausted. Try again when the window resets.",
     provider: "Clodex did not respond. Please try again.",
@@ -89,7 +89,13 @@ async function answerWithClodex(prompt: string, apiKey: string, model: string, a
 export async function POST(request: Request) {
   if (!isTrustedRequestOrigin(request)) return Response.json({ error: "Request origin is not allowed." }, { status: 403, headers: { "cache-control": "no-store" } });
 
-  const session = await auth();
+  let session;
+  try {
+    session = await auth();
+  } catch (error) {
+    console.error("Unable to read authentication session for Clodex", error);
+    return Response.json({ error: "Authentication service is temporarily unavailable." }, { status: 503, headers: { "cache-control": "no-store" } });
+  }
   const email = session?.user?.email?.trim().toLowerCase();
   if (!email) return Response.json({ error: "Authentication required." }, { status: 401 });
   const privilegedAccount = isPrivilegedAiEmail(email);
@@ -105,7 +111,7 @@ export async function POST(request: Request) {
   const language: Language = body?.locale === "en" ? "en" : "ru";
   const model = getClodexModel(typeof body?.model === "string" ? body.model : undefined);
   const promptLimit = privilegedAccount ? PRIVILEGED_MAX_PROMPT_LENGTH : MAX_PROMPT_LENGTH;
-  if (!prompt || prompt.length > promptLimit) return Response.json({ error: language === "ru" ? `Запрос должен содержать от 1 до ${promptLimit} символов.` : `Prompt must be 1-${promptLimit} characters.` }, { status: 400 });
+  if (!prompt || prompt.length > promptLimit) return Response.json({ error: errorText(language, "prompt", promptLimit) }, { status: 400 });
   if (!model) return Response.json({ error: errorText(language, "access") }, { status: 403 });
   const providerPrompt = promptWithAttachments(prompt, body?.attachments);
   const safetyDecision = classifyPromptSafety(providerPrompt, { allowCode: privilegedAccount });
