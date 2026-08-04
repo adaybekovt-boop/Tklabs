@@ -7,6 +7,10 @@ const isCodexSeatbeltSandbox = process.env.CODEX_SANDBOX === "seatbelt";
 const localWorkerConfig = {
   main: "./worker/index.ts",
   compatibility_flags: ["nodejs_compat"],
+  durable_objects: {
+    bindings: [{ name: "CLODEX_ACCESS", class_name: "ClodexAccess" }],
+  },
+  migrations: [{ tag: "v1", new_sqlite_classes: ["ClodexAccess"] }],
   workers_dev: true,
 };
 

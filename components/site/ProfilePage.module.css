@@ -1,0 +1,34 @@
+.page { min-height: 100svh; padding: 1.35rem clamp(1rem, 4vw, 4rem) 4rem; background: radial-gradient(circle at 75% 4%, rgb(231 255 73 / 0.12), transparent 22rem), #090a0b; color: #f3f1eb; }
+.header { display: flex; align-items: center; justify-content: space-between; gap: 1rem; }
+.back, .chatLink { display: inline-flex; align-items: center; gap: 0.4rem; color: rgb(255 255 255 / 0.56); font-family: "Courier New", Courier, monospace; font-size: 0.62rem; letter-spacing: 0.1em; text-transform: uppercase; }
+.back:hover, .chatLink:hover { color: var(--primary); }
+.headerActions { display: flex; align-items: center; gap: 0.75rem; }
+.hero, .accessCard, .catalog { width: min(100%, 66rem); margin-inline: auto; }
+.hero { display: flex; align-items: center; gap: 1.1rem; margin-top: clamp(4.5rem, 11vw, 8rem); }
+.avatar { display: grid; width: 5.5rem; height: 5.5rem; flex: 0 0 auto; place-items: center; overflow: hidden; border: 1px solid var(--primary); background: rgb(231 255 73 / 0.1); color: var(--primary); font-family: "Courier New", Courier, monospace; font-size: 1.35rem; letter-spacing: 0.1em; }
+.avatar img { width: 100%; height: 100%; object-fit: cover; }
+.eyebrow { display: block; color: var(--primary); font-family: "Courier New", Courier, monospace; font-size: 0.58rem; letter-spacing: 0.14em; text-transform: uppercase; }
+.hero h1 { margin: 0.55rem 0 0; font-family: var(--font-display); font-size: clamp(2.6rem, 8vw, 5.4rem); font-weight: 400; letter-spacing: -0.06em; line-height: 0.88; text-transform: uppercase; }
+.hero p { margin: 0.8rem 0 0; color: rgb(255 255 255 / 0.52); font-family: "Courier New", Courier, monospace; font-size: 0.72rem; }
+.accessCard, .catalog { margin-top: 3rem; padding: clamp(1.15rem, 3vw, 2rem); border: 1px solid rgb(255 255 255 / 0.16); background: rgb(14 17 18 / 0.86); box-shadow: inset 0 0 3rem rgb(231 255 73 / 0.025); }
+.cardHeading, .catalogHeading { display: flex; align-items: center; gap: 0.75rem; }
+.cardIcon { display: grid; width: 2.3rem; height: 2.3rem; place-items: center; border: 1px solid rgb(231 255 73 / 0.48); color: var(--primary); }
+.cardHeading h2, .catalog h2 { margin: 0.35rem 0 0; font-family: var(--font-display); font-size: clamp(1.65rem, 4vw, 2.7rem); font-weight: 400; letter-spacing: -0.045em; line-height: 0.9; text-transform: uppercase; }
+.activeBadge { display: inline-flex; align-items: center; gap: 0.35rem; margin-left: auto; padding: 0.35rem 0.48rem; border: 1px solid rgb(231 255 73 / 0.45); color: var(--primary); font-family: "Courier New", Courier, monospace; font-size: 0.55rem; letter-spacing: 0.08em; text-transform: uppercase; }
+.muted, .catalogNote { margin: 1.35rem 0 0; color: rgb(255 255 255 / 0.58); font-size: 0.87rem; line-height: 1.6; }
+.redeemForm { margin-top: 1.35rem; }
+.redeemForm label { display: block; margin-bottom: 0.45rem; color: rgb(255 255 255 / 0.48); font-family: "Courier New", Courier, monospace; font-size: 0.58rem; letter-spacing: 0.1em; text-transform: uppercase; }
+.redeemForm div { display: flex; gap: 0.5rem; }
+.redeemForm input, .search input { min-width: 0; width: 100%; border: 1px solid rgb(255 255 255 / 0.18); outline: none; background: #090a0b; color: #f3f1eb; font-family: "Courier New", Courier, monospace; font-size: 0.72rem; }
+.redeemForm input { padding: 0.78rem 0.85rem; }
+.redeemForm input:focus, .search:focus-within { border-color: var(--primary); }
+.redeemForm button { padding: 0.78rem 1rem; border: 1px solid var(--primary); background: var(--primary); color: #090a0b; font-family: "Courier New", Courier, monospace; font-size: 0.62rem; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; }
+.redeemForm button:disabled { cursor: not-allowed; opacity: 0.58; }
+.feedback, .success { margin: 0.85rem 0 0; font-family: "Courier New", Courier, monospace; font-size: 0.64rem; line-height: 1.5; }
+.feedback { color: #ffb0a2; }.success { color: var(--primary); }
+.limitRow { display: flex; align-items: center; justify-content: space-between; gap: 1rem; margin-top: 1.35rem; padding-top: 1.25rem; border-top: 1px solid rgb(255 255 255 / 0.1); }
+.limitRow div { display: grid; gap: 0.2rem; }.limitRow strong { color: var(--primary); font-family: var(--font-display); font-size: 2rem; font-weight: 400; line-height: 0.9; }.limitRow span, .limitRow p { color: rgb(255 255 255 / 0.5); font-family: "Courier New", Courier, monospace; font-size: 0.6rem; line-height: 1.5; }.limitRow p { max-width: 19rem; margin: 0; text-align: right; }
+.catalogHeading { justify-content: space-between; }.search { display: flex; align-items: center; width: min(100%, 17rem); gap: 0.45rem; padding: 0.55rem 0.65rem; border: 1px solid rgb(255 255 255 / 0.18); background: #090a0b; color: rgb(255 255 255 / 0.5); }.search input { border: 0; padding: 0; }.search input::placeholder { color: rgb(255 255 255 / 0.34); }
+.catalogNote { display: flex; align-items: center; gap: 0.45rem; font-family: "Courier New", Courier, monospace; font-size: 0.62rem; }.catalogNote svg { flex: 0 0 auto; color: var(--primary); }
+.modelGrid { display: grid; grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr)); gap: 0.6rem; margin-top: 1.25rem; }.model { min-height: 5rem; padding: 0.75rem; border: 1px solid rgb(255 255 255 / 0.1); background: rgb(0 0 0 / 0.2); }.model span { display: block; color: var(--primary); font-family: "Courier New", Courier, monospace; font-size: 0.52rem; letter-spacing: 0.1em; text-transform: uppercase; }.model strong { display: block; margin-top: 0.55rem; overflow-wrap: anywhere; color: rgb(255 255 255 / 0.82); font-family: "Courier New", Courier, monospace; font-size: 0.72rem; font-weight: 400; }
+@media (max-width: 620px) { .headerActions { gap: 0.45rem; }.chatLink { display: none; }.hero { align-items: flex-start; margin-top: 4.25rem; }.avatar { width: 4rem; height: 4rem; }.redeemForm div, .limitRow, .catalogHeading { align-items: stretch; flex-direction: column; }.redeemForm button { width: 100%; }.limitRow p { max-width: none; text-align: left; }.search { width: 100%; }.modelGrid { grid-template-columns: 1fr; } }

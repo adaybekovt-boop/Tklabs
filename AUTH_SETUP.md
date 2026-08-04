@@ -47,6 +47,7 @@ The Deploy Cloudflare Worker workflow is manual. Add these repository secrets be
     AUTH_GOOGLE_ID
     AUTH_GOOGLE_SECRET
     CLODEX_API_KEY (optional)
+    CLODEX_ACCESS_CODE (required for account-gated Clodex models; keep the actual code private)
     NVIDIA_API_KEY_PRIMARY (recommended)
     NVIDIA_API_KEY_SECONDARY (recommended)
 

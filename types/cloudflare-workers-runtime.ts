@@ -13,7 +13,27 @@ export class WorkerEntrypoint<Env = unknown> {
 }
 
 export class DurableObject<Env = unknown> {
-  declare env: Env;
+  declare protected ctx: DurableObjectState;
+  declare protected env: Env;
+
+  constructor(ctx: DurableObjectState, env: Env) {
+    this.ctx = ctx;
+    this.env = env;
+  }
+}
+
+export interface DurableObjectSqlCursor<T = unknown> {
+  one(): T;
+  toArray(): T[];
+}
+
+export interface DurableObjectStorageSql {
+  exec<T = unknown>(query: string, ...bindings: unknown[]): DurableObjectSqlCursor<T>;
+}
+
+export interface DurableObjectState {
+  storage: { sql: DurableObjectStorageSql };
+  blockConcurrencyWhile<T>(callback: () => Promise<T>): Promise<T>;
 }
 
 export class WorkflowEntrypoint<Env = unknown> {

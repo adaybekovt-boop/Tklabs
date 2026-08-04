@@ -13,5 +13,6 @@ export const metadata: Metadata = {
 export default async function AIChatsRoute() {
   const session = await auth();
   if (!session) redirect("/login?callbackUrl=/ai-chats");
-  return <AIChatsPage />;
+  const email = session.user?.email ?? "";
+  return <AIChatsPage account={{ name: session.user?.name ?? email.split("@")[0] ?? "Account", email, image: session.user?.image ?? null }} />;
 }

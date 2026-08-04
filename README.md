@@ -12,6 +12,14 @@ To enable NVIDIA locally, copy .env.example to .env.local and set NVIDIA_API_KEY
 
 The current aliases are grouped as light (ErmaSpark lite 0.9, Erma 1.0 instant, Erma Polos 1.0 think), medium (Erma-code-lite, Erma Dalos 1.1, Erma nutron 1.2 think), and heavy (Erma reborn 1.3 think, Erma apolon 1.4, Erma AsiMasi 2 preview). The aliases are product names; their server-side mappings live in lib/models.ts and can be changed as the NVIDIA catalog changes.
 
+## Account-gated Clodex models
+
+Signed-in users have a Profile link in the top-right of AI Chats. The profile checks a private access code on the server, persists the resulting entitlement in one Cloudflare Durable Object per Google account, and then reveals the Clodex model catalog in both the profile and chat selector.
+
+Each enabled account is limited to five Clodex requests per 15-minute window. The Worker enforces this before calling Clodex, so the limit cannot be bypassed through the browser. `CLODEX_ACCESS_CODE` and `CLODEX_API_KEY` are server-side secrets. Set both in `.env.local` for local use and in the GitHub repository secrets for deployment; never commit the real access code.
+
+The Cloudflare Worker config creates the `ClodexAccess` Durable Object with SQLite-backed storage on deployment. The permitted model IDs are listed in `lib/clodex-models.ts` and are validated again by `/api/clodex`.
+
 ## Useful commands
 
 - npm run dev - start the local development server

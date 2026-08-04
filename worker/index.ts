@@ -2,6 +2,8 @@
 import { handleImageOptimization, DEFAULT_DEVICE_SIZES, DEFAULT_IMAGE_SIZES } from "vinext/server/image-optimization";
 import handler from "vinext/server/app-router-entry";
 
+export { ClodexAccess } from "./clodex-access";
+
 interface Env {
   ASSETS: Fetcher;
   DB: D1Database;

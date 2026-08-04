@@ -1,16 +1,19 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { BookOpen, BrainCircuit, Code2, Globe2, MessageSquarePlus, PenLine, Search, ShieldCheck, Sparkles, X } from "lucide-react";
 
 import { useLanguage } from "@/components/providers/LanguageProvider";
 import { AIChatInput, type ChatModelOption, type ChatSubmitMeta } from "@/components/ui/ai-chat-input";
+import type { ClodexAccessStatus } from "@/lib/clodex-access";
+import { CLODEX_MODELS } from "@/lib/clodex-models";
 import { ERMA_MODELS } from "@/lib/models";
 
 type CommandCategory = "learn" | "code" | "write";
 type ProviderMeta = { provider?: string; model: string; providerModel?: string; latencyMs?: number; cost?: string };
 type Message = { id: string; role: "user" | "assistant"; text: string; meta?: ProviderMeta };
+type AccessPayload = ClodexAccessStatus & { error?: string };
 
 export function AIAssistantInterface() {
   const { copy, language } = useLanguage();
@@ -22,6 +25,23 @@ export function AIAssistantInterface() {
   const [searchEnabled, setSearchEnabled] = useState(false);
   const [researchEnabled, setResearchEnabled] = useState(false);
   const [reasonEnabled, setReasonEnabled] = useState(false);
+  const [clodexAccess, setClodexAccess] = useState<ClodexAccessStatus | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      try {
+        const response = await fetch("/api/profile/access", { cache: "no-store" });
+        const payload = (await response.json().catch(() => null)) as AccessPayload | null;
+        if (!cancelled && response.ok && payload?.active) setClodexAccess(payload);
+      } catch {
+        // The ordinary Erma catalog remains usable if the optional access service is unavailable.
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const models: ChatModelOption[] = useMemo(() => {
     const tierLabels = {
@@ -29,14 +49,18 @@ export function AIAssistantInterface() {
       medium: copy.chat.modelTierMedium,
       heavy: copy.chat.modelTierHeavy,
     };
-    return ERMA_MODELS.map((model) => ({
+    const ermaModels = ERMA_MODELS.map((model) => ({
       id: model.key,
       name: model.name,
       status: model.status === "preview" ? copy.chat.modelPreview : model.available ? copy.chat.modelReady : copy.chat.modelSoon,
       available: model.available,
       tierLabel: tierLabels[model.tier],
     }));
-  }, [copy]);
+    const unlockedClodexModels = clodexAccess?.active
+      ? CLODEX_MODELS.map((model) => ({ id: model.key, name: model.id, status: copy.chat.modelReady, available: true, tierLabel: copy.chat.clodex }))
+      : [];
+    return [...ermaModels, ...unlockedClodexModels];
+  }, [clodexAccess, copy]);
 
   const categories = [
     { id: "learn" as const, label: copy.chat.learn, icon: <BookOpen size={17} /> },
@@ -63,12 +87,16 @@ export function AIAssistantInterface() {
     window.dispatchEvent(new CustomEvent("facility:demo-start"));
 
     try {
-      const response = await fetch("/api/demo", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ prompt, locale: language, model: meta.model, effort: meta.effort, search: searchEnabled, research: researchEnabled, reason: reasonEnabled }) });
+      const endpoint = meta.model.startsWith("clodex:") ? "/api/clodex" : "/api/demo";
+      const response = await fetch(endpoint, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ prompt, locale: language, model: meta.model, effort: meta.effort, search: searchEnabled, research: researchEnabled, reason: reasonEnabled }) });
       if (response.status === 401) {
         appendToLastAssistant((message) => ({ ...message, text: copy.auth.required }));
         return;
       }
-      if (!response.ok || !response.body) throw new Error("AI response unavailable");
+      if (!response.ok || !response.body) {
+        const payload = (await response.json().catch(() => null)) as { error?: unknown } | null;
+        throw new Error(typeof payload?.error === "string" ? payload.error : copy.chat.apiError);
+      }
       const reader = response.body.getReader();
       const decoder = new TextDecoder();
       let buffer = "";
@@ -87,7 +115,7 @@ export function AIAssistantInterface() {
         }
       }
     } catch (error) {
-      const errorText = error instanceof Error && error.message === copy.auth.required ? error.message : copy.chat.apiError;
+      const errorText = error instanceof Error && error.message ? error.message : copy.chat.apiError;
       appendToLastAssistant((message) => ({ ...message, text: errorText }));
     } finally {
       setIsSending(false);
