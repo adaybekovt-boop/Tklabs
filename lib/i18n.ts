@@ -134,6 +134,18 @@ export const dictionaries = {
       entries: [
         {
           date: "05 Aug 2026",
+          version: "v0.5.1",
+          title: "Account-aware profiles & mobile polish",
+          summary: "The workspace now reflects the real account identity and behaves more cleanly on narrow screens.",
+          changes: [
+            "Profile avatars now come directly from the authenticated Google account, with initials used only when the provider does not return an image.",
+            "Verified founder accounts are labeled Admin / Unlimited instead of the generic Erma / Standard state.",
+            "The Status page now maps the live health check to the actual Clodex route instead of a misleading telemetry label.",
+            "Improved Russian footer wrapping, profile value layout, mobile spacing, and compact header controls.",
+          ],
+        },
+        {
+          date: "05 Aug 2026",
           version: "v0.5.0",
           title: "Developers & release transparency",
           summary: "The new release makes the people and the work behind TK LAB visible.",
@@ -210,8 +222,11 @@ export const dictionaries = {
     profile: {
       eyebrow: "Профиль исследователя",
       accessLevel: "Уровень доступа",
+      standardAccess: "Erma / Standard",
+      adminAccess: "Администратор / Unlimited",
       state: "Состояние",
       active: "Активен",
+      adminState: "Администратор активен",
       fallbackName: "Исследователь",
       localEmail: "Локальный просмотр без авторизации",
       parameters: "Параметры доступа",
@@ -237,7 +252,7 @@ export const dictionaries = {
       checking: "Проверяем системы",
       partial: "Часть систем требует внимания",
       down: "Есть недоступный сервис",
-      checked: "Проверено сегодня, 12:40",
+      checked: "Ожидание live-проверки",
       lastChecked: "Последняя проверка",
       refresh: "Обновить",
       infrastructure: "Основная инфраструктура",
@@ -247,7 +262,7 @@ export const dictionaries = {
       notConfigured: "Не настроено",
       incidents: "История инцидентов",
       last90: "Последние 90 дней",
-      services: ["Основной inference-сервис", "Слой авторизации", "Сервис доступа аккаунта", "Поток телеметрии"],
+      services: ["Основной inference-сервис", "Слой авторизации", "Сервис доступа аккаунта", "Модельный маршрут Clodex"],
       history: [
         ["14.06.2026", "Плановое обновление", "Без влияния на доступность"],
         ["02.05.2026", "Обновление модели", "Короткое окно обслуживания"],
@@ -468,6 +483,18 @@ export const dictionaries = {
       entries: [
         {
           date: "05 Aug 2026",
+          version: "v0.5.1",
+          title: "Account-aware profiles & mobile polish",
+          summary: "The workspace now reflects the real account identity and behaves more cleanly on narrow screens.",
+          changes: [
+            "Profile avatars now come directly from the authenticated Google account, with initials used only when the provider does not return an image.",
+            "Verified founder accounts are labeled Admin / Unlimited instead of the generic Erma / Standard state.",
+            "The Status page now maps the live health check to the actual Clodex route instead of a misleading telemetry label.",
+            "Improved Russian footer wrapping, profile value layout, mobile spacing, and compact header controls.",
+          ],
+        },
+        {
+          date: "05 Aug 2026",
           version: "v0.5.0",
           title: "Developers & release transparency",
           summary: "The new release makes the people and the work behind TK LAB visible.",
@@ -544,8 +571,11 @@ export const dictionaries = {
     profile: {
       eyebrow: "Researcher profile",
       accessLevel: "Access level",
+      standardAccess: "Erma / Standard",
+      adminAccess: "Admin / Unlimited",
       state: "State",
       active: "Active",
+      adminState: "Admin active",
       fallbackName: "Researcher",
       localEmail: "Local preview without authentication",
       parameters: "Access parameters",
@@ -571,7 +601,7 @@ export const dictionaries = {
       checking: "Checking systems",
       partial: "Some systems need attention",
       down: "A service is unavailable",
-      checked: "Checked today, 12:40",
+      checked: "Awaiting live check",
       lastChecked: "Last checked",
       refresh: "Refresh",
       infrastructure: "Core infrastructure",
@@ -581,7 +611,7 @@ export const dictionaries = {
       notConfigured: "Not configured",
       incidents: "Incident history",
       last90: "Last 90 days",
-      services: ["Primary inference service", "Authentication layer", "Account access service", "Telemetry stream"],
+      services: ["Primary inference service", "Authentication layer", "Account access service", "Clodex model route"],
       history: [
         ["14 Jun 2026", "Scheduled update", "No impact on availability"],
         ["02 May 2026", "Model update", "Short maintenance window"],

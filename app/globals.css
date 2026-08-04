@@ -103,6 +103,8 @@ button { cursor: pointer; }
 
 @media (max-width: 767px) {
   .stitch-container { padding-inline: 20px; }
+  :root { --spacing-section-gap: 72px; }
+  .headline-title { font-size: 28px; }
 }
 
 @media (prefers-reduced-motion: reduce) {
