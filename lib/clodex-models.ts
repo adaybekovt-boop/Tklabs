@@ -17,7 +17,6 @@ export const CLODEX_MODELS: readonly ClodexModel[] = [
   { key: "clodex:Kimi-K2-Thinking", id: "Kimi-K2-Thinking" },
   { key: "clodex:kimi-k2.5", id: "kimi-k2.5" },
   { key: "clodex:kimi-k2.6", id: "kimi-k2.6" },
-  { key: "clodex:kimi-k2.7-code", id: "kimi-k2.7-code" },
   { key: "clodex:kimi-k3", id: "kimi-k3" },
   { key: "clodex:MiniMax-M2.7", id: "MiniMax-M2.7" },
   { key: "clodex:MiniMax-M3", id: "MiniMax-M3" },

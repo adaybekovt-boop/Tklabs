@@ -18,6 +18,11 @@
   background: rgb(13 14 14 / 0.86);
 }
 
+.ai-chat-interface button,
+.ai-chat-interface a {
+  touch-action: manipulation;
+}
+
 .ai-chat-sidebar {
   display: flex;
   min-width: 0;
@@ -1039,6 +1044,12 @@
 }
 
 @media (max-width: 760px) {
+  .ai-chats-page,
+  .ai-chat-interface {
+    height: 100dvh;
+    min-height: 100dvh;
+  }
+
   .ai-chat-interface {
     grid-template-columns: 1fr;
   }
@@ -1058,7 +1069,7 @@
 
   .ai-chat-topbar {
     min-height: 58px;
-    padding: 0.65rem 0.75rem;
+    padding: calc(0.65rem + env(safe-area-inset-top)) 0.75rem 0.65rem;
   }
 
   .ai-chat-heading .eyebrow {
@@ -1076,6 +1087,7 @@
   .ai-composer-zone {
     padding-right: 0.65rem;
     padding-left: 0.65rem;
+    padding-bottom: calc(0.55rem + env(safe-area-inset-bottom));
   }
 
   .ai-message-list {
@@ -1108,8 +1120,14 @@
 }
 
 @media (max-width: 520px) {
+  .ai-chat-top-actions {
+    gap: 0.25rem;
+  }
+
   .ai-route-chip {
+    min-height: 2rem;
     padding: 0.28rem 0.4rem;
+    font-size: 0.55rem;
   }
 
   .ai-chat-category-row,
@@ -1126,7 +1144,9 @@
 
   .ai-chat-category-row button,
   .ai-chat-tools button {
+    min-height: 2.25rem;
     flex: 0 0 auto;
+    padding: 0.42rem 0.62rem;
   }
 
   .ai-chat-effort-button {
@@ -1143,6 +1163,65 @@
 
   .ai-chat-input-footnote span:last-child {
     display: none;
+  }
+
+  .ai-chat-input textarea {
+    min-height: 52px;
+    height: 52px;
+    padding: 0.85rem 3.2rem 0.7rem 0.78rem;
+    font-size: 16px;
+  }
+
+  .ai-chat-input.is-expanded textarea {
+    height: 96px;
+  }
+
+  .ai-chat-input-toolbar {
+    gap: 0.35rem;
+    padding-right: 0.42rem;
+    padding-bottom: 0.42rem;
+  }
+
+  .ai-chat-control-button,
+  .ai-chat-icon-button {
+    min-height: 2.45rem;
+    padding: 0.45rem 0.5rem;
+  }
+
+  .ai-chat-send-button {
+    width: 2.75rem;
+    height: 2.75rem;
+  }
+
+  .ai-chat-model-menu {
+    position: fixed;
+    right: 0.7rem;
+    bottom: calc(5.1rem + env(safe-area-inset-bottom));
+    left: 0.7rem;
+    width: auto;
+    max-height: min(60dvh, 28rem);
+    overflow-y: auto;
+  }
+
+  .ai-chat-attachment {
+    min-width: 8.2rem;
+  }
+
+  .ai-message-list {
+    width: calc(100% - 1rem);
+    padding-top: 1.2rem;
+    padding-bottom: 1.5rem;
+  }
+
+  .ai-message-body {
+    padding: 0.82rem 0.85rem;
+    font-size: 0.88rem;
+  }
+
+  .ai-response-meta {
+    gap: 0.35rem;
+    padding: 0.5rem 0.6rem;
+    font-size: 0.5rem;
   }
 
   .ai-empty-state {

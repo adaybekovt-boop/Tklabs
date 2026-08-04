@@ -10,7 +10,7 @@ The AI chat uses the server-only `/api/demo` route. The public demo is available
 
 To enable NVIDIA locally, copy .env.example to .env.local and set NVIDIA_API_KEY_PRIMARY and NVIDIA_API_KEY_SECONDARY. Both keys stay server-side and are never bundled into the browser. The server uses the primary key first, swaps to the secondary key on quota or rate-limit responses, and then falls back to Clodex/local mode if both keys are unavailable. The chat sends a branded Erma key, while the server maps it to an allow-listed NVIDIA model ID.
 
-The current aliases are grouped as light (ErmaSpark lite 0.9, Erma 1.0 instant, Erma Polos 1.0 think), medium (Erma-code-lite, Erma Dalos 1.1, Erma nutron 1.2 think), and heavy (Erma reborn 1.3 think, Erma apolon 1.4, Erma AsiMasi 2 preview). The aliases are product names; their server-side mappings live in lib/models.ts and can be changed as the NVIDIA catalog changes.
+The current aliases are grouped as light (ErmaSpark lite 0.9, Erma 1.0 instant, Erma Polos 1.0 think), medium (Erma Dalos 1.1, Erma nutron 1.2 think), and heavy (Erma reborn 1.3 think, Erma apolon 1.4, Erma AsiMasi 2 preview). Coding models are intentionally not exposed. The aliases are product names; their server-side mappings live in lib/models.ts and can be changed as the NVIDIA catalog changes.
 
 ## Account-gated Clodex models
 
@@ -19,6 +19,8 @@ Signed-in users have a Profile link in the top-right of AI Chats. The profile ch
 Each enabled account is limited to five Clodex requests per 15-minute window. The Worker enforces this before calling Clodex, so the limit cannot be bypassed through the browser; failed provider calls release their reserved request. `CLODEX_ACCESS_CODE` and `CLODEX_API_KEY` are server-side secrets. Set both in `.env.local` for local use and in the GitHub repository secrets for deployment; never commit the real access code.
 
 The Cloudflare Worker uses the already-migrated `ClodexAccess` Durable Object with SQLite-backed storage for both account entitlements and hashed public-demo identifiers. The demo limiter reuses its request-window table, so the feature does not require a new Durable Object migration and remains compatible with versioned Workers Builds. The permitted model IDs are listed in `lib/clodex-models.ts` and are validated again by `/api/clodex`.
+
+All AI routes apply a server-side safety policy before a provider call. User text and attachments are treated as untrusted data; prompt-override attempts, system-prompt extraction, and code/script/command generation requests are rejected before consuming provider access. Provider output is buffered and checked before it is streamed to the browser, so code-like output is replaced by a refusal. The chat intentionally does not advertise coding models or coding suggestions.
 
 ## Useful commands
 

@@ -5,6 +5,7 @@ import {
   redeemClodexAccess,
 } from "@/lib/account-access";
 import { parseJsonBody, RequestBodyTooLargeError } from "@/lib/request-body";
+import { isTrustedRequestOrigin } from "@/lib/request-security";
 
 export const runtime = "edge";
 
@@ -34,6 +35,8 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
+  if (!isTrustedRequestOrigin(request)) return Response.json({ error: "Request origin is not allowed." }, { status: 403, headers: { "cache-control": "no-store" } });
+
   const session = await auth();
   const email = sessionEmail(session);
   if (!email) return Response.json({ error: "Authentication required." }, { status: 401, headers: { "cache-control": "no-store" } });

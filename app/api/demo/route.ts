@@ -1,7 +1,9 @@
 import { DemoRateLimitUnavailableError, consumeDemoRequest } from "@/lib/demo-rate-limit-access";
+import { AI_SAFETY_SYSTEM_PROMPT, classifyPromptSafety, isUnsafeAssistantOutput, safetyRefusal } from "@/lib/ai-safety";
 import { promptWithAttachments } from "@/lib/chat-prompt";
 import { getErmaModel, getErmaSystemPrompt, type ErmaModel } from "@/lib/models";
 import { parseJsonBody, RequestBodyTooLargeError } from "@/lib/request-body";
+import { isTrustedRequestOrigin } from "@/lib/request-security";
 
 export const runtime = "edge";
 
@@ -93,7 +95,7 @@ async function answerWithClodex(prompt: string, apiKey: string, language: Langua
     body: JSON.stringify({
       model: CLODEX_MODEL,
       max_tokens: 256,
-      system: language === "ru" ? "Отвечай на русском языке, ясно и кратко. Не выдумывай технические возможности объекта." : "Answer in English, clearly and briefly. Do not invent technical capabilities for the facility.",
+      system: `${language === "ru" ? "Отвечай на русском языке, ясно и кратко. Не выдумывай технические возможности объекта." : "Answer in English, clearly and briefly. Do not invent technical capabilities for the facility."}\n\n${AI_SAFETY_SYSTEM_PROMPT}`,
       messages: [{ role: "user", content: prompt }],
     }),
   });
@@ -101,6 +103,7 @@ async function answerWithClodex(prompt: string, apiKey: string, language: Langua
   if (!response.ok) throw new Error(`Clodex returned HTTP ${response.status}`);
   const answer = Array.isArray(payload?.content) ? payload.content.filter((part) => part.type === "text" || !part.type).map((part) => part.text ?? "").join("").trim() : typeof payload?.content === "string" ? payload.content.trim() : "";
   if (!answer) throw new Error("Clodex returned an empty response");
+  if (isUnsafeAssistantOutput(answer)) throw new Error("Provider output blocked by safety policy");
   return { answer, model: CLODEX_MODEL, provider: "clodex" };
 }
 
@@ -110,7 +113,7 @@ function nvidiaSystemPrompt(language: Language, model: ErmaModel) {
     language === "ru"
       ? "Отвечай на русском языке."
       : "Reply in English, but keep the persona's Russian catchphrases and quirks untranslated.";
-  return `${persona}\n\n${languageNote}`;
+  return `${persona}\n\n${languageNote}\n\n${AI_SAFETY_SYSTEM_PROMPT}`;
 }
 
 function maxTokensFor(model: ErmaModel) {
@@ -241,7 +244,7 @@ async function emitNvidiaStream(
   const reader = body.getReader();
   const decoder = new TextDecoder();
   let buffer = "";
-  let emittedText = false;
+  let generatedText = "";
 
   const handleLine = (line: string) => {
     if (!line.startsWith("data:")) return;
@@ -254,10 +257,7 @@ async function emitNvidiaStream(
       return;
     }
     const token = payload.choices?.[0]?.delta?.content;
-    if (typeof token === "string" && token) {
-      emittedText = true;
-      pushEvent(controller, encoder, { token });
-    }
+    if (typeof token === "string" && token) generatedText += token;
   };
 
   try {
@@ -271,21 +271,22 @@ async function emitNvidiaStream(
     }
     buffer += decoder.decode();
     if (buffer) handleLine(buffer);
-    if (!emittedText) throw new Error("NVIDIA returned no visible content");
-    pushEvent(controller, encoder, {
-      done: true,
-      meta: metaFor({ answer: "", provider: "nvidia", model: model.name, providerModel: model.nvidiaModel ?? undefined }, startedAt),
-    });
-  } catch {
-    if (emittedText) {
-      pushEvent(controller, encoder, {
-        done: true,
-        meta: metaFor({ answer: "", provider: "nvidia", model: model.name, providerModel: model.nvidiaModel ?? undefined }, startedAt),
-      });
+    if (!generatedText) throw new Error("NVIDIA returned no visible content");
+    if (isUnsafeAssistantOutput(generatedText)) {
+      await emitTextAnswer(controller, encoder, { answer: safetyRefusal(language), provider: "edge-fallback", model: model.name, providerModel: "safety policy" }, startedAt);
       return;
     }
+    await emitTextAnswer(controller, encoder, { answer: generatedText, provider: "nvidia", model: model.name, providerModel: model.nvidiaModel ?? undefined }, startedAt);
+  } catch {
     const fallback = await resolveFallback(prompt, language, model);
-    await emitTextAnswer(controller, encoder, fallback, startedAt);
+    await emitTextAnswer(
+      controller,
+      encoder,
+      isUnsafeAssistantOutput(fallback.answer)
+        ? { answer: safetyRefusal(language), provider: "edge-fallback", model: model.name, providerModel: "safety policy" }
+        : fallback,
+      startedAt,
+    );
   }
 }
 
@@ -301,6 +302,8 @@ function eventStream(stream: ReadableStream<Uint8Array>) {
 }
 
 export async function POST(request: Request) {
+  if (!isTrustedRequestOrigin(request)) return Response.json({ error: "Request origin is not allowed." }, { status: 403, headers: { "cache-control": "no-store" } });
+
   let body: ChatRequest | null;
   try {
     body = await parseJsonBody<ChatRequest>(request);
@@ -316,6 +319,9 @@ export async function POST(request: Request) {
   const providerPrompt = promptWithAttachments(prompt, body?.attachments);
 
   if (!prompt || prompt.length > MAX_PROMPT_LENGTH) return Response.json({ error: language === "ru" ? `Запрос должен содержать от 1 до ${MAX_PROMPT_LENGTH} символов.` : `Prompt must be 1-${MAX_PROMPT_LENGTH} characters.` }, { status: 400 });
+  if (classifyPromptSafety(providerPrompt).blocked) {
+    return Response.json({ error: safetyRefusal(language) }, { status: 403, headers: { "cache-control": "no-store" } });
+  }
 
   const clientIdentifier = request.headers.get("cf-connecting-ip")?.trim() || "anonymous";
   let allowance;

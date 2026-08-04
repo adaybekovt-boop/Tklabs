@@ -1,8 +1,10 @@
 import { auth } from "@/auth";
 import { AccountAccessUnavailableError, consumeClodexAccess, releaseClodexAccess } from "@/lib/account-access";
+import { AI_SAFETY_SYSTEM_PROMPT, classifyPromptSafety, isUnsafeAssistantOutput, safetyRefusal } from "@/lib/ai-safety";
 import { promptWithAttachments } from "@/lib/chat-prompt";
 import { getClodexModel } from "@/lib/clodex-models";
 import { parseJsonBody, RequestBodyTooLargeError } from "@/lib/request-body";
+import { isTrustedRequestOrigin } from "@/lib/request-security";
 
 export const runtime = "edge";
 
@@ -67,7 +69,7 @@ async function answerWithClodex(prompt: string, apiKey: string, model: string) {
     body: JSON.stringify({
       model,
       max_tokens: 256,
-      system: "Answer clearly and briefly in the user's language when possible.",
+      system: `Answer clearly and briefly in the user's language when possible.\n\n${AI_SAFETY_SYSTEM_PROMPT}`,
       messages: [{ role: "user", content: prompt }],
     }),
   });
@@ -83,6 +85,8 @@ async function answerWithClodex(prompt: string, apiKey: string, model: string) {
 }
 
 export async function POST(request: Request) {
+  if (!isTrustedRequestOrigin(request)) return Response.json({ error: "Request origin is not allowed." }, { status: 403, headers: { "cache-control": "no-store" } });
+
   const session = await auth();
   const email = session?.user?.email?.trim().toLowerCase();
   if (!email) return Response.json({ error: "Authentication required." }, { status: 401 });
@@ -99,6 +103,10 @@ export async function POST(request: Request) {
   const model = getClodexModel(typeof body?.model === "string" ? body.model : undefined);
   if (!prompt || prompt.length > MAX_PROMPT_LENGTH) return Response.json({ error: errorText(language, "prompt") }, { status: 400 });
   if (!model) return Response.json({ error: errorText(language, "access") }, { status: 403 });
+  const providerPrompt = promptWithAttachments(prompt, body?.attachments);
+  if (classifyPromptSafety(providerPrompt).blocked) {
+    return Response.json({ error: safetyRefusal(language) }, { status: 403, headers: { "cache-control": "no-store" } });
+  }
 
   const apiKey = process.env.CLODEX_API_KEY?.trim();
   if (!apiKey) return Response.json({ error: errorText(language, "configuration") }, { status: 503 });
@@ -128,9 +136,17 @@ export async function POST(request: Request) {
   }
 
   const startedAt = Date.now();
-  const providerPrompt = promptWithAttachments(prompt, body?.attachments);
   try {
-    const answer = await answerWithClodex(providerPrompt, apiKey, model.id);
+    const providerAnswer = await answerWithClodex(providerPrompt, apiKey, model.id);
+    const outputBlocked = isUnsafeAssistantOutput(providerAnswer);
+    if (outputBlocked) {
+      try {
+        await releaseClodexAccess(email);
+      } catch (releaseError) {
+        console.error("Unable to release blocked Clodex allowance", releaseError);
+      }
+    }
+    const answer = outputBlocked ? safetyRefusal(language) : providerAnswer;
     const encoder = new TextEncoder();
     const stream = new ReadableStream<Uint8Array>({
       start(controller) {

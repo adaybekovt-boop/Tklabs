@@ -7,7 +7,6 @@ import { AnimatePresence, motion } from "framer-motion";
 import {
   BookOpen,
   BrainCircuit,
-  Code2,
   Globe2,
   Home,
   MessageSquarePlus,
@@ -25,7 +24,7 @@ import type { ClodexAccessStatus } from "@/lib/clodex-access";
 import { CLODEX_MODELS } from "@/lib/clodex-models";
 import { ERMA_MODELS } from "@/lib/models";
 
-type CommandCategory = "learn" | "code" | "write";
+type CommandCategory = "learn" | "write";
 type ProviderMeta = { provider?: string; model: string; providerModel?: string; latencyMs?: number; cost?: string };
 type Message = { id: string; role: "user" | "assistant"; text: string; meta?: ProviderMeta };
 type AccessPayload = ClodexAccessStatus & { error?: string };
@@ -88,7 +87,6 @@ export function AIAssistantInterface({ account }: { account: AccountSummary }) {
 
   const categories = [
     { id: "learn" as const, label: copy.chat.learn, icon: <BookOpen size={15} /> },
-    { id: "code" as const, label: copy.chat.code, icon: <Code2 size={15} /> },
     { id: "write" as const, label: copy.chat.write, icon: <PenLine size={15} /> },
   ];
 

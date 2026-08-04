@@ -135,18 +135,12 @@ export const translations = {
       modelNotice: "Каталог Erma подключён к NVIDIA Build API. Доступность зависит от ключа и текущего каталога.",
       suggestionLabel: "Быстрый старт",
       learn: "Узнать",
-      code: "Код",
       write: "Текст",
       suggestions: {
         learn: [
           "Объясни теорию Большого взрыва простыми словами",
           "Как работает квантовый компьютер?",
           "Сравни нейросеть и обычную программу",
-        ],
-        code: [
-          "Создай React-компонент списка задач",
-          "Покажи безопасную авторизацию в Next.js",
-          "Объясни async/await на коротком примере",
         ],
         write: [
           "Напиши короткое письмо клиенту",
@@ -156,7 +150,6 @@ export const translations = {
       },
       suggestionTitles: {
         learn: "Идеи для изучения",
-        code: "Идеи для кода",
         write: "Идеи для текста",
       },
       userMessage: "Ваш запрос",
@@ -401,14 +394,12 @@ export const translations = {
       modelNotice: "The Erma catalog is connected to NVIDIA Build API. Availability depends on the key and current catalog.",
       suggestionLabel: "Quick start",
       learn: "Learn",
-      code: "Code",
       write: "Write",
       suggestions: {
         learn: ["Explain the Big Bang in simple words", "How does a quantum computer work?", "Compare a neural network with a regular program"],
-        code: ["Create a React todo component", "Show safe authentication in Next.js", "Explain async/await with a short example"],
         write: ["Write a short client email", "Describe a product in our site’s style", "Invent an AI future post without clichés"],
       },
-      suggestionTitles: { learn: "Learning ideas", code: "Coding ideas", write: "Writing ideas" },
+      suggestionTitles: { learn: "Learning ideas", write: "Writing ideas" },
       userMessage: "Your prompt",
       response: "Response",
       routeVerified: "route verified",
