@@ -4,6 +4,7 @@ import { LanguageProvider } from "@/components/providers/LanguageProvider";
 
 import "./globals.css";
 import "./ai.css";
+import "./auth.css";
 import "./chat.css";
 import "./chat-launch.css";
 

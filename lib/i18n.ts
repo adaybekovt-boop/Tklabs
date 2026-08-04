@@ -182,6 +182,10 @@ export const translations = {
       back: "\u0412\u0435\u0440\u043d\u0443\u0442\u044c\u0441\u044f \u043a \u043e\u0431\u044a\u0435\u043a\u0442\u0443",
       signOut: "\u0412\u044b\u0439\u0442\u0438",
       required: "\u0421\u043d\u0430\u0447\u0430\u043b\u0430 \u0432\u043e\u0439\u0434\u0438\u0442\u0435 \u0447\u0435\u0440\u0435\u0437 Google, \u0447\u0442\u043e\u0431\u044b \u043e\u0442\u043a\u0440\u044b\u0442\u044c AI-\u0447\u0430\u0442\u044b.",
+      legalNotice: "\u041f\u0440\u043e\u0434\u043e\u043b\u0436\u0430\u044f, \u0432\u044b \u043f\u0440\u0438\u043d\u0438\u043c\u0430\u0435\u0442\u0435",
+      legalTerms: "\u0423\u0441\u043b\u043e\u0432\u0438\u044f \u0438\u0441\u043f\u043e\u043b\u044c\u0437\u043e\u0432\u0430\u043d\u0438\u044f",
+      legalAnd: "\u0438",
+      legalPrivacy: "\u041f\u043e\u043b\u0438\u0442\u0438\u043a\u0443 \u043a\u043e\u043d\u0444\u0438\u0434\u0435\u043d\u0446\u0438\u0430\u043b\u044c\u043d\u043e\u0441\u0442\u0438",
     },
     status: {
       brand: "II / публичный статус",
@@ -428,6 +432,10 @@ export const translations = {
       back: "Return to facility",
       signOut: "Sign out",
       required: "Sign in with Google first to open AI Chats.",
+      legalNotice: "By continuing, you accept the",
+      legalTerms: "Terms of Service",
+      legalAnd: "and",
+      legalPrivacy: "Privacy Policy",
     },
     status: {
       brand: "II / public status",
