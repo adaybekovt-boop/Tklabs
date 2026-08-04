@@ -12,8 +12,8 @@
   margin: 1.2rem 0 0;
   font-family: var(--font-display);
   font-size: clamp(3.5rem, 7vw, 7.8rem);
-  font-weight: 400;
-  letter-spacing: -0.06em;
+  font-weight: 700;
+  letter-spacing: -0.025em;
   line-height: 0.87;
   text-transform: uppercase;
 }
@@ -21,7 +21,7 @@
 .chat-launch-copy p {
   max-width: 28rem;
   margin-top: 2rem;
-  color: rgb(255 255 255 / 0.58);
+  color: rgb(255 255 255 / 0.76);
   font-size: 1rem;
   line-height: 1.6;
 }
@@ -31,8 +31,8 @@
   min-height: 22rem;
   padding: 1.1rem;
   border: 1px solid rgb(255 255 255 / 0.2);
-  background: radial-gradient(circle at 70% 24%, rgb(231 255 73 / 0.12), transparent 12rem), linear-gradient(140deg, rgb(28 34 35 / 0.94), rgb(8 11 12 / 0.98));
-  box-shadow: 1rem 1rem 0 rgb(180 176 163 / 0.55), inset 0 0 3rem rgb(231 255 73 / 0.03);
+  background: var(--surface-2);
+  box-shadow: 0.75rem 0.75rem 0 rgb(180 176 163 / 0.4);
 }
 
 .chat-launch-panel::before {
@@ -53,18 +53,18 @@
   align-items: center;
   justify-content: space-between;
   gap: 0.5rem;
-  color: rgb(255 255 255 / 0.4);
-  font-family: "Courier New", Courier, monospace;
-  font-size: 0.56rem;
+  color: rgb(255 255 255 / 0.68);
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
   letter-spacing: 0.11em;
   text-transform: uppercase;
 }
 
 .chat-launch-panel-top span:first-child { display: inline-flex; align-items: center; gap: 0.45rem; color: var(--primary); }
-.chat-launch-icon { position: relative; z-index: 1; display: grid; width: 4.2rem; height: 4.2rem; place-items: center; margin: 5rem auto 2.3rem; border: 1px solid rgb(231 255 73 / 0.45); border-radius: 50%; color: var(--primary); background: rgb(231 255 73 / 0.08); box-shadow: 0 0 2rem rgb(231 255 73 / 0.12); }
-.chat-launch-status { justify-content: center; flex-wrap: wrap; color: rgb(255 255 255 / 0.52); text-align: center; }
+.chat-launch-icon { position: relative; z-index: 1; display: grid; width: 4.2rem; height: 4.2rem; place-items: center; margin: 5rem auto 2.3rem; border: 1px solid var(--primary); color: var(--primary); background: transparent; }
+.chat-launch-status { justify-content: center; flex-wrap: wrap; color: rgb(255 255 255 / 0.76); text-align: center; }
 .chat-launch-status svg { color: var(--primary); }
-.chat-launch-button { position: relative; z-index: 1; display: flex; align-items: center; justify-content: space-between; gap: 1rem; margin-top: 1.5rem; padding: 0.8rem 0.9rem; border: 1px solid var(--primary); color: var(--primary); font-family: "Courier New", Courier, monospace; font-size: 0.62rem; letter-spacing: 0.12em; text-transform: uppercase; transition: background 160ms ease, color 160ms ease; }
+.chat-launch-button { position: relative; z-index: 1; display: flex; align-items: center; justify-content: space-between; gap: 1rem; margin-top: 1.5rem; padding: 0.8rem 0.9rem; border: 1px solid var(--primary); color: var(--primary); font-family: var(--font-mono); font-size: 0.68rem; letter-spacing: 0.12em; text-transform: uppercase; transition: background 160ms ease, color 160ms ease; }
 .chat-launch-button:hover { background: var(--primary); color: #0b0d0e; }
 
 @media (max-width: 800px) { .chat-launch { grid-template-columns: 1fr; gap: 3rem; } }

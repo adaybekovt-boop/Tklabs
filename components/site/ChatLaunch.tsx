@@ -12,7 +12,7 @@ export function ChatLaunch() {
   return (
     <motion.div className="chat-launch" initial={{ opacity: 0, y: 24 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true, margin: "-60px" }} transition={{ duration: 0.5 }}>
       <div className="chat-launch-copy">
-        <span className="eyebrow text-[#e7ff49]">{copy.home.chatEyebrow}</span>
+        <span className="eyebrow text-[color:var(--primary)]">{copy.home.chatEyebrow}</span>
         <h2>{copy.home.chatTitleLead}<br /><em>{copy.home.chatTitleAccent}</em></h2>
         <p>{copy.home.chatCopy}</p>
       </div>

@@ -10,6 +10,8 @@ import type { TelemetrySnapshot } from "@/theatre/telemetry/sensors";
 
 const initialSnapshot = getTelemetrySnapshot(TELEMETRY_BOOT_SECONDS);
 
+/* The only motion left in this file tracks an actual changing value.
+   Entrance staggers and hover lifts were decoration and are gone. */
 function AnimatedValue({ value, accent }: { value: number; accent: string }) {
   const spring = useSpring(0, { mass: 0.2, stiffness: 80, damping: 15 });
   const display = useTransform(spring, (v) => v.toFixed(1));
@@ -23,18 +25,24 @@ function GraphBar({ height, accent }: { height: number; accent: string }) {
   return <motion.i style={{ height: useTransform(springHeight, (v) => `${v}%`) }} className={`sensor-${accent}`} />;
 }
 
-const cardVariants = { hidden: { opacity: 0, y: 24 }, visible: (i: number) => ({ opacity: 1, y: 0, transition: { duration: 0.4, delay: i * 0.06, ease: "easeOut" as const } }) };
-
 function SensorCard({ reading, index }: { reading: TelemetrySnapshot["readings"][number]; index: number }) {
   const { copy } = useLanguage();
   const label = copy.telemetry.labels[reading.id];
   return (
-    <motion.article className={`sensor-card sensor-${reading.accent}`} custom={index} initial="hidden" whileInView="visible" viewport={{ once: true, margin: "-40px" }} variants={cardVariants} whileHover={{ y: -2, transition: { duration: 0.2 } }}>
-      <div className="sensor-card-top"><span className="sensor-index">0{index + 1} / {copy.telemetry.sensor}</span><span className="sensor-live"><span className="status-dot" /> {copy.telemetry.live}</span></div>
+    <article className={`sensor-card sensor-${reading.accent}`}>
+      <div className="sensor-card-top">
+        <span className="sensor-index">0{index + 1} / {copy.telemetry.sensor}</span>
+        <span className="sensor-live"><span className="status-dot" /> {copy.telemetry.live}</span>
+      </div>
       <div className="sensor-value-row"><AnimatedValue value={reading.value} accent={reading.accent} /><span>{label}</span></div>
-      <div className="sensor-graph" aria-hidden="true">{reading.history.map((height, pointIndex) => <GraphBar key={`${reading.id}-${pointIndex}`} height={height} accent={reading.accent} />)}</div>
-      <div className="sensor-card-bottom"><span>{copy.telemetry.range}</span><span>{reading.unit === "ms" ? "200—520" : copy.telemetry.stable}</span></div>
-    </motion.article>
+      <div className="sensor-graph" aria-hidden="true">
+        {reading.history.map((height, pointIndex) => <GraphBar key={`${reading.id}-${pointIndex}`} height={height} accent={reading.accent} />)}
+      </div>
+      <div className="sensor-card-bottom">
+        <span>{copy.telemetry.range}</span>
+        <span>{reading.unit === "ms" ? "200—520" : copy.telemetry.stable}</span>
+      </div>
+    </article>
   );
 }
 
@@ -60,10 +68,23 @@ export function TelemetryWall() {
   }), [snapshot]);
 
   return (
-    <motion.div className="telemetry-wall" initial="hidden" whileInView="visible" viewport={{ once: true, margin: "-80px" }} variants={{ hidden: { opacity: 0, y: 30 }, visible: { opacity: 1, y: 0, transition: { duration: 0.55, ease: "easeOut" as const } } }}>
-      <div className="telemetry-summary"><div><span className="eyebrow">{copy.telemetry.eyebrow}</span><h2>{copy.telemetry.titleLead}<br /><em>{copy.telemetry.titleAccent}</em></h2></div><div className="telemetry-summary-copy"><p>{copy.telemetry.copy}</p><div className="summary-readout"><span>{copy.telemetry.uptime}</span><strong>{snapshot.uptime}</strong></div></div></div>
-      <div className="sensor-grid">{snapshot.readings.map((reading, index) => <SensorCard index={index} key={reading.id} reading={reading} />)}</div>
-      <div className="telemetry-footer"><span>{copy.telemetry.racks} / {snapshot.rackCount}</span><span>{copy.telemetry.load} / {summary.load}%</span><span>{copy.telemetry.coolant} / {summary.coolant}°C</span><span>{copy.telemetry.incidents} / {snapshot.incidentCount}</span></div>
-    </motion.div>
+    <div className="telemetry-wall">
+      <div className="telemetry-summary">
+        <div><h2>{copy.telemetry.titleLead}<br /><em>{copy.telemetry.titleAccent}</em></h2></div>
+        <div className="telemetry-summary-copy">
+          <p>{copy.telemetry.copy}</p>
+          <div className="summary-readout"><span>{copy.telemetry.uptime}</span><strong>{snapshot.uptime}</strong></div>
+        </div>
+      </div>
+      <div className="sensor-grid">
+        {snapshot.readings.map((reading, index) => <SensorCard index={index} key={reading.id} reading={reading} />)}
+      </div>
+      <div className="telemetry-footer">
+        <span>{copy.telemetry.racks} / {snapshot.rackCount}</span>
+        <span>{copy.telemetry.load} / {summary.load}%</span>
+        <span>{copy.telemetry.coolant} / {summary.coolant}°C</span>
+        <span>{copy.telemetry.incidents} / {snapshot.incidentCount}</span>
+      </div>
+    </div>
   );
 }

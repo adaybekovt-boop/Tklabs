@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 
 import { LanguageProvider } from "@/components/providers/LanguageProvider";
 
+import "./fonts.css";
 import "./globals.css";
 import "./ai.css";
 import "./auth.css";
@@ -12,8 +13,8 @@ export const metadata: Metadata = {
   title: "Imaginary Intelligence — вымышленный AI-объект",
   description: "Сатирический AI-объект с театральной телеметрией, честным раскрытием и отдельными AI-чатами.",
   icons: {
-    icon: "/favicon.svg",
-    shortcut: "/favicon.svg",
+    icon: "/tk-logo.png",
+    shortcut: "/tk-logo.png",
   },
 };
 
