@@ -62,13 +62,17 @@ export function DemoTerminal() {
         for (const message of messages) {
           const line = message.split("\n").find((part) => part.startsWith("data: "));
           if (!line) continue;
-          const payload = JSON.parse(line.slice(6)) as {
-            token?: string;
-            done?: boolean;
-            meta?: DemoMeta;
-          };
-          if (payload.token) setOutput((current) => current + payload.token);
-          if (payload.done && payload.meta) setMeta(payload.meta);
+          try {
+            const payload = JSON.parse(line.slice(6)) as {
+              token?: string;
+              done?: boolean;
+              meta?: DemoMeta;
+            };
+            if (payload.token) setOutput((current) => current + payload.token);
+            if (payload.done && payload.meta) setMeta(payload.meta);
+          } catch {
+            // Ignore malformed keep-alive chunks without losing the demo session.
+          }
         }
       }
 

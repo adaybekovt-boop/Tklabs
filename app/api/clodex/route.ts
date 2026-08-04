@@ -2,6 +2,7 @@ import { auth } from "@/auth";
 import { AccountAccessUnavailableError, consumeClodexAccess, releaseClodexAccess } from "@/lib/account-access";
 import { promptWithAttachments } from "@/lib/chat-prompt";
 import { getClodexModel } from "@/lib/clodex-models";
+import { parseJsonBody, RequestBodyTooLargeError } from "@/lib/request-body";
 
 export const runtime = "edge";
 
@@ -86,7 +87,13 @@ export async function POST(request: Request) {
   const email = session?.user?.email?.trim().toLowerCase();
   if (!email) return Response.json({ error: "Authentication required." }, { status: 401 });
 
-  const body = (await request.json().catch(() => null)) as ChatRequest | null;
+  let body: ChatRequest | null;
+  try {
+    body = await parseJsonBody<ChatRequest>(request);
+  } catch (error) {
+    if (error instanceof RequestBodyTooLargeError) return Response.json({ error: "Request body is too large." }, { status: 413 });
+    throw error;
+  }
   const prompt = typeof body?.prompt === "string" ? body.prompt.trim() : "";
   const language: Language = body?.locale === "en" ? "en" : "ru";
   const model = getClodexModel(typeof body?.model === "string" ? body.model : undefined);
@@ -107,7 +114,17 @@ export async function POST(request: Request) {
 
   if (!allowance.allowed) {
     const status = allowance.error === "limit_reached" ? 429 : 403;
-    return Response.json({ error: errorText(language, allowance.error === "limit_reached" ? "limit" : "access"), retryAt: allowance.retryAt }, { status });
+    const retryAfter = allowance.retryAt ? Math.max(1, Math.ceil((allowance.retryAt - Date.now()) / 1000)) : undefined;
+    return Response.json(
+      { error: errorText(language, allowance.error === "limit_reached" ? "limit" : "access"), retryAt: allowance.retryAt },
+      {
+        status,
+        headers: {
+          "cache-control": "no-store",
+          ...(retryAfter ? { "retry-after": String(retryAfter) } : {}),
+        },
+      },
+    );
   }
 
   const startedAt = Date.now();

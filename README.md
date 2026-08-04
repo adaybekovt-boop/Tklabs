@@ -6,7 +6,7 @@ A satirical AI facility built with React, TypeScript, Tailwind CSS 4 and Vinext.
 
 Run npm install, then npm run dev.
 
-The AI chat uses the server-only `/api/demo` route. NVIDIA Build API is the primary provider through its OpenAI-compatible chat completions endpoint; Clodex remains an optional fallback and the deterministic edge response is used when no provider is available. The composer accepts small `.txt` and `.md` attachments and sends their text as bounded prompt context; binary files are intentionally not accepted until a document pipeline is added.
+The AI chat uses the server-only `/api/demo` route. The public demo is available without sign-in and is limited to three requests per rolling 24-hour window by a SQLite-backed Durable Object. NVIDIA Build API is the primary provider through its OpenAI-compatible chat completions endpoint; Clodex remains an optional fallback and the deterministic edge response is used when no provider is available. The composer accepts small `.txt` and `.md` attachments and sends their text as bounded prompt context; binary files are intentionally not accepted until a document pipeline is added.
 
 To enable NVIDIA locally, copy .env.example to .env.local and set NVIDIA_API_KEY_PRIMARY and NVIDIA_API_KEY_SECONDARY. Both keys stay server-side and are never bundled into the browser. The server uses the primary key first, swaps to the secondary key on quota or rate-limit responses, and then falls back to Clodex/local mode if both keys are unavailable. The chat sends a branded Erma key, while the server maps it to an allow-listed NVIDIA model ID.
 

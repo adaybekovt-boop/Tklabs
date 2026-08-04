@@ -32,6 +32,19 @@ test("provider limits are durable and failed Clodex requests can release allowan
   assert.match(worker, /export \{ DemoRateLimit \}/);
 });
 
+test("guest demo access and request-size protection stay aligned", async () => {
+  const demoRoute = await text("app/api/demo/route.ts");
+  const requestBody = await text("lib/request-body.ts");
+  const nextConfig = await text("next.config.ts");
+
+  assert.doesNotMatch(demoRoute, /const session = await auth\(\)/);
+  assert.match(demoRoute, /parseJsonBody/);
+  assert.match(requestBody, /DEFAULT_JSON_BODY_LIMIT_BYTES/);
+  assert.match(requestBody, /RequestBodyTooLargeError/);
+  assert.match(nextConfig, /X-Content-Type-Options/);
+  assert.match(nextConfig, /Referrer-Policy/);
+});
+
 test("chat controls match the server contract", async () => {
   const interfaceSource = await text("components/ui/ai-assistant-interface.tsx");
   const inputSource = await text("components/ui/ai-chat-input.tsx");

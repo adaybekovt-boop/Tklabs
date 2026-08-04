@@ -1,7 +1,7 @@
-import { auth } from "@/auth";
 import { DemoRateLimitUnavailableError, consumeDemoRequest } from "@/lib/demo-rate-limit-access";
 import { promptWithAttachments } from "@/lib/chat-prompt";
 import { getErmaModel, getErmaSystemPrompt, type ErmaModel } from "@/lib/models";
+import { parseJsonBody, RequestBodyTooLargeError } from "@/lib/request-body";
 
 export const runtime = "edge";
 
@@ -301,10 +301,13 @@ function eventStream(stream: ReadableStream<Uint8Array>) {
 }
 
 export async function POST(request: Request) {
-  const session = await auth();
-  if (!session) return Response.json({ error: "Authentication required." }, { status: 401 });
-
-  const body = (await request.json().catch(() => null)) as ChatRequest | null;
+  let body: ChatRequest | null;
+  try {
+    body = await parseJsonBody<ChatRequest>(request);
+  } catch (error) {
+    if (error instanceof RequestBodyTooLargeError) return Response.json({ error: "Request body is too large." }, { status: 413 });
+    throw error;
+  }
   const prompt = typeof body?.prompt === "string" ? body.prompt.trim() : "";
   const language: Language = body?.locale === "en" ? "en" : "ru";
   const model = getErmaModel(typeof body?.model === "string" ? body.model : undefined);
@@ -322,7 +325,19 @@ export async function POST(request: Request) {
     if (!(error instanceof DemoRateLimitUnavailableError)) console.error("Unable to consume demo allowance", error);
     return Response.json({ error: language === "ru" ? "Демо временно недоступно. Попробуйте позже." : "The demo is temporarily unavailable. Please try again later." }, { status: 503 });
   }
-  if (!allowance.allowed) return Response.json({ error: language === "ru" ? "Дневной лимит демо исчерпан. Попробуйте завтра." : "Daily demo limit reached. Please try again tomorrow.", retryAt: allowance.resetAt }, { status: 429 });
+  if (!allowance.allowed) {
+    const retryAfter = allowance.resetAt ? Math.max(1, Math.ceil((allowance.resetAt - Date.now()) / 1000)) : undefined;
+    return Response.json(
+      { error: language === "ru" ? "Дневной лимит демо исчерпан. Попробуйте завтра." : "Daily demo limit reached. Please try again tomorrow.", retryAt: allowance.resetAt },
+      {
+        status: 429,
+        headers: {
+          "cache-control": "no-store",
+          ...(retryAfter ? { "retry-after": String(retryAfter) } : {}),
+        },
+      },
+    );
+  }
 
   const startedAt = Date.now();
   const encoder = new TextEncoder();
