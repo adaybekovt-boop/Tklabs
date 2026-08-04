@@ -163,3 +163,12 @@ test("Erma Lite defaults to a useful assistant and the chat path stays fast", as
   assert.match(chatStyles, /object-fit: contain/);
   assert.match(chatStyles, /image-rendering: pixelated/);
 });
+
+test("local chat portraits bypass the broken edge image optimizer", async () => {
+  const interfaceSource = await text("components/ui/ai-assistant-interface.tsx");
+  const siteNav = await text("components/site/SiteNav.tsx");
+
+  assert.match(interfaceSource, /src="\/erma-model\.png" alt="Erma AI" width=\{96\} height=\{96\} unoptimized/);
+  assert.match(interfaceSource, /src="\/erma-model\.png" alt="Erma AI" width=\{42\} height=\{42\} unoptimized/);
+  assert.match(siteNav, /src="\/tk-logo\.png" alt="" width=\{28\} height=\{28\} unoptimized/);
+});
