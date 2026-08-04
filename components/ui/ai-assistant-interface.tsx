@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import Image from "next/image";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import {
   BookOpen,
@@ -13,6 +13,7 @@ import {
   PenLine,
   ShieldCheck,
   Sparkles,
+  Square,
   UserRound,
   X,
 } from "lucide-react";
@@ -29,6 +30,7 @@ type ProviderMeta = { provider?: string; model: string; providerModel?: string; 
 type Message = { id: string; role: "user" | "assistant"; text: string; meta?: ProviderMeta };
 type AccessPayload = ClodexAccessStatus & { error?: string };
 type AccountSummary = { name: string; email: string; image: string | null };
+type SpeechState = { messageId: string | null; status: "idle" | "speaking" | "paused" };
 
 function initials(name: string) {
   return name.split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part[0]).join("").toUpperCase() || "TK";
@@ -43,6 +45,15 @@ export function AIAssistantInterface({ account }: { account: AccountSummary }) {
   const [isSending, setIsSending] = useState(false);
   const [reasonEnabled, setReasonEnabled] = useState(false);
   const [clodexAccess, setClodexAccess] = useState<ClodexAccessStatus | null>(null);
+  const [speechState, setSpeechState] = useState<SpeechState>({ messageId: null, status: "idle" });
+  const [speechNotice, setSpeechNotice] = useState<{ messageId: string; text: string } | null>(null);
+  const speechUtteranceRef = useRef<SpeechSynthesisUtterance | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (typeof window !== "undefined") window.speechSynthesis?.cancel();
+    };
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -97,6 +108,59 @@ export function AIAssistantInterface({ account }: { account: AccountSummary }) {
       if (last?.role === "assistant") next[next.length - 1] = update(last);
       return next;
     });
+  };
+
+  const stopSpeech = () => {
+    if (typeof window !== "undefined") window.speechSynthesis?.cancel();
+    speechUtteranceRef.current = null;
+    setSpeechState({ messageId: null, status: "idle" });
+  };
+
+  const speakMessage = (message: Message) => {
+    if (!message.text.trim()) return;
+    if (typeof window === "undefined" || !("speechSynthesis" in window) || typeof SpeechSynthesisUtterance === "undefined") {
+      setSpeechNotice({ messageId: message.id, text: copy.chat.voiceUnsupported });
+      return;
+    }
+
+    if (speechState.messageId === message.id && speechState.status === "speaking") {
+      window.speechSynthesis.pause();
+      setSpeechState({ messageId: message.id, status: "paused" });
+      return;
+    }
+    if (speechState.messageId === message.id && speechState.status === "paused") {
+      window.speechSynthesis.resume();
+      setSpeechState({ messageId: message.id, status: "speaking" });
+      return;
+    }
+
+    window.speechSynthesis.cancel();
+    const utterance = new SpeechSynthesisUtterance(message.text);
+    const languagePrefix = language === "ru" ? "ru" : "en";
+    const voice = window.speechSynthesis.getVoices().find((candidate) => candidate.lang.toLowerCase().startsWith(languagePrefix));
+    if (voice) utterance.voice = voice;
+    utterance.lang = language === "ru" ? "ru-RU" : "en-US";
+    utterance.rate = 0.9;
+    utterance.pitch = 0.62;
+    utterance.volume = 1;
+    speechUtteranceRef.current = utterance;
+    setSpeechNotice(null);
+    setSpeechState({ messageId: message.id, status: "speaking" });
+    utterance.onstart = () => {
+      if (speechUtteranceRef.current === utterance) setSpeechState({ messageId: message.id, status: "speaking" });
+    };
+    utterance.onend = () => {
+      if (speechUtteranceRef.current !== utterance) return;
+      speechUtteranceRef.current = null;
+      setSpeechState({ messageId: null, status: "idle" });
+    };
+    utterance.onerror = () => {
+      if (speechUtteranceRef.current !== utterance) return;
+      speechUtteranceRef.current = null;
+      setSpeechState({ messageId: null, status: "idle" });
+      setSpeechNotice({ messageId: message.id, text: copy.chat.voiceUnsupported });
+    };
+    window.speechSynthesis.speak(utterance);
   };
 
   async function handleSubmit(prompt: string, meta: ChatSubmitMeta) {
@@ -271,6 +335,34 @@ export function AIAssistantInterface({ account }: { account: AccountSummary }) {
                         {message.text || copy.common.thinking}
                         {message.role === "assistant" && isSending && !message.text && <span className="ai-message-caret">▌</span>}
                       </div>
+                      {message.role === "assistant" && message.text && (
+                        <div className="ai-message-actions">
+                          <button
+                            type="button"
+                            className={"ai-voice-button" + (speechState.messageId === message.id ? " is-active" : "")}
+                            onClick={() => speakMessage(message)}
+                            aria-label={speechState.messageId === message.id && speechState.status === "speaking"
+                              ? copy.chat.pauseSpeech
+                              : speechState.messageId === message.id && speechState.status === "paused"
+                                ? copy.chat.resumeSpeech
+                                : copy.chat.speak}
+                          >
+                            <span className="ai-pixel-voice" aria-hidden="true"><i /><i /><i /><i /></span>
+                            {speechState.messageId === message.id && speechState.status === "speaking"
+                              ? copy.chat.pauseSpeech
+                              : speechState.messageId === message.id && speechState.status === "paused"
+                                ? copy.chat.resumeSpeech
+                                : copy.chat.speak}
+                          </button>
+                          {speechState.messageId === message.id && (
+                            <button type="button" className="ai-voice-stop-button" onClick={stopSpeech} aria-label={copy.chat.stopSpeech}>
+                              <Square size={12} />
+                              <span>{copy.chat.stopSpeech}</span>
+                            </button>
+                          )}
+                          {speechNotice?.messageId === message.id && <span className="ai-voice-notice" role="status">{speechNotice.text}</span>}
+                        </div>
+                      )}
                       {message.meta && (
                         <div className="ai-response-meta">
                           <span><ShieldCheck size={13} /> {copy.chat.routeVerified}</span>
@@ -333,7 +425,14 @@ export function AIAssistantInterface({ account }: { account: AccountSummary }) {
                   effort: copy.chat.effort,
                   modelMenu: copy.chat.modelMenu,
                   comingSoon: copy.chat.modelSoon,
+                  voice: copy.chat.voice,
+                  voiceInput: copy.chat.voiceInput,
+                  voiceStopInput: copy.chat.voiceStopInput,
+                  voiceListening: copy.chat.voiceListening,
+                  voiceUnsupported: copy.chat.voiceUnsupported,
+                  voiceDenied: copy.chat.voiceDenied,
                 }}
+                voiceLanguage={language === "ru" ? "ru-RU" : "en-US"}
                 onSubmit={handleSubmit}
               />
               <div className="ai-chat-input-footnote">

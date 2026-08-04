@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import Image from "next/image";
-import { ChevronDown, FileText, Loader2, Paperclip, Send, X } from "lucide-react";
+import { ChevronDown, FileText, Loader2, Mic, MicOff, Paperclip, Send, X } from "lucide-react";
 
 export type ChatModelOption = {
   id: string;
@@ -23,6 +23,40 @@ export type ChatAttachment = {
   content: string;
 };
 
+type BrowserSpeechRecognitionResult = {
+  isFinal: boolean;
+  0?: { transcript?: string };
+};
+
+type BrowserSpeechRecognitionEvent = {
+  results: { length: number; [index: number]: BrowserSpeechRecognitionResult };
+};
+
+type BrowserSpeechRecognitionError = { error?: string };
+
+type BrowserSpeechRecognition = {
+  lang: string;
+  continuous: boolean;
+  interimResults: boolean;
+  onresult: ((event: BrowserSpeechRecognitionEvent) => void) | null;
+  onerror: ((event: BrowserSpeechRecognitionError) => void) | null;
+  onend: (() => void) | null;
+  start: () => void;
+  stop: () => void;
+  abort: () => void;
+};
+
+type BrowserSpeechRecognitionConstructor = new () => BrowserSpeechRecognition;
+
+function getSpeechRecognitionConstructor() {
+  if (typeof window === "undefined") return null;
+  const speechWindow = window as Window & {
+    SpeechRecognition?: BrowserSpeechRecognitionConstructor;
+    webkitSpeechRecognition?: BrowserSpeechRecognitionConstructor;
+  };
+  return speechWindow.SpeechRecognition ?? speechWindow.webkitSpeechRecognition ?? null;
+}
+
 export interface AIChatInputProps {
   defaultValue?: string;
   placeholder: string;
@@ -39,7 +73,14 @@ export interface AIChatInputProps {
     effort: string;
     modelMenu: string;
     comingSoon: string;
+    voice: string;
+    voiceInput: string;
+    voiceStopInput: string;
+    voiceListening: string;
+    voiceUnsupported: string;
+    voiceDenied: string;
   };
+  voiceLanguage: string;
   onSubmit: (value: string, meta: ChatSubmitMeta) => void;
 }
 
@@ -48,7 +89,7 @@ function AttachmentPreview() {
 }
 
 export const AIChatInput = React.forwardRef<HTMLDivElement, AIChatInputProps>(function AIChatInput(
-  { defaultValue = "", placeholder, ariaLabel, disabled = false, models, modelImageSrc, effortLabels, labels, onSubmit },
+  { defaultValue = "", placeholder, ariaLabel, disabled = false, models, modelImageSrc, effortLabels, labels, voiceLanguage, onSubmit },
   ref,
 ) {
   const [value, setValue] = React.useState(defaultValue);
@@ -57,10 +98,71 @@ export const AIChatInput = React.forwardRef<HTMLDivElement, AIChatInputProps>(fu
   const [effortIndex, setEffortIndex] = React.useState(Math.min(1, Math.max(0, effortLabels.length - 1)));
   const [isModelMenuOpen, setIsModelMenuOpen] = React.useState(false);
   const [isFocused, setIsFocused] = React.useState(Boolean(defaultValue));
+  const [isListening, setIsListening] = React.useState(false);
+  const [voiceNotice, setVoiceNotice] = React.useState("");
   const fileInputRef = React.useRef<HTMLInputElement>(null);
   const textareaRef = React.useRef<HTMLTextAreaElement>(null);
+  const recognitionRef = React.useRef<BrowserSpeechRecognition | null>(null);
+  const recognitionBaseRef = React.useRef("");
   const selectedModel = models.find((model) => model.id === selectedModelId) ?? models[0];
-  const isExpanded = isFocused || isModelMenuOpen || value.length > 0 || attachments.length > 0;
+  const isExpanded = isFocused || isModelMenuOpen || isListening || value.length > 0 || attachments.length > 0;
+
+  React.useEffect(() => {
+    return () => {
+      recognitionRef.current?.abort();
+    };
+  }, []);
+
+  const stopListening = () => {
+    recognitionRef.current?.stop();
+    setIsListening(false);
+  };
+
+  const startListening = () => {
+    if (disabled) return;
+    if (isListening) {
+      stopListening();
+      return;
+    }
+
+    const SpeechRecognition = getSpeechRecognitionConstructor();
+    if (!SpeechRecognition) {
+      setVoiceNotice(labels.voiceUnsupported);
+      return;
+    }
+
+    try {
+      const recognition = new SpeechRecognition();
+      recognition.lang = voiceLanguage;
+      recognition.continuous = false;
+      recognition.interimResults = true;
+      recognitionBaseRef.current = value.trim();
+      recognition.onresult = (event) => {
+        let transcript = "";
+        for (let index = 0; index < event.results.length; index += 1) {
+          transcript += event.results[index]?.[0]?.transcript ?? "";
+        }
+        const base = recognitionBaseRef.current;
+        setValue([base, transcript.trim()].filter(Boolean).join(base ? " " : ""));
+        setIsFocused(true);
+      };
+      recognition.onerror = (event) => {
+        setIsListening(false);
+        setVoiceNotice(event.error === "not-allowed" || event.error === "service-not-allowed" ? labels.voiceDenied : labels.voiceUnsupported);
+      };
+      recognition.onend = () => {
+        setIsListening(false);
+        recognitionRef.current = null;
+      };
+      recognitionRef.current = recognition;
+      setVoiceNotice("");
+      setIsListening(true);
+      recognition.start();
+    } catch {
+      setIsListening(false);
+      setVoiceNotice(labels.voiceUnsupported);
+    }
+  };
 
 
   const handleFiles = async (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -179,6 +281,17 @@ export const AIChatInput = React.forwardRef<HTMLDivElement, AIChatInputProps>(fu
           <button type="button" className="ai-chat-icon-button" onClick={() => fileInputRef.current?.click()} aria-label={labels.addFile}>
             <Paperclip size={15} />
           </button>
+          <button
+            type="button"
+            className={"ai-chat-icon-button ai-chat-mic-button" + (isListening ? " is-listening" : "")}
+            onClick={startListening}
+            disabled={disabled}
+            aria-pressed={isListening}
+            aria-label={isListening ? labels.voiceStopInput : labels.voiceInput}
+            title={isListening ? labels.voiceStopInput : labels.voiceInput}
+          >
+            {isListening ? <MicOff size={15} /> : <Mic size={15} />}
+          </button>
           <input ref={fileInputRef} className="sr-only" type="file" multiple accept="text/plain,text/markdown,.txt,.md" onChange={(event) => void handleFiles(event)} />
         </div>
 
@@ -186,6 +299,12 @@ export const AIChatInput = React.forwardRef<HTMLDivElement, AIChatInputProps>(fu
           {disabled ? <Loader2 size={15} className="ai-spin" /> : <Send size={15} />}
         </button>
       </div>
+      {(isListening || voiceNotice) && (
+        <div className={"ai-chat-voice-notice" + (isListening ? " is-listening" : "")} role="status" aria-live="polite">
+          <Mic size={12} />
+          <span>{isListening ? labels.voiceListening : voiceNotice}</span>
+        </div>
+      )}
     </div>
   );
 });

@@ -105,3 +105,21 @@ test("chat controls match the server contract", async () => {
   assert.match(inputSource, /accept="text\/plain,text\/markdown/);
   assert.match(inputSource, /file\.text\(\)/);
 });
+
+test("chat voice controls stay browser-local and accessible", async () => {
+  const interfaceSource = await text("components/ui/ai-assistant-interface.tsx");
+  const inputSource = await text("components/ui/ai-chat-input.tsx");
+  const chatStyles = await text("app/chat.css");
+  const translations = await text("lib/i18n.ts");
+
+  assert.match(interfaceSource, /speechSynthesis/);
+  assert.match(interfaceSource, /SpeechSynthesisUtterance/);
+  assert.match(interfaceSource, /ai-pixel-voice/);
+  assert.match(inputSource, /webkitSpeechRecognition/);
+  assert.match(inputSource, /voiceLanguage/);
+  assert.match(inputSource, /aria-pressed=\{isListening\}/);
+  assert.match(chatStyles, /ai-chat-mic-button\.is-listening/);
+  assert.match(chatStyles, /ai-pixel-voice/);
+  assert.match(translations, /voiceUnsupported/);
+  assert.match(translations, /voiceDenied/);
+});
