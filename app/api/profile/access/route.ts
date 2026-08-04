@@ -5,6 +5,7 @@ import {
   redeemClodexAccess,
 } from "@/lib/account-access";
 import { parseJsonBody, RequestBodyTooLargeError } from "@/lib/request-body";
+import { isPrivilegedAiEmail, privilegedAccessStatus } from "@/lib/privileged-access";
 import { isTrustedRequestOrigin } from "@/lib/request-security";
 
 export const runtime = "edge";
@@ -24,6 +25,7 @@ export async function GET() {
   const session = await auth();
   const email = sessionEmail(session);
   if (!email) return Response.json({ error: "Authentication required." }, { status: 401, headers: { "cache-control": "no-store" } });
+  if (isPrivilegedAiEmail(email)) return Response.json(privilegedAccessStatus(), { headers: { "cache-control": "no-store" } });
 
   try {
     return Response.json(await getClodexAccessStatus(email), { headers: { "cache-control": "no-store" } });
@@ -40,6 +42,7 @@ export async function POST(request: Request) {
   const session = await auth();
   const email = sessionEmail(session);
   if (!email) return Response.json({ error: "Authentication required." }, { status: 401, headers: { "cache-control": "no-store" } });
+  if (isPrivilegedAiEmail(email)) return Response.json(privilegedAccessStatus(), { headers: { "cache-control": "no-store" } });
 
   let body: { code?: unknown } | null;
   try {

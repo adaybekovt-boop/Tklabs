@@ -22,7 +22,9 @@ Each enabled account is limited to five Clodex requests per 15-minute window. Th
 
 The Cloudflare Worker uses the already-migrated `ClodexAccess` Durable Object with SQLite-backed storage for both account entitlements and hashed public-demo identifiers. The demo limiter reuses its request-window table, so the feature does not require a new Durable Object migration and remains compatible with versioned Workers Builds. The permitted model IDs are listed in `lib/clodex-models.ts` and are validated again by `/api/clodex`.
 
-All AI routes apply a server-side safety policy before a provider call. User text and attachments are treated as untrusted data; prompt-override attempts, system-prompt extraction, and code/script/command generation requests are rejected before consuming provider access. Provider output is buffered and checked before it is streamed to the browser, so code-like output is replaced by a refusal. The chat intentionally does not advertise coding models or coding suggestions.
+Public AI routes apply a server-side safety policy before a provider call. User text and attachments are treated as untrusted data; prompt-override attempts, system-prompt extraction, and code/script/command generation requests are rejected before consuming provider access. Provider output is buffered and checked before it is streamed to the browser, so code-like output is replaced by a refusal. The public chat intentionally does not advertise coding models or coding suggestions.
+
+The two verified operator accounts `kandykbayevtagir@gmail.com` and `adaybekovt@bk.ru` receive server-side unlimited AI access. Their Google-session email is matched exactly on the server, so the browser cannot claim privileged status. These accounts may request implementation help and code, while system-prompt extraction, secret disclosure and instruction-override attempts remain blocked. If the Durable Object limiter is temporarily unavailable, these allow-listed accounts can still use the provider route; ordinary public demo traffic remains fail-closed with a temporary-unavailable response.
 
 ## Useful commands
 

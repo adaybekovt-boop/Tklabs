@@ -3,6 +3,7 @@ export const CLODEX_REQUEST_WINDOW_MS = 15 * 60 * 1000;
 
 export type ClodexAccessStatus = {
   active: boolean;
+  unlimited?: boolean;
   limit: number;
   windowMs: number;
   remaining: number;

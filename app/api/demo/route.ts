@@ -1,13 +1,16 @@
+import { auth } from "@/auth";
 import { DemoRateLimitUnavailableError, consumeDemoRequest } from "@/lib/demo-rate-limit-access";
-import { AI_SAFETY_SYSTEM_PROMPT, classifyPromptSafety, isUnsafeAssistantOutput, safetyRefusal } from "@/lib/ai-safety";
+import { AI_PRIVILEGED_SYSTEM_PROMPT, AI_SAFETY_SYSTEM_PROMPT, classifyPromptSafety, isUnsafeAssistantOutput, safetyRefusal } from "@/lib/ai-safety";
 import { promptWithAttachments } from "@/lib/chat-prompt";
 import { getErmaModel, getErmaSystemPrompt, type ErmaModel } from "@/lib/models";
+import { isPrivilegedAiEmail } from "@/lib/privileged-access";
 import { parseJsonBody, RequestBodyTooLargeError } from "@/lib/request-body";
 import { isTrustedRequestOrigin } from "@/lib/request-security";
 
 export const runtime = "edge";
 
 const MAX_PROMPT_LENGTH = 180;
+const PRIVILEGED_MAX_PROMPT_LENGTH = 16_000;
 const NVIDIA_ENDPOINT = "https://integrate.api.nvidia.com/v1/chat/completions";
 const NVIDIA_KEY_COOLDOWN_MS = 15 * 60 * 1000;
 const PROVIDER_TIMEOUT_MS = 30 * 1000;
@@ -88,14 +91,14 @@ function getClodexApiKey() {
   return process.env.CLODEX_API_KEY?.trim() ?? "";
 }
 
-async function answerWithClodex(prompt: string, apiKey: string, language: Language): Promise<ProviderResult> {
+async function answerWithClodex(prompt: string, apiKey: string, language: Language, allowCode: boolean): Promise<ProviderResult> {
   const response = await fetchWithTimeout(CLODEX_ENDPOINT, {
     method: "POST",
     headers: { "anthropic-version": "2023-06-01", "content-type": "application/json", "x-api-key": apiKey },
     body: JSON.stringify({
       model: CLODEX_MODEL,
       max_tokens: 256,
-      system: `${language === "ru" ? "Отвечай на русском языке, ясно и кратко. Не выдумывай технические возможности объекта." : "Answer in English, clearly and briefly. Do not invent technical capabilities for the facility."}\n\n${AI_SAFETY_SYSTEM_PROMPT}`,
+      system: `${language === "ru" ? "Отвечай на русском языке, ясно и кратко. Не выдумывай технические возможности объекта." : "Answer in English, clearly and briefly. Do not invent technical capabilities for the facility."}\n\n${allowCode ? AI_PRIVILEGED_SYSTEM_PROMPT : AI_SAFETY_SYSTEM_PROMPT}`,
       messages: [{ role: "user", content: prompt }],
     }),
   });
@@ -103,17 +106,17 @@ async function answerWithClodex(prompt: string, apiKey: string, language: Langua
   if (!response.ok) throw new Error(`Clodex returned HTTP ${response.status}`);
   const answer = Array.isArray(payload?.content) ? payload.content.filter((part) => part.type === "text" || !part.type).map((part) => part.text ?? "").join("").trim() : typeof payload?.content === "string" ? payload.content.trim() : "";
   if (!answer) throw new Error("Clodex returned an empty response");
-  if (isUnsafeAssistantOutput(answer)) throw new Error("Provider output blocked by safety policy");
+  if (isUnsafeAssistantOutput(answer, { allowCode })) throw new Error("Provider output blocked by safety policy");
   return { answer, model: CLODEX_MODEL, provider: "clodex" };
 }
 
-function nvidiaSystemPrompt(language: Language, model: ErmaModel) {
+function nvidiaSystemPrompt(language: Language, model: ErmaModel, allowCode: boolean) {
   const persona = getErmaSystemPrompt(model);
   const languageNote =
     language === "ru"
       ? "Отвечай на русском языке."
       : "Reply in English, but keep the persona's Russian catchphrases and quirks untranslated.";
-  return `${persona}\n\n${languageNote}\n\n${AI_SAFETY_SYSTEM_PROMPT}`;
+  return `${persona}\n\n${languageNote}\n\n${allowCode ? AI_PRIVILEGED_SYSTEM_PROMPT : AI_SAFETY_SYSTEM_PROMPT}`;
 }
 
 function maxTokensFor(model: ErmaModel) {
@@ -129,12 +132,12 @@ function reasoningBudgetFor(model: ErmaModel, effort: ReasoningEffort) {
   return Math.min(2048, maxBudget);
 }
 
-function buildNvidiaBody(prompt: string, language: Language, model: ErmaModel, requestedReasoning: boolean, effort: ReasoningEffort) {
+function buildNvidiaBody(prompt: string, language: Language, model: ErmaModel, requestedReasoning: boolean, effort: ReasoningEffort, allowCode: boolean) {
   const reasoningEnabled = model.reasoning || requestedReasoning || effort === "high";
   const body: Record<string, unknown> = {
     model: model.nvidiaModel,
     messages: [
-      { role: "system", content: nvidiaSystemPrompt(language, model) },
+      { role: "system", content: nvidiaSystemPrompt(language, model, allowCode) },
       { role: "user", content: prompt },
     ],
     temperature: reasoningEnabled ? 0.6 : 0.7,
@@ -151,11 +154,11 @@ function buildNvidiaBody(prompt: string, language: Language, model: ErmaModel, r
   return body;
 }
 
-async function fetchNvidiaBody(prompt: string, language: Language, model: ErmaModel, apiKey: string, requestedReasoning: boolean, effort: ReasoningEffort) {
+async function fetchNvidiaBody(prompt: string, language: Language, model: ErmaModel, apiKey: string, requestedReasoning: boolean, effort: ReasoningEffort, allowCode: boolean) {
   const response = await fetchWithTimeout(NVIDIA_ENDPOINT, {
     method: "POST",
     headers: { authorization: `Bearer ${apiKey}`, "content-type": "application/json", accept: "text/event-stream" },
-    body: JSON.stringify(buildNvidiaBody(prompt, language, model, requestedReasoning, effort)),
+    body: JSON.stringify(buildNvidiaBody(prompt, language, model, requestedReasoning, effort, allowCode)),
   });
   if (!response.ok) {
     const errorText = await response.text().catch(() => "");
@@ -167,7 +170,7 @@ async function fetchNvidiaBody(prompt: string, language: Language, model: ErmaMo
   return response.body;
 }
 
-async function fetchNvidiaWithKeyRotation(prompt: string, language: Language, model: ErmaModel, requestedReasoning: boolean, effort: ReasoningEffort) {
+async function fetchNvidiaWithKeyRotation(prompt: string, language: Language, model: ErmaModel, requestedReasoning: boolean, effort: ReasoningEffort, allowCode: boolean) {
   const keys = getNvidiaApiKeys();
   const candidateIndexes = getAvailableNvidiaKeyIndexes(keys);
   if (!candidateIndexes.length) throw new Error("No NVIDIA API key is available");
@@ -176,7 +179,7 @@ async function fetchNvidiaWithKeyRotation(prompt: string, language: Language, mo
   for (const keyIndex of candidateIndexes) {
     const apiKey = keys[keyIndex];
     try {
-      const body = await fetchNvidiaBody(prompt, language, model, apiKey, requestedReasoning, effort);
+      const body = await fetchNvidiaBody(prompt, language, model, apiKey, requestedReasoning, effort, allowCode);
       preferredNvidiaKeyIndex = keyIndex;
       return body;
     } catch (error) {
@@ -189,11 +192,11 @@ async function fetchNvidiaWithKeyRotation(prompt: string, language: Language, mo
   throw lastRotationError ?? new Error("NVIDIA API keys are unavailable");
 }
 
-async function resolveFallback(prompt: string, language: Language, model: ErmaModel): Promise<ProviderResult> {
+async function resolveFallback(prompt: string, language: Language, model: ErmaModel, allowCode: boolean): Promise<ProviderResult> {
   const clodexApiKey = getClodexApiKey();
   if (clodexApiKey) {
     try {
-      const result = await answerWithClodex(prompt, clodexApiKey, language);
+      const result = await answerWithClodex(prompt, clodexApiKey, language, allowCode);
       return { ...result, model: model.name, providerModel: result.model };
     } catch {
       // The deterministic answer keeps the demo usable when an optional provider is unavailable.
@@ -240,6 +243,7 @@ async function emitNvidiaStream(
   language: Language,
   model: ErmaModel,
   startedAt: number,
+  allowCode: boolean,
 ) {
   const reader = body.getReader();
   const decoder = new TextDecoder();
@@ -272,17 +276,17 @@ async function emitNvidiaStream(
     buffer += decoder.decode();
     if (buffer) handleLine(buffer);
     if (!generatedText) throw new Error("NVIDIA returned no visible content");
-    if (isUnsafeAssistantOutput(generatedText)) {
+    if (isUnsafeAssistantOutput(generatedText, { allowCode })) {
       await emitTextAnswer(controller, encoder, { answer: safetyRefusal(language), provider: "edge-fallback", model: model.name, providerModel: "safety policy" }, startedAt);
       return;
     }
     await emitTextAnswer(controller, encoder, { answer: generatedText, provider: "nvidia", model: model.name, providerModel: model.nvidiaModel ?? undefined }, startedAt);
   } catch {
-    const fallback = await resolveFallback(prompt, language, model);
+    const fallback = await resolveFallback(prompt, language, model, allowCode);
     await emitTextAnswer(
       controller,
       encoder,
-      isUnsafeAssistantOutput(fallback.answer)
+      isUnsafeAssistantOutput(fallback.answer, { allowCode })
         ? { answer: safetyRefusal(language), provider: "edge-fallback", model: model.name, providerModel: "safety policy" }
         : fallback,
       startedAt,
@@ -317,42 +321,54 @@ export async function POST(request: Request) {
   const requestedReasoning = body?.reason === true;
   const effort = normalizeEffort(body?.effort);
   const providerPrompt = promptWithAttachments(prompt, body?.attachments);
-
-  if (!prompt || prompt.length > MAX_PROMPT_LENGTH) return Response.json({ error: language === "ru" ? `Запрос должен содержать от 1 до ${MAX_PROMPT_LENGTH} символов.` : `Prompt must be 1-${MAX_PROMPT_LENGTH} characters.` }, { status: 400 });
-  if (classifyPromptSafety(providerPrompt).blocked) {
-    return Response.json({ error: safetyRefusal(language) }, { status: 403, headers: { "cache-control": "no-store" } });
-  }
-
-  const clientIdentifier = request.headers.get("cf-connecting-ip")?.trim() || "anonymous";
-  let allowance;
+  let sessionEmail = "";
   try {
-    allowance = await consumeDemoRequest(clientIdentifier);
-  } catch (error) {
-    if (!(error instanceof DemoRateLimitUnavailableError)) console.error("Unable to consume demo allowance", error);
-    return Response.json({ error: language === "ru" ? "Демо временно недоступно. Попробуйте позже." : "The demo is temporarily unavailable. Please try again later." }, { status: 503 });
+    const session = await auth();
+    sessionEmail = session?.user?.email?.trim().toLowerCase() ?? "";
+  } catch {
+    // Guest demo requests must remain usable when optional auth configuration is absent.
   }
-  if (!allowance.allowed) {
-    const retryAfter = allowance.resetAt ? Math.max(1, Math.ceil((allowance.resetAt - Date.now()) / 1000)) : undefined;
-    return Response.json(
-      { error: language === "ru" ? "Дневной лимит демо исчерпан. Попробуйте завтра." : "Daily demo limit reached. Please try again tomorrow.", retryAt: allowance.resetAt },
-      {
-        status: 429,
-        headers: {
-          "cache-control": "no-store",
-          ...(retryAfter ? { "retry-after": String(retryAfter) } : {}),
+  const privilegedAccount = isPrivilegedAiEmail(sessionEmail);
+  const promptLimit = privilegedAccount ? PRIVILEGED_MAX_PROMPT_LENGTH : MAX_PROMPT_LENGTH;
+
+  if (!prompt || prompt.length > promptLimit) return Response.json({ error: language === "ru" ? `Запрос должен содержать от 1 до ${promptLimit} символов.` : `Prompt must be 1-${promptLimit} characters.` }, { status: 400 });
+  const safetyDecision = classifyPromptSafety(providerPrompt, { allowCode: privilegedAccount });
+  if (safetyDecision.blocked) {
+    return Response.json({ error: safetyRefusal(language, safetyDecision.reason) }, { status: 403, headers: { "cache-control": "no-store" } });
+  }
+
+  if (!privilegedAccount) {
+    const clientIdentifier = request.headers.get("cf-connecting-ip")?.trim() || "anonymous";
+    let allowance;
+    try {
+      allowance = await consumeDemoRequest(clientIdentifier);
+    } catch (error) {
+      if (!(error instanceof DemoRateLimitUnavailableError)) console.error("Unable to consume demo allowance", error);
+      return Response.json({ error: language === "ru" ? "Демо временно недоступно. Попробуйте позже." : "The demo is temporarily unavailable. Please try again later." }, { status: 503 });
+    }
+    if (!allowance.allowed) {
+      const retryAfter = allowance.resetAt ? Math.max(1, Math.ceil((allowance.resetAt - Date.now()) / 1000)) : undefined;
+      return Response.json(
+        { error: language === "ru" ? "Дневной лимит демо исчерпан. Попробуйте завтра." : "Daily demo limit reached. Please try again tomorrow.", retryAt: allowance.resetAt },
+        {
+          status: 429,
+          headers: {
+            "cache-control": "no-store",
+            ...(retryAfter ? { "retry-after": String(retryAfter) } : {}),
+          },
         },
-      },
-    );
+      );
+    }
   }
 
   const startedAt = Date.now();
   const encoder = new TextEncoder();
   if (getNvidiaApiKeys().length && model.nvidiaModel) {
     try {
-      const upstreamBody = await fetchNvidiaWithKeyRotation(providerPrompt, language, model, requestedReasoning, effort);
+      const upstreamBody = await fetchNvidiaWithKeyRotation(providerPrompt, language, model, requestedReasoning, effort, privilegedAccount);
       const stream = new ReadableStream<Uint8Array>({
         async start(controller) {
-          await emitNvidiaStream(upstreamBody, controller, encoder, providerPrompt, language, model, startedAt);
+          await emitNvidiaStream(upstreamBody, controller, encoder, providerPrompt, language, model, startedAt, privilegedAccount);
           controller.close();
         },
       });
@@ -362,7 +378,7 @@ export async function POST(request: Request) {
     }
   }
 
-  const result = await resolveFallback(providerPrompt, language, model);
+  const result = await resolveFallback(providerPrompt, language, model, privilegedAccount);
   const stream = new ReadableStream<Uint8Array>({
     async start(controller) {
       await emitTextAnswer(controller, encoder, result, startedAt);
