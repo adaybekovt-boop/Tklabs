@@ -2,6 +2,7 @@
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { ArrowLeft, KeyRound, Search, ShieldCheck, Sparkles } from "lucide-react";
 
 import { SignOutButton } from "@/components/auth/SignOutButton";
@@ -107,7 +108,7 @@ export function ProfilePage({ account }: { account: ProfileAccount }) {
 
       <section className={styles.hero}>
         <div className={styles.avatar} aria-hidden="true">
-          {account.image ? <img src={account.image} alt="" referrerPolicy="no-referrer" /> : initials(account.name)}
+          {account.image ? <Image src={account.image} alt="" width={64} height={64} unoptimized referrerPolicy="no-referrer" /> : initials(account.name)}
         </div>
         <div>
           <span className={styles.eyebrow}>АККАУНТ / GOOGLE</span>
@@ -127,10 +128,17 @@ export function ProfilePage({ account }: { account: ProfileAccount }) {
         </div>
 
         {isLoading ? <p className={styles.muted}>Проверяем доступ…</p> : accessActive ? (
-          <div className={styles.limitRow}>
-            <div><strong>{access?.remaining} / {access?.limit}</strong><span>запросов доступно</span></div>
-            <p>Лимит: {access?.limit} запросов за 15 минут; {resetLabel(access?.resetAt ?? null)}</p>
-          </div>
+          access?.unlimited ? (
+            <div className={styles.limitRow}>
+              <div><strong>∞</strong><span>безлимитный доступ</span></div>
+              <p>Привилегированный Google-аккаунт: лимит запросов и кодогенерация разрешены.</p>
+            </div>
+          ) : (
+            <div className={styles.limitRow}>
+              <div><strong>{access?.remaining} / {access?.limit}</strong><span>запросов доступно</span></div>
+              <p>Лимит: {access?.limit} запросов за 15 минут; {resetLabel(access?.resetAt ?? null)}</p>
+            </div>
+          )
         ) : (
           <>
             <p className={styles.muted}>Введите выданный код доступа. Он проверяется на сервере и привязывается только к этому Google-аккаунту.</p>
@@ -161,7 +169,7 @@ export function ProfilePage({ account }: { account: ProfileAccount }) {
             <div><span className={styles.eyebrow}>КАТАЛОГ</span><h2 id="catalog-title">Доступные модели</h2></div>
             <label className={styles.search}><Search size={15} aria-hidden="true" /><span className="sr-only">Поиск моделей</span><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Поиск по моделям" /></label>
           </div>
-          <p className={styles.catalogNote}><Sparkles size={14} /> Модели будут доступны в селекторе AI Chats. Лимит применяется сервером к каждому запросу.</p>
+          <p className={styles.catalogNote}><Sparkles size={14} /> Модели будут доступны в селекторе AI Chats. {access?.unlimited ? "Для этого аккаунта лимит не применяется." : "Лимит применяется сервером к каждому запросу."}</p>
           <div className={styles.modelGrid}>
             {models.map((model) => <article className={styles.model} key={model.key}><span>Clodex</span><strong>{model.id}</strong></article>)}
           </div>

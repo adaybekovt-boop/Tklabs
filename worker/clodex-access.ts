@@ -1,4 +1,4 @@
-import { DurableObject } from "cloudflare:workers";
+import { DurableObject, type DurableObjectState } from "cloudflare:workers";
 
 import {
   CLODEX_REQUEST_LIMIT,
@@ -6,7 +6,13 @@ import {
   type ClodexAccessStatus,
   type ClodexConsumeResult,
   type ClodexRedeemResult,
+  type ClodexReleaseResult,
 } from "@/lib/clodex-access";
+import {
+  DEMO_REQUEST_LIMIT,
+  DEMO_REQUEST_WINDOW_MS,
+  type DemoConsumeResult,
+} from "@/lib/demo-rate-limit";
 
 type ClodexAccessEnv = {
   CLODEX_ACCESS_CODE?: string;
@@ -67,9 +73,9 @@ export class ClodexAccess extends DurableObject<ClodexAccessEnv> {
     return this.ctx.storage.sql.exec<{ activated_at: number }>("SELECT activated_at FROM access_grants WHERE slot = 1").toArray().length > 0;
   }
 
-  private currentUsage(now: number) {
+  private currentUsage(now: number, windowMs = CLODEX_REQUEST_WINDOW_MS) {
     const row = this.ctx.storage.sql.exec<UsageRow>("SELECT window_start, request_count FROM request_windows WHERE slot = 1").toArray()[0];
-    if (!row || now - row.window_start >= CLODEX_REQUEST_WINDOW_MS) return null;
+    if (!row || now - row.window_start >= windowMs) return null;
     return row;
   }
 
@@ -129,7 +135,7 @@ export class ClodexAccess extends DurableObject<ClodexAccessEnv> {
         ...this.status(now),
         redeemed: false,
         error: "invalid_code",
-        ...(updatedAttempts.attempt_count >= REDEMPTION_ATTEMPT_LIMIT
+        ...(updatedAttempts.attemptCount >= REDEMPTION_ATTEMPT_LIMIT
           ? { retryAt: updatedAttempts.windowStart + CLODEX_REQUEST_WINDOW_MS }
           : {}),
       };
@@ -173,5 +179,53 @@ export class ClodexAccess extends DurableObject<ClodexAccessEnv> {
       resetAt: windowStart + CLODEX_REQUEST_WINDOW_MS,
       allowed: true,
     };
+  }
+
+  /** Reuse the already-migrated request window table for the public demo. */
+  async consumeDemo(): Promise<DemoConsumeResult> {
+    const now = Date.now();
+    const existing = this.currentUsage(now, DEMO_REQUEST_WINDOW_MS);
+    if (existing && existing.request_count >= DEMO_REQUEST_LIMIT) {
+      return {
+        limit: DEMO_REQUEST_LIMIT,
+        windowMs: DEMO_REQUEST_WINDOW_MS,
+        remaining: 0,
+        resetAt: existing.window_start + DEMO_REQUEST_WINDOW_MS,
+        allowed: false,
+      };
+    }
+
+    const windowStart = existing?.window_start ?? now;
+    const requestCount = (existing?.request_count ?? 0) + 1;
+    this.ctx.storage.sql.exec(
+      "INSERT INTO request_windows (slot, window_start, request_count) VALUES (1, ?, ?) ON CONFLICT(slot) DO UPDATE SET window_start = excluded.window_start, request_count = excluded.request_count",
+      windowStart,
+      requestCount,
+    );
+
+    return {
+      limit: DEMO_REQUEST_LIMIT,
+      windowMs: DEMO_REQUEST_WINDOW_MS,
+      remaining: DEMO_REQUEST_LIMIT - requestCount,
+      resetAt: windowStart + DEMO_REQUEST_WINDOW_MS,
+      allowed: true,
+    };
+  }
+
+  async release(): Promise<ClodexReleaseResult> {
+    const now = Date.now();
+    const existing = this.currentUsage(now);
+    if (!existing) return { ...this.status(now), released: false };
+
+    if (existing.request_count <= 1) {
+      this.ctx.storage.sql.exec("DELETE FROM request_windows WHERE slot = 1");
+    } else {
+      this.ctx.storage.sql.exec(
+        "UPDATE request_windows SET request_count = ? WHERE slot = 1",
+        existing.request_count - 1,
+      );
+    }
+
+    return { ...this.status(now), released: true };
   }
 }
