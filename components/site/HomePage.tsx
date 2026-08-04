@@ -8,6 +8,7 @@ import { HonestFooter } from "@/components/site/HonestFooter";
 import { SiteNav } from "@/components/site/SiteNav";
 import { TelemetryWall } from "@/components/site/TelemetryWall";
 import { ChatLaunch } from "@/components/site/ChatLaunch";
+import { WorkspaceCapabilities } from "@/components/site/WorkspaceCapabilities";
 import Hero from "@/components/ui/hero";
 
 export function HomePage() {
@@ -17,6 +18,7 @@ export function HomePage() {
     <main className="brand-site">
       <SiteNav />
       <Hero />
+      <WorkspaceCapabilities />
 
       <section className="facility-section site-section" id="facility">
         <div className="section-heading page-grid">

@@ -27,6 +27,7 @@
   display: flex;
   min-width: 0;
   flex-direction: column;
+  overflow-y: auto;
   padding: 1rem;
   border-right: 1px solid var(--line);
   background: rgb(24 24 24 / 0.96);
@@ -129,7 +130,13 @@
   border: 1px solid transparent;
   background: transparent;
   color: var(--text-primary);
+  cursor: pointer;
   text-align: left;
+}
+
+.ai-history-item:hover {
+  border-color: var(--line-strong);
+  background: var(--surface-2);
 }
 
 .ai-history-item.is-active {
@@ -157,6 +164,25 @@
   color: var(--text-tertiary);
   font-size: 0.66rem;
   line-height: 1.4;
+}
+
+.ai-history-empty,
+.ai-history-local-note {
+  margin: 0;
+  color: var(--text-tertiary);
+  font-family: var(--font-mono);
+  font-size: 0.62rem;
+  line-height: 1.45;
+}
+
+.ai-history-empty {
+  padding: 0.65rem 0.75rem;
+  border: 1px dashed var(--line);
+}
+
+.ai-history-local-note {
+  margin-top: 0.7rem;
+  padding: 0 0.2rem;
 }
 
 .ai-sidebar-spacer {
@@ -763,6 +789,11 @@
 }
 
 .ai-chat-tools button.is-active:last-child {
+  border-color: var(--orange);
+  color: var(--orange);
+}
+
+.ai-chat-tools button.is-doubutsi {
   border-color: var(--orange);
   color: var(--orange);
 }

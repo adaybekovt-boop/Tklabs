@@ -42,6 +42,7 @@ export function SiteNav() {
       </nav>
 
       <div className="site-nav-meta">
+        <Link className="site-nav-cta" href="/ai-chats">{copy.nav.chatAction}</Link>
         <button
           type="button"
           className="lang-toggle"

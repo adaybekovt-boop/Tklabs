@@ -25,14 +25,65 @@ import { useLanguage } from "@/components/providers/LanguageProvider";
 import { AIChatInput, type ChatModelOption, type ChatSubmitMeta } from "@/components/ui/ai-chat-input";
 import type { ClodexAccessStatus } from "@/lib/clodex-access";
 import { CLODEX_MODELS } from "@/lib/clodex-models";
-import { ERMA_MODELS, type ErmaTone } from "@/lib/models";
+import { ERMA_MODELS, normalizeErmaTone, type ErmaTone } from "@/lib/models";
 
 type CommandCategory = "learn" | "write";
 type ProviderMeta = { provider?: string; model: string; providerModel?: string; latencyMs?: number; cost?: string };
 type Message = { id: string; role: "user" | "assistant"; text: string; meta?: ProviderMeta };
+type ChatSession = { id: string; title: string; updatedAt: number; tone: ErmaTone; messages: Message[] };
 type AccessPayload = ClodexAccessStatus & { error?: string };
 type AccountSummary = { name: string; email: string; image: string | null };
 type SpeechState = { messageId: string | null; status: "idle" | "speaking" | "paused" };
+
+const MAX_CHAT_SESSIONS = 12;
+const MAX_STORED_MESSAGES = 40;
+const MAX_STORED_MESSAGE_CHARS = 24000;
+
+function createChatId() {
+  return `chat-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
+function messagesForStorage(messages: Message[]) {
+  let remaining = MAX_STORED_MESSAGE_CHARS;
+  return messages.slice(-MAX_STORED_MESSAGES).map((message) => {
+    const text = message.text.slice(0, Math.max(0, remaining));
+    remaining -= text.length;
+    return { ...message, text };
+  }).filter((message) => message.text || message.role === "user");
+}
+
+function titleForMessages(messages: Message[], fallback: string) {
+  const prompt = messages.find((message) => message.role === "user")?.text.trim().replace(/\s+/g, " ");
+  return prompt ? prompt.slice(0, 52) : fallback;
+}
+
+function readChatSessions(raw: string | null): ChatSession[] {
+  if (!raw) return [];
+  try {
+    const parsed = JSON.parse(raw) as unknown;
+    if (!Array.isArray(parsed)) return [];
+    return parsed.flatMap((value) => {
+      if (!value || typeof value !== "object") return [];
+      const candidate = value as Partial<ChatSession>;
+      if (typeof candidate.id !== "string" || !Array.isArray(candidate.messages)) return [];
+      const messages = candidate.messages.flatMap((message) => {
+        if (!message || typeof message !== "object") return [];
+        const item = message as Partial<Message>;
+        if ((item.role !== "user" && item.role !== "assistant") || typeof item.text !== "string") return [];
+        return [{ id: typeof item.id === "string" ? item.id : `${candidate.id}-${Math.random()}`, role: item.role, text: item.text.slice(0, MAX_STORED_MESSAGE_CHARS), meta: item.meta }];
+      });
+      return [{
+        id: candidate.id,
+        title: typeof candidate.title === "string" ? candidate.title.slice(0, 60) : "Chat",
+        updatedAt: typeof candidate.updatedAt === "number" ? candidate.updatedAt : Date.now(),
+        tone: normalizeErmaTone(candidate.tone),
+        messages: messagesForStorage(messages),
+      }];
+    }).slice(0, MAX_CHAT_SESSIONS);
+  } catch {
+    return [];
+  }
+}
 
 function initials(name: string) {
   return name.split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part[0]).join("").toUpperCase() || "TK";
@@ -41,6 +92,10 @@ function initials(name: string) {
 export function AIAssistantInterface({ account }: { account: AccountSummary }) {
   const { copy, language } = useLanguage();
   const [messages, setMessages] = useState<Message[]>([]);
+  const historyStorageKey = `tklabs.chat-history.v1:${account.email.trim().toLowerCase() || "guest"}`;
+  const [sessions, setSessions] = useState<ChatSession[]>([]);
+  const [activeChatId, setActiveChatId] = useState("current");
+  const [historyReady, setHistoryReady] = useState(false);
   const [activeCategory, setActiveCategory] = useState<CommandCategory | null>(null);
   const [composerSeed, setComposerSeed] = useState(0);
   const [composerValue, setComposerValue] = useState("");
@@ -56,14 +111,53 @@ export function AIAssistantInterface({ account }: { account: AccountSummary }) {
 
   useEffect(() => {
     const savedTone = window.localStorage.getItem("tklabs.erma-tone");
-    if (savedTone !== "professional" && savedTone !== "character") return;
+    if (savedTone !== "professional" && savedTone !== "character" && savedTone !== "doubutsi") return;
     const frame = window.requestAnimationFrame(() => setErmaTone(savedTone));
     return () => window.cancelAnimationFrame(frame);
   }, []);
 
   useEffect(() => {
+    let cancelled = false;
+    const frame = window.requestAnimationFrame(() => {
+      if (cancelled) return;
+      const storedSessions = readChatSessions(window.localStorage.getItem(historyStorageKey));
+      setSessions(storedSessions);
+      const latest = storedSessions[0];
+      if (latest) {
+        setActiveChatId(latest.id);
+        setMessages(latest.messages);
+        setErmaTone(latest.tone);
+      }
+      setHistoryReady(true);
+    });
+    return () => {
+      cancelled = true;
+      window.cancelAnimationFrame(frame);
+    };
+  }, [historyStorageKey]);
+
+  useEffect(() => {
     window.localStorage.setItem("tklabs.erma-tone", ermaTone);
   }, [ermaTone]);
+
+  useEffect(() => {
+    if (!historyReady || !messages.length) return;
+    const timer = window.setTimeout(() => {
+      const storedMessageSet = messagesForStorage(messages);
+      setSessions((current) => {
+        const next = [{
+          id: activeChatId,
+          title: titleForMessages(storedMessageSet, copy.chat.session),
+          updatedAt: Date.now(),
+          tone: ermaTone,
+          messages: storedMessageSet,
+        }, ...current.filter((session) => session.id !== activeChatId)].slice(0, MAX_CHAT_SESSIONS);
+        window.localStorage.setItem(historyStorageKey, JSON.stringify(next));
+        return next;
+      });
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, [activeChatId, copy.chat.session, ermaTone, historyReady, historyStorageKey, messages]);
 
   useEffect(() => {
     return () => {
@@ -204,11 +298,17 @@ export function AIAssistantInterface({ account }: { account: AccountSummary }) {
     setIsSending(false);
   };
 
+  const cancelGeneration = () => {
+    activeRequestRef.current?.abort();
+    activeRequestRef.current = null;
+    setIsSending(false);
+  };
+
   async function handleSubmit(prompt: string, meta: ChatSubmitMeta) {
     stopSpeech();
-    const stamp = Date.now();
-    const userMessage: Message = { id: String(stamp) + "-user", role: "user", text: prompt };
-    const assistantMessage: Message = { id: String(stamp) + "-assistant", role: "assistant", text: "" };
+    const stamp = createChatId();
+    const userMessage: Message = { id: stamp + "-user", role: "user", text: prompt };
+    const assistantMessage: Message = { id: stamp + "-assistant", role: "assistant", text: "" };
     setMessages((current) => [...current, userMessage, assistantMessage]);
     setIsSending(true);
     setActiveCategory(null);
@@ -277,13 +377,39 @@ export function AIAssistantInterface({ account }: { account: AccountSummary }) {
     setComposerSeed((seed) => seed + 1);
   };
 
-  const clearChat = () => {
+  const startNewChat = () => {
     stopSpeech();
+    cancelGeneration();
+    setActiveChatId(createChatId());
     setMessages([]);
     setActiveCategory(null);
     setComposerValue("");
     setComposerSeed((seed) => seed + 1);
   };
+
+  const selectChat = (session: ChatSession) => {
+    stopSpeech();
+    cancelGeneration();
+    setActiveChatId(session.id);
+    setMessages(session.messages);
+    setErmaTone(session.tone);
+    setActiveCategory(null);
+    setComposerValue("");
+    setComposerSeed((seed) => seed + 1);
+  };
+
+  const cycleErmaTone = () => {
+    setErmaTone((tone) => {
+      const tones: ErmaTone[] = ["professional", "character", "doubutsi"];
+      return tones[(tones.indexOf(tone) + 1) % tones.length];
+    });
+  };
+
+  const toneLabel = ermaTone === "professional"
+    ? copy.chat.professionalMode
+    : ermaTone === "character"
+      ? copy.chat.characterMode
+      : copy.chat.doubutsiMode;
 
   const providerLabel = (provider?: string) => provider === "nvidia" ? copy.chat.nvidia : provider === "clodex" ? copy.chat.clodex : copy.chat.edgeFallback;
   const providerCost = (provider?: string) => provider === "edge-fallback" ? copy.chat.localCost : copy.chat.providerBilled;
@@ -297,20 +423,23 @@ export function AIAssistantInterface({ account }: { account: AccountSummary }) {
           <span><strong>TK LABS</strong><small>{copy.nav.aiChats}</small></span>
         </Link>
 
-        <button type="button" className="ai-new-chat-button" onClick={clearChat}>
+        <button type="button" className="ai-new-chat-button" onClick={startNewChat}>
           <MessageSquarePlus size={15} />
           <span>{copy.chat.newChat}</span>
           <kbd>⌘K</kbd>
         </button>
 
         <div className="ai-sidebar-section-label">{copy.chat.history}</div>
-        <button type="button" className="ai-history-item is-active" onClick={() => undefined}>
-          <span className="status-dot" />
-          <span>
-            <strong>{copy.chat.session}</strong>
-            <small>{messages.length ? String(messages.length) + " / " + copy.chat.response.toLowerCase() : copy.chat.noHistory}</small>
-          </span>
-        </button>
+        {sessions.length ? sessions.map((session) => (
+          <button type="button" className={"ai-history-item" + (session.id === activeChatId ? " is-active" : "")} onClick={() => selectChat(session)} key={session.id}>
+            <span className="status-dot" />
+            <span>
+              <strong>{session.title}</strong>
+              <small>{new Date(session.updatedAt).toLocaleDateString(language === "ru" ? "ru-RU" : "en-US")} · {session.messages.length} {copy.chat.response.toLowerCase()}</small>
+            </span>
+          </button>
+        )) : <p className="ai-history-empty">{copy.chat.noHistory}</p>}
+        <p className="ai-history-local-note">{copy.chat.historyLocal}</p>
 
         <div className="ai-sidebar-spacer" />
 
@@ -460,7 +589,7 @@ export function AIAssistantInterface({ account }: { account: AccountSummary }) {
               </div>
               <div className="ai-chat-tools">
                 <button type="button" className={reasonEnabled ? "is-active" : ""} aria-pressed={reasonEnabled} onClick={() => setReasonEnabled((enabled) => !enabled)}><BrainCircuit size={13} /> {copy.chat.reason}</button>
-                <button type="button" className={ermaTone === "character" ? "is-active" : ""} aria-pressed={ermaTone === "character"} onClick={() => setErmaTone((tone) => tone === "professional" ? "character" : "professional")}><Sparkles size={13} /> {ermaTone === "professional" ? copy.chat.professionalMode : copy.chat.characterMode}</button>
+                <button type="button" className={ermaTone === "professional" ? "" : `is-active ${ermaTone === "doubutsi" ? "is-doubutsi" : ""}`} aria-pressed={ermaTone !== "professional"} onClick={cycleErmaTone}><Sparkles size={13} /> {toneLabel}</button>
                 {isSending && <button type="button" className="ai-stop-generation-button" onClick={stopGeneration}><Square size={13} /> {copy.chat.stopGeneration}</button>}
               </div>
               <AIChatInput

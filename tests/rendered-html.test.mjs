@@ -11,13 +11,14 @@ async function render() {
   return worker.fetch(new Request("http://localhost/", { headers: { accept: "text/html" } }), { ASSETS: { fetch: async () => new Response("Not found", { status: 404 }) } }, { waitUntil() {}, passThroughOnException() {} });
 }
 
-test("server-renders the localized Imaginary Intelligence facility", async () => {
+test("server-renders the localized TK Labs AI workspace", async () => {
   const response = await render();
   assert.equal(response.status, 200);
   assert.match(response.headers.get("content-type") ?? "", /^text\/html\b/i);
   const html = await response.text();
   assert.match(html, /Imaginary Intelligence/i);
-  assert.match(html, /Будущее/);
+  assert.match(html, /AI-рабочее|AI workspace/);
+  assert.match(html, /Открыть AI-чат|Open AI Chat/);
   assert.match(html, /AI-чаты|AI Chats/);
   assert.match(html, /Основная навигация|Primary navigation/);
   assert.doesNotMatch(html, /Ready to assist|Your site is taking shape|codex-preview|Building your site/i);

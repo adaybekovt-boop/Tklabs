@@ -172,3 +172,26 @@ test("local chat portraits bypass the broken edge image optimizer", async () => 
   assert.match(interfaceSource, /src="\/erma-model\.png" alt="Erma AI" width=\{42\} height=\{42\} unoptimized/);
   assert.match(siteNav, /src="\/tk-logo\.png" alt="" width=\{28\} height=\{28\} unoptimized/);
 });
+
+test("workspace entry point and chat history contracts stay present", async () => {
+  const hero = await text("components/ui/hero.tsx");
+  const capabilities = await text("components/site/WorkspaceCapabilities.tsx");
+  const siteNav = await text("components/site/SiteNav.tsx");
+  const interfaceSource = await text("components/ui/ai-assistant-interface.tsx");
+  const models = await text("lib/models.ts");
+
+  assert.match(hero, /hero-erma-card/);
+  assert.match(hero, /hero-secondary/);
+  assert.match(hero, /href="\/ai-chats"/);
+  assert.match(hero, /unoptimized priority/);
+  assert.match(capabilities, /capabilityAskTitle/);
+  assert.match(capabilities, /capabilitySpeakTitle/);
+  assert.match(capabilities, /capabilityResultTitle/);
+  assert.match(siteNav, /site-nav-cta/);
+  assert.match(interfaceSource, /tklabs\.chat-history\.v1/);
+  assert.match(interfaceSource, /localStorage/);
+  assert.match(interfaceSource, /activeChatId/);
+  assert.match(interfaceSource, /doubutsi/);
+  assert.match(models, /ERMA_DOUBUTSI_STYLE/);
+  assert.match(models, /normalizeErmaTone/);
+});

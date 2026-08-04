@@ -5,8 +5,8 @@ import { auth } from "@/auth";
 import { AIChatsPage } from "@/components/site/AIChatsPage";
 
 export const metadata: Metadata = {
-  title: "AI-чаты — Imaginary Intelligence",
-  description: "Отдельное рабочее пространство Imaginary Intelligence для потоковых AI-ответов.",
+  title: "AI-чат Erma — TK Labs",
+  description: "Рабочее пространство Erma AI с голосовым вводом, озвучкой ответов и локальной историей чатов.",
 };
 
 export default async function AIChatsRoute() {

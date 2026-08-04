@@ -1,9 +1,10 @@
 "use client";
 
-import { ArrowDownRight } from "lucide-react";
+import Image from "next/image";
+import Link from "next/link";
+import { ArrowRight, CheckCircle2, Languages, Mic2, ShieldCheck, Zap } from "lucide-react";
 
 import { useLanguage } from "@/components/providers/LanguageProvider";
-import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
 export type HeroProps = { className?: string };
@@ -11,12 +12,11 @@ export type HeroProps = { className?: string };
 export function Hero({ className }: HeroProps) {
   const { copy } = useLanguage();
 
-  /* A fixed readout, not a scrolling ticker. Real monitoring surfaces hold
-     still so you can read them; the numbers are the point, not the movement. */
-  const readout = [
-    { key: "racks", label: copy.hero.statRacks, value: "4 096", tone: "hero-readout-lime" },
-    { key: "uptime", label: copy.hero.statUptime, value: "99.97%", tone: "hero-readout-white" },
-    { key: "cost", label: copy.hero.statCost, value: "$0.00019", tone: "hero-readout-orange" },
+  const features = [
+    { key: "language", icon: Languages, label: copy.hero.featureLanguage },
+    { key: "voice", icon: Mic2, label: copy.hero.featureVoice },
+    { key: "speed", icon: Zap, label: copy.hero.featureSpeed },
+    { key: "safety", icon: ShieldCheck, label: copy.hero.featureSafety },
   ];
 
   return (
@@ -40,37 +40,42 @@ export function Hero({ className }: HeroProps) {
           </h1>
 
           <div className="hero-actions">
-            <Button
-              className="hero-cta"
-              onClick={() => document.getElementById("proof")?.scrollIntoView({ behavior: "smooth" })}
-            >
+            <Link className="hero-cta" href="/ai-chats">
               {copy.hero.action}
               <span className="hero-cta-glyph">
-                <ArrowDownRight aria-hidden="true" size={18} />
+                <ArrowRight aria-hidden="true" size={18} />
               </span>
-            </Button>
-            <span className="hero-action-note">{copy.hero.note}</span>
+            </Link>
+            <a className="hero-secondary" href="#capabilities">{copy.hero.howItWorks}</a>
           </div>
+          <p className="hero-action-note">{copy.hero.note}</p>
         </div>
 
         <div className="hero-aside">
+          <div className="hero-erma-card">
+            <div className="hero-erma-card-topline">
+              <span>ERMA LITE</span>
+              <span className="hero-status"><span className="status-dot" /> {copy.hero.statusReady}</span>
+            </div>
+            <div className="hero-erma-portrait">
+              <Image src="/erma-model.png" alt="Erma AI" width={368} height={418} unoptimized priority />
+            </div>
+            <div className="hero-erma-card-meta">
+              <span>{copy.hero.modeLabel}</span>
+              <strong>{copy.hero.modeValue}</strong>
+            </div>
+          </div>
           <p className="hero-quote">{copy.hero.quote}</p>
-
-          <dl className="hero-readout" aria-label={copy.hero.metrics}>
-            {readout.map((item) => (
-              <div className={cn("hero-readout-row", item.tone)} key={item.key}>
-                <dt>{item.label}</dt>
-                <dd>{item.value}</dd>
-              </div>
+          <ul className="hero-feature-list" aria-label={copy.hero.metrics}>
+            {features.map(({ key, icon: Icon, label }) => (
+              <li key={key}><Icon size={14} aria-hidden="true" /><span>{label}</span><CheckCircle2 size={13} aria-hidden="true" /></li>
             ))}
-          </dl>
+          </ul>
         </div>
       </div>
 
       <div className="hero-footer">
-        <span className="hero-scroll">
-          <span className="status-dot" aria-hidden="true" /> {copy.hero.scroll}
-        </span>
+        <a className="hero-scroll" href="#capabilities"><span className="status-dot" aria-hidden="true" /> {copy.hero.scroll}</a>
       </div>
     </section>
   );
