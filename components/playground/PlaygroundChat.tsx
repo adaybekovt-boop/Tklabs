@@ -11,12 +11,10 @@ import {
 } from "@/components/ui/ai-chat-input";
 import type { ClodexAccessStatus } from "@/lib/clodex-access";
 import { CLODEX_MODELS } from "@/lib/clodex-models";
-import { DEFAULT_ERMA_MODEL_KEY, PUBLIC_ERMA_MODELS, type ErmaTier } from "@/lib/erma-public";
+import { DEFAULT_ERMA_MODEL_KEY, PRIVILEGED_MAX_PROMPT_LENGTH, PUBLIC_ERMA_MODELS, PUBLIC_MAX_PROMPT_LENGTH, type ErmaTier } from "@/lib/erma-public";
 import { getDictionary, type Locale } from "@/lib/i18n";
 import { getSession, loadSettings, saveSession, type ArchivedMessage } from "@/lib/local-archive";
 import { cn } from "@/lib/utils";
-
-const MAX_PROMPT_LENGTH = 180;
 
 const TIER_LABEL: Record<ErmaTier, string> = {
   light: "Light",
@@ -87,6 +85,7 @@ export function PlaygroundChat({ locale }: { locale: Locale }) {
   }));
 
   const models = clodexAccess?.active ? [...ermaOptions, ...clodexOptions] : ermaOptions;
+  const promptLimit = clodexAccess?.unlimited ? PRIVILEGED_MAX_PROMPT_LENGTH : PUBLIC_MAX_PROMPT_LENGTH;
 
   const selectedModel = models.find((model) => model.id === modelKey) ?? models[0];
 
@@ -236,7 +235,7 @@ export function PlaygroundChat({ locale }: { locale: Locale }) {
   }
 
   async function handleSubmit(prompt: string, submitMeta: ChatInputSubmitMeta) {
-    if (!prompt || prompt.length > MAX_PROMPT_LENGTH || isStreaming) return;
+    if (!prompt || prompt.length > promptLimit || isStreaming) return;
 
     const nextModelKey = submitMeta.model;
     const userMessage: Message = { id: uid(), role: "user", content: prompt };
@@ -444,7 +443,7 @@ export function PlaygroundChat({ locale }: { locale: Locale }) {
           selectedModelId={selectedModel?.id ?? DEFAULT_ERMA_MODEL_KEY}
           onModelChange={setModelKey}
           disabled={isStreaming}
-          maxLength={MAX_PROMPT_LENGTH}
+          maxLength={promptLimit}
           placeholder={text.chat.promptPlaceholder}
           attachmentsEnabled
           labels={text.chat.input}

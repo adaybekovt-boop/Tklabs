@@ -15,6 +15,7 @@ export async function StitchFooter() {
           <Link href="/access">{text.footer.access}</Link>
           <Link href="/documentation">{text.footer.documentation}</Link>
           <Link href="/developers">{text.footer.developers}</Link>
+          <Link href="/patch-notes">{text.footer.patchNotes}</Link>
           <Link href="/privacy">{text.footer.privacy}</Link>
           <Link href="/legal/terms">{text.footer.terms}</Link>
           <Link href="/legal/api">{text.footer.api}</Link>

@@ -2,6 +2,7 @@ import { auth } from "@/auth";
 import { DemoRateLimitUnavailableError, consumeDemoRequest } from "@/lib/demo-rate-limit-access";
 import { AI_PRIVILEGED_SYSTEM_PROMPT, AI_SAFETY_SYSTEM_PROMPT, classifyPromptSafety, isUnsafeAssistantOutput, safetyRefusal } from "@/lib/ai-safety";
 import { promptWithAttachments } from "@/lib/chat-prompt";
+import { PRIVILEGED_MAX_PROMPT_LENGTH, PUBLIC_MAX_PROMPT_LENGTH } from "@/lib/erma-public";
 import { getErmaModel, getErmaSystemPrompt, normalizeErmaTone, type ErmaModel, type ErmaTone } from "@/lib/models";
 import { isPrivilegedAiEmail } from "@/lib/privileged-access";
 import { parseJsonBody, RequestBodyTooLargeError } from "@/lib/request-body";
@@ -9,8 +10,7 @@ import { isTrustedRequestOrigin } from "@/lib/request-security";
 
 export const runtime = "edge";
 
-const MAX_PROMPT_LENGTH = 180;
-const PRIVILEGED_MAX_PROMPT_LENGTH = 16_000;
+const MAX_PROMPT_LENGTH = PUBLIC_MAX_PROMPT_LENGTH;
 const NVIDIA_ENDPOINT = "https://integrate.api.nvidia.com/v1/chat/completions";
 const NVIDIA_KEY_COOLDOWN_MS = 15 * 60 * 1000;
 const PROVIDER_TIMEOUT_MS = 30 * 1000;
@@ -190,7 +190,7 @@ async function resolveFallback(prompt: string, language: Language, model: ErmaMo
       const result = await answerWithClodex(prompt, clodexApiKey, language, allowCode);
       return { ...result, model: model.name, providerModel: result.model };
     } catch {
-      // The deterministic answer keeps the demo usable when an optional provider is unavailable.
+      // The explicit fallback keeps the demo honest when an optional provider is unavailable.
     }
   }
 

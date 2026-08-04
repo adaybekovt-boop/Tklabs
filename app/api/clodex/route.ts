@@ -3,6 +3,7 @@ import { AccountAccessUnavailableError, consumeClodexAccess, releaseClodexAccess
 import { AI_PRIVILEGED_SYSTEM_PROMPT, AI_SAFETY_SYSTEM_PROMPT, classifyPromptSafety, isUnsafeAssistantOutput, safetyRefusal } from "@/lib/ai-safety";
 import { promptWithAttachments } from "@/lib/chat-prompt";
 import { getClodexModel } from "@/lib/clodex-models";
+import { PRIVILEGED_MAX_PROMPT_LENGTH, PUBLIC_MAX_PROMPT_LENGTH } from "@/lib/erma-public";
 import { isPrivilegedAiEmail } from "@/lib/privileged-access";
 import { parseJsonBody, RequestBodyTooLargeError } from "@/lib/request-body";
 import { isTrustedRequestOrigin } from "@/lib/request-security";
@@ -10,8 +11,7 @@ import { isTrustedRequestOrigin } from "@/lib/request-security";
 export const runtime = "edge";
 
 const CLODEX_ENDPOINT = "https://clodex.xyz/v1/messages";
-const MAX_PROMPT_LENGTH = 180;
-const PRIVILEGED_MAX_PROMPT_LENGTH = 16_000;
+const MAX_PROMPT_LENGTH = PUBLIC_MAX_PROMPT_LENGTH;
 const PROVIDER_TIMEOUT_MS = 30 * 1000;
 
 type Language = "ru" | "en";

@@ -33,6 +33,8 @@ export const PUBLIC_ERMA_MODELS: readonly PublicErmaModel[] = [
 ] as const;
 
 export const DEFAULT_ERMA_MODEL_KEY = "erma-spark-lite";
+export const PUBLIC_MAX_PROMPT_LENGTH = 180;
+export const PRIVILEGED_MAX_PROMPT_LENGTH = 16_000;
 
 /** Mirrors the limits enforced in app/api/demo/route.ts, kept here so pages can display them honestly. */
 export const DEMO_MAX_PROMPT_LENGTH = 180;
