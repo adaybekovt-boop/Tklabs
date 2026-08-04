@@ -1,4 +1,5 @@
 import Link from "next/link";
+import Image from "next/image";
 import { FlaskConical } from "lucide-react";
 
 import { StitchFooter } from "@/components/site/StitchFooter";
@@ -25,7 +26,7 @@ export default async function HomePage() {
             </div>
           </div>
           <div className="editorial-enter-delay relative min-h-[500px]">
-            <img src={HERO_IMAGE} alt={text.home.heroAlt} className="absolute inset-0 h-full w-full object-cover grayscale" />
+            <Image src={HERO_IMAGE} alt={text.home.heroAlt} fill sizes="(min-width: 1024px) 50vw, 100vw" unoptimized className="object-cover grayscale" />
           </div>
         </section>
 
@@ -33,7 +34,7 @@ export default async function HomePage() {
           <div className="mb-12">
             <h2 className="headline-title">{text.home.environmentTitle}</h2>
           </div>
-          <div><img src={LAB_IMAGE} alt={text.home.labAlt} className="aspect-video w-full object-cover grayscale" /></div>
+          <div className="relative aspect-video"><Image src={LAB_IMAGE} alt={text.home.labAlt} fill sizes="100vw" unoptimized className="object-cover grayscale" /></div>
         </section>
 
         <section className="stitch-container mb-section-gap">

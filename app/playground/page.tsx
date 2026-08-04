@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { Plus } from "lucide-react";
 
 import { auth } from "@/auth";
+import { ConversationArchive } from "@/components/playground/ConversationArchive";
 import { PlaygroundChat } from "@/components/playground/PlaygroundChat";
 import { StitchHeader } from "@/components/site/StitchHeader";
 import { getDictionary } from "@/lib/i18n";
@@ -25,6 +26,7 @@ export default async function PlaygroundPage() {
             <Link href="/playground" className="quiet-button w-full justify-between px-4">
               {text.chat.newDialog} <Plus size={17} />
             </Link>
+            <ConversationArchive locale={locale} />
           </div>
         </aside>
         <main className="flex min-w-0 flex-1 flex-col overflow-hidden bg-background">

@@ -5,7 +5,7 @@ import { getDictionary, type Dictionary } from "@/lib/i18n";
 import { getLocale } from "@/lib/locale";
 
 type StitchHeaderProps = {
-  active?: "home" | "models" | "access" | "laboratory" | "status" | "documentation" | "truth";
+  active?: "home" | "models" | "access" | "laboratory" | "status" | "documentation" | "developers" | "truth";
 };
 
 const navigation: Array<{ href: string; key: keyof Dictionary["nav"]; active: NonNullable<StitchHeaderProps["active"]> }> = [
@@ -15,6 +15,7 @@ const navigation: Array<{ href: string; key: keyof Dictionary["nav"]; active: No
   { href: "/playground", key: "laboratory", active: "laboratory" },
   { href: "/status", key: "status", active: "status" },
   { href: "/documentation", key: "documentation", active: "documentation" },
+  { href: "/developers", key: "developers", active: "developers" },
 ];
 
 export async function StitchHeader({ active }: StitchHeaderProps) {
