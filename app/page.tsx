@@ -25,7 +25,7 @@ export default async function HomePage() {
               <Link className="quiet-button" href="/truth">{text.home.howItWorks}</Link>
             </div>
           </div>
-          <div className="editorial-enter-delay relative min-h-[500px]">
+          <div className="editorial-enter-delay relative aspect-[4/5] lg:aspect-auto lg:min-h-[500px]">
             <Image src={HERO_IMAGE} alt={text.home.heroAlt} fill sizes="(min-width: 1024px) 50vw, 100vw" unoptimized className="object-cover grayscale" />
           </div>
         </section>
@@ -42,8 +42,8 @@ export default async function HomePage() {
             <h2 className="headline-title">{text.home.modesTitle}</h2>
             <Link href="/models" className="label-caps text-secondary transition-colors hover:text-primary">{text.footer.models} ↗</Link>
           </div>
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[700px] border-collapse text-left">
+          <div className="hidden overflow-x-auto md:block">
+            <table className="w-full border-collapse text-left">
               <thead>
                 <tr className="border-b-[0.5px] border-primary">
                   <th className="label-caps py-4 font-normal text-secondary">{text.home.tableModel}</th>
@@ -66,6 +66,19 @@ export default async function HomePage() {
                 </tr>
               </tfoot>
             </table>
+          </div>
+          <div className="grid gap-3 md:hidden">
+            {text.home.rows.map(([model, purpose, limit, status]) => (
+              <article key={model} className="border border-outline-variant bg-white p-5">
+                <div className="flex items-start justify-between gap-4">
+                  <h3 className="font-serif text-[22px]">{model}</h3>
+                  <span className="label-caps shrink-0 text-secondary">{status}</span>
+                </div>
+                <p className="mt-4 text-[14px] leading-[1.6] text-on-surface-variant">{purpose}</p>
+                <p className="label-caps mt-5 text-secondary">{limit}</p>
+              </article>
+            ))}
+            <p className="border border-outline-variant bg-white p-5 text-[14px] leading-[1.6] text-on-surface-variant">{text.home.accessNote}</p>
           </div>
         </section>
 

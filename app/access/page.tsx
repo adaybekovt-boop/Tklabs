@@ -34,7 +34,7 @@ export default async function AccessPage() {
           {text.access.levels.map((level, index) => {
             const tokenCount = MAX_TOKENS_BY_TIER[tiers[index]].toLocaleString(locale === "ru" ? "ru-RU" : "en-US");
             return (
-              <article key={level.name} className="flex min-h-[390px] flex-col justify-between border border-primary bg-white p-8 md:p-10">
+              <article key={level.name} className="flex flex-col justify-between border border-primary bg-white p-8 md:p-10">
                 <div>
                   <div className="flex items-center justify-between">
                     <span className="label-caps text-secondary">{level.name}</span>

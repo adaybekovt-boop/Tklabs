@@ -405,7 +405,7 @@ export function PlaygroundChat({ locale }: { locale: Locale }) {
         )}
       </div>
 
-      <div className="hairline-t w-full flex-shrink-0 bg-white/95 px-margin-mobile py-5 backdrop-blur-md md:px-margin-desktop">
+      <div className="hairline-t w-full flex-shrink-0 bg-surface/95 px-margin-mobile py-5 backdrop-blur-md md:px-margin-desktop">
         <div className="mx-auto mb-3 flex max-w-[780px] flex-wrap items-center gap-2">
           <button type="button" onClick={() => setSuggestionKind((current) => current === "learn" ? null : "learn")} className={cn("label-caps flex items-center gap-2 border border-outline-variant px-3 py-2 transition-colors hover:border-primary", suggestionKind === "learn" && "border-primary bg-surface-container-low")}>
             <BookOpen size={13} /> {text.chat.learn}

@@ -29,7 +29,7 @@ export default async function ProfilePage() {
         <section className="editorial-enter mb-section-gap grid gap-10 border-b-[0.5px] border-primary pb-16 md:grid-cols-12">
           <div className="relative grid aspect-square place-items-center overflow-hidden border border-outline-variant bg-surface-container-low md:col-span-4 md:aspect-[4/5]">
             {profileImage ? (
-              <Image src={profileImage} alt={text.profile.portraitAlt} fill sizes="(min-width: 768px) 33vw, 100vw" unoptimized className="object-cover grayscale" />
+              <Image src={profileImage} alt={text.profile.portraitAlt} fill sizes="(min-width: 768px) 33vw, 100vw" unoptimized className="object-cover" />
             ) : (
               <span className="font-serif text-[clamp(72px,16vw,150px)] leading-none text-primary">{profileInitials}</span>
             )}
