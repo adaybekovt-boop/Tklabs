@@ -7,6 +7,8 @@ import { AnimatePresence, motion } from "framer-motion";
 import {
   BookOpen,
   BrainCircuit,
+  Check,
+  Copy,
   Globe2,
   Home,
   MessageSquarePlus,
@@ -23,7 +25,7 @@ import { useLanguage } from "@/components/providers/LanguageProvider";
 import { AIChatInput, type ChatModelOption, type ChatSubmitMeta } from "@/components/ui/ai-chat-input";
 import type { ClodexAccessStatus } from "@/lib/clodex-access";
 import { CLODEX_MODELS } from "@/lib/clodex-models";
-import { ERMA_MODELS } from "@/lib/models";
+import { ERMA_MODELS, type ErmaTone } from "@/lib/models";
 
 type CommandCategory = "learn" | "write";
 type ProviderMeta = { provider?: string; model: string; providerModel?: string; latencyMs?: number; cost?: string };
@@ -44,13 +46,28 @@ export function AIAssistantInterface({ account }: { account: AccountSummary }) {
   const [composerValue, setComposerValue] = useState("");
   const [isSending, setIsSending] = useState(false);
   const [reasonEnabled, setReasonEnabled] = useState(false);
+  const [ermaTone, setErmaTone] = useState<ErmaTone>("professional");
+  const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null);
   const [clodexAccess, setClodexAccess] = useState<ClodexAccessStatus | null>(null);
   const [speechState, setSpeechState] = useState<SpeechState>({ messageId: null, status: "idle" });
   const [speechNotice, setSpeechNotice] = useState<{ messageId: string; text: string } | null>(null);
   const speechUtteranceRef = useRef<SpeechSynthesisUtterance | null>(null);
+  const activeRequestRef = useRef<AbortController | null>(null);
+
+  useEffect(() => {
+    const savedTone = window.localStorage.getItem("tklabs.erma-tone");
+    if (savedTone !== "professional" && savedTone !== "character") return;
+    const frame = window.requestAnimationFrame(() => setErmaTone(savedTone));
+    return () => window.cancelAnimationFrame(frame);
+  }, []);
+
+  useEffect(() => {
+    window.localStorage.setItem("tklabs.erma-tone", ermaTone);
+  }, [ermaTone]);
 
   useEffect(() => {
     return () => {
+      activeRequestRef.current?.abort();
       if (typeof window !== "undefined") window.speechSynthesis?.cancel();
     };
   }, []);
@@ -163,6 +180,30 @@ export function AIAssistantInterface({ account }: { account: AccountSummary }) {
     window.speechSynthesis.speak(utterance);
   };
 
+  const copyMessage = async (message: Message) => {
+    try {
+      await navigator.clipboard.writeText(message.text);
+      setCopiedMessageId(message.id);
+      window.setTimeout(() => setCopiedMessageId((current) => current === message.id ? null : current), 1600);
+    } catch {
+      // Clipboard access can be unavailable on non-secure local pages.
+    }
+  };
+
+  const stopGeneration = () => {
+    activeRequestRef.current?.abort();
+    activeRequestRef.current = null;
+    setMessages((current) => {
+      const next = [...current];
+      const last = next[next.length - 1];
+      if (last?.role === "assistant" && !last.text.endsWith(copy.chat.generationStopped)) {
+        next[next.length - 1] = { ...last, text: last.text ? `${last.text}\n\n${copy.chat.generationStopped}` : copy.chat.generationStopped };
+      }
+      return next;
+    });
+    setIsSending(false);
+  };
+
   async function handleSubmit(prompt: string, meta: ChatSubmitMeta) {
     stopSpeech();
     const stamp = Date.now();
@@ -173,16 +214,20 @@ export function AIAssistantInterface({ account }: { account: AccountSummary }) {
     setActiveCategory(null);
     setComposerValue("");
     window.dispatchEvent(new CustomEvent("facility:demo-start"));
+    const controller = new AbortController();
+    activeRequestRef.current = controller;
 
     try {
       const endpoint = meta.model.startsWith("clodex:") ? "/api/clodex" : "/api/demo";
       const response = await fetch(endpoint, {
         method: "POST",
         headers: { "content-type": "application/json" },
+        signal: controller.signal,
         body: JSON.stringify({
           prompt,
           locale: language,
           model: meta.model,
+          tone: ermaTone,
           effort: meta.effort,
           attachments: meta.attachments,
           reason: reasonEnabled || meta.effort === "high",
@@ -218,9 +263,11 @@ export function AIAssistantInterface({ account }: { account: AccountSummary }) {
         }
       }
     } catch (error) {
+      if (error instanceof DOMException && error.name === "AbortError") return;
       const errorText = error instanceof Error && error.message ? error.message : copy.chat.apiError;
       appendToLastAssistant((message) => ({ ...message, text: errorText }));
     } finally {
+      if (activeRequestRef.current === controller) activeRequestRef.current = null;
       setIsSending(false);
     }
   }
@@ -339,6 +386,10 @@ export function AIAssistantInterface({ account }: { account: AccountSummary }) {
                       </div>
                       {message.role === "assistant" && message.text && (
                         <div className="ai-message-actions">
+                          <button type="button" className="ai-message-copy-button" onClick={() => void copyMessage(message)} aria-label={copiedMessageId === message.id ? copy.chat.responseCopied : copy.chat.copyResponse}>
+                            {copiedMessageId === message.id ? <Check size={12} /> : <Copy size={12} />}
+                            <span>{copiedMessageId === message.id ? copy.chat.responseCopied : copy.chat.copyResponse}</span>
+                          </button>
                           <button
                             type="button"
                             className={"ai-voice-button" + (speechState.messageId === message.id ? " is-active" : "")}
@@ -409,6 +460,8 @@ export function AIAssistantInterface({ account }: { account: AccountSummary }) {
               </div>
               <div className="ai-chat-tools">
                 <button type="button" className={reasonEnabled ? "is-active" : ""} aria-pressed={reasonEnabled} onClick={() => setReasonEnabled((enabled) => !enabled)}><BrainCircuit size={13} /> {copy.chat.reason}</button>
+                <button type="button" className={ermaTone === "character" ? "is-active" : ""} aria-pressed={ermaTone === "character"} onClick={() => setErmaTone((tone) => tone === "professional" ? "character" : "professional")}><Sparkles size={13} /> {ermaTone === "professional" ? copy.chat.professionalMode : copy.chat.characterMode}</button>
+                {isSending && <button type="button" className="ai-stop-generation-button" onClick={stopGeneration}><Square size={13} /> {copy.chat.stopGeneration}</button>}
               </div>
               <AIChatInput
                 key={composerSeed}

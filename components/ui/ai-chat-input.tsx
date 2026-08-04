@@ -95,7 +95,8 @@ export const AIChatInput = React.forwardRef<HTMLDivElement, AIChatInputProps>(fu
   const [value, setValue] = React.useState(defaultValue);
   const [attachments, setAttachments] = React.useState<ChatAttachment[]>([]);
   const [selectedModelId, setSelectedModelId] = React.useState(models[0]?.id ?? "erma-spark-lite");
-  const [effortIndex, setEffortIndex] = React.useState(Math.min(1, Math.max(0, effortLabels.length - 1)));
+  // Fast is the useful default for Erma Lite; users can cycle to balanced or detailed.
+  const [effortIndex, setEffortIndex] = React.useState(0);
   const [isModelMenuOpen, setIsModelMenuOpen] = React.useState(false);
   const [isFocused, setIsFocused] = React.useState(Boolean(defaultValue));
   const [isListening, setIsListening] = React.useState(false);
