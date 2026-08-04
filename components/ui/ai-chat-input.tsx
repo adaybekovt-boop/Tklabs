@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import Image from "next/image";
 import { ChevronDown, FileText, Loader2, Paperclip, Send, X } from "lucide-react";
 
 export type ChatModelOption = {
@@ -13,8 +14,13 @@ export type ChatModelOption = {
 
 export type ChatSubmitMeta = {
   model: string;
-  effort: string;
-  attachments: File[];
+  effort: "low" | "medium" | "high";
+  attachments: ChatAttachment[];
+};
+
+export type ChatAttachment = {
+  name: string;
+  content: string;
 };
 
 export interface AIChatInputProps {
@@ -37,18 +43,8 @@ export interface AIChatInputProps {
   onSubmit: (value: string, meta: ChatSubmitMeta) => void;
 }
 
-function AttachmentPreview({ file }: { file: File }) {
-  const imageRef = React.useRef<HTMLImageElement>(null);
-  const isImage = file.type.startsWith("image/");
-
-  React.useEffect(() => {
-    if (!isImage) return;
-    const url = URL.createObjectURL(file);
-    if (imageRef.current) imageRef.current.src = url;
-    return () => URL.revokeObjectURL(url);
-  }, [file, isImage]);
-
-  return isImage ? <img ref={imageRef} alt="" /> : <FileText size={16} aria-hidden="true" />;
+function AttachmentPreview() {
+  return <FileText size={16} aria-hidden="true" />;
 }
 
 export const AIChatInput = React.forwardRef<HTMLDivElement, AIChatInputProps>(function AIChatInput(
@@ -56,7 +52,7 @@ export const AIChatInput = React.forwardRef<HTMLDivElement, AIChatInputProps>(fu
   ref,
 ) {
   const [value, setValue] = React.useState(defaultValue);
-  const [attachments, setAttachments] = React.useState<File[]>([]);
+  const [attachments, setAttachments] = React.useState<ChatAttachment[]>([]);
   const [selectedModelId, setSelectedModelId] = React.useState(models[0]?.id ?? "erma-spark-lite");
   const [effortIndex, setEffortIndex] = React.useState(Math.min(1, Math.max(0, effortLabels.length - 1)));
   const [isModelMenuOpen, setIsModelMenuOpen] = React.useState(false);
@@ -67,18 +63,21 @@ export const AIChatInput = React.forwardRef<HTMLDivElement, AIChatInputProps>(fu
   const isExpanded = isFocused || isModelMenuOpen || value.length > 0 || attachments.length > 0;
 
 
-  const handleFiles = (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFiles = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const incoming = Array.from(event.target.files ?? []);
-    if (incoming.length) setAttachments((current) => [...current, ...incoming].slice(0, 6));
     event.target.value = "";
+    const readableFiles = incoming.filter((file) => file.size <= 64 * 1024 && (file.type.startsWith("text/") || /\.(md|txt)$/i.test(file.name)));
+    const loaded = await Promise.all(readableFiles.slice(0, 6).map(async (file) => ({ name: file.name, content: (await file.text()).slice(0, 8_000) })));
+    if (loaded.length) setAttachments((current) => [...current, ...loaded].slice(0, 6));
   };
 
   const handleSubmit = () => {
     const trimmed = value.trim();
     if (!trimmed || disabled || !selectedModel) return;
+    const effort: ChatSubmitMeta["effort"] = effortIndex <= 0 ? "low" : effortIndex >= 2 ? "high" : "medium";
     onSubmit(trimmed, {
       model: selectedModel.id,
-      effort: effortLabels[effortIndex] ?? effortLabels[0] ?? "balanced",
+      effort,
       attachments,
     });
     setValue("");
@@ -102,7 +101,7 @@ export const AIChatInput = React.forwardRef<HTMLDivElement, AIChatInputProps>(fu
         <div className="ai-chat-attachments" aria-label={labels.addFile}>
           {attachments.map((file, index) => (
             <div className="ai-chat-attachment" key={file.name + "-" + String(index)}>
-              <span className="ai-attachment-preview"><AttachmentPreview file={file} /></span>
+              <span className="ai-attachment-preview"><AttachmentPreview /></span>
               <span className="ai-attachment-name">{file.name}</span>
               <button type="button" onClick={() => setAttachments((current) => current.filter((_, fileIndex) => fileIndex !== index))} aria-label={labels.removeFile + ": " + file.name}>
                 <X size={12} />
@@ -138,7 +137,7 @@ export const AIChatInput = React.forwardRef<HTMLDivElement, AIChatInputProps>(fu
           <div className="ai-chat-model-picker">
             <button type="button" className="ai-chat-control-button" onClick={() => setIsModelMenuOpen((open) => !open)} aria-expanded={isModelMenuOpen} aria-label={labels.modelMenu}>
               <span className="ai-model-glyph">
-                {modelImageSrc ? <img src={modelImageSrc} alt="" /> : "✦"}
+                {modelImageSrc ? <Image src={modelImageSrc} alt="" width={16} height={16} unoptimized /> : "✦"}
               </span>
               <span>{selectedModel?.name ?? labels.model}</span>
               <ChevronDown size={13} />
@@ -162,7 +161,7 @@ export const AIChatInput = React.forwardRef<HTMLDivElement, AIChatInputProps>(fu
                     }}
                   >
                     <span>
-                      <span className="ai-model-glyph">{modelImageSrc ? <img src={modelImageSrc} alt="" /> : "✦"}</span>
+                      <span className="ai-model-glyph">{modelImageSrc ? <Image src={modelImageSrc} alt="" width={16} height={16} unoptimized /> : "✦"}</span>
                       <span>{model.name}</span>
                     </span>
                     <small>{model.tierLabel ? model.tierLabel + " · " : ""}{model.available ? model.status : labels.comingSoon}</small>
@@ -180,7 +179,7 @@ export const AIChatInput = React.forwardRef<HTMLDivElement, AIChatInputProps>(fu
           <button type="button" className="ai-chat-icon-button" onClick={() => fileInputRef.current?.click()} aria-label={labels.addFile}>
             <Paperclip size={15} />
           </button>
-          <input ref={fileInputRef} className="sr-only" type="file" multiple accept="image/*,.pdf,.txt,.doc,.docx" onChange={handleFiles} />
+          <input ref={fileInputRef} className="sr-only" type="file" multiple accept="text/plain,text/markdown,.txt,.md" onChange={(event) => void handleFiles(event)} />
         </div>
 
         <button type="button" className="ai-chat-send-button" disabled={!value.trim() || disabled} onClick={handleSubmit} aria-label={labels.send}>

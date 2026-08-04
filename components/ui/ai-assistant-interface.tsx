@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { useEffect, useMemo, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import {
@@ -11,7 +12,6 @@ import {
   Home,
   MessageSquarePlus,
   PenLine,
-  Search,
   ShieldCheck,
   Sparkles,
   UserRound,
@@ -42,8 +42,6 @@ export function AIAssistantInterface({ account }: { account: AccountSummary }) {
   const [composerSeed, setComposerSeed] = useState(0);
   const [composerValue, setComposerValue] = useState("");
   const [isSending, setIsSending] = useState(false);
-  const [searchEnabled, setSearchEnabled] = useState(false);
-  const [researchEnabled, setResearchEnabled] = useState(false);
   const [reasonEnabled, setReasonEnabled] = useState(false);
   const [clodexAccess, setClodexAccess] = useState<ClodexAccessStatus | null>(null);
 
@@ -123,9 +121,8 @@ export function AIAssistantInterface({ account }: { account: AccountSummary }) {
           locale: language,
           model: meta.model,
           effort: meta.effort,
-          search: searchEnabled,
-          research: researchEnabled,
-          reason: reasonEnabled,
+          attachments: meta.attachments,
+          reason: reasonEnabled || meta.effort === "high",
         }),
       });
       if (response.status === 401) {
@@ -148,9 +145,13 @@ export function AIAssistantInterface({ account }: { account: AccountSummary }) {
         for (const eventChunk of events) {
           const line = eventChunk.split("\n").find((part) => part.startsWith("data: "));
           if (!line) continue;
-          const payload = JSON.parse(line.slice(6)) as { token?: string; done?: boolean; meta?: ProviderMeta };
-          if (payload.token) appendToLastAssistant((message) => ({ ...message, text: message.text + payload.token }));
-          if (payload.meta) appendToLastAssistant((message) => ({ ...message, meta: payload.meta }));
+          try {
+            const payload = JSON.parse(line.slice(6)) as { token?: string; done?: boolean; meta?: ProviderMeta };
+            if (payload.token) appendToLastAssistant((message) => ({ ...message, text: message.text + payload.token }));
+            if (payload.meta) appendToLastAssistant((message) => ({ ...message, meta: payload.meta }));
+          } catch {
+            // Ignore malformed keep-alive chunks without breaking the conversation.
+          }
         }
       }
     } catch (error) {
@@ -181,7 +182,7 @@ export function AIAssistantInterface({ account }: { account: AccountSummary }) {
     <div className="ai-chat-interface">
       <aside className="ai-chat-sidebar">
         <Link className="ai-sidebar-brand" href="/" aria-label="Imaginary Intelligence">
-          <span className="ai-sidebar-mark"><img src="/tk-logo.png" alt="" /></span>
+          <span className="ai-sidebar-mark"><Image src="/tk-logo.png" alt="" width={24} height={24} /></span>
           <span><strong>TK LABS</strong><small>{copy.nav.aiChats}</small></span>
         </Link>
 
@@ -205,7 +206,7 @@ export function AIAssistantInterface({ account }: { account: AccountSummary }) {
         <div className="ai-sidebar-account">
           <Link className="ai-sidebar-profile" href="/profile">
             <span className="ai-account-avatar">
-              {account.image ? <img src={account.image} alt="" referrerPolicy="no-referrer" /> : accountInitials}
+              {account.image ? <Image src={account.image} alt="" width={34} height={34} unoptimized referrerPolicy="no-referrer" /> : accountInitials}
             </span>
             <span><strong>{account.name}</strong><small>{account.email}</small></span>
           </Link>
@@ -221,7 +222,7 @@ export function AIAssistantInterface({ account }: { account: AccountSummary }) {
       <section className="ai-chat-workspace">
         <header className="ai-chat-topbar">
           <div className="ai-chat-heading">
-            <img className="ai-mobile-logo" src="/tk-logo.png" alt="" />
+            <Image className="ai-mobile-logo" src="/tk-logo.png" alt="" width={24} height={24} />
             <span>
               <span className="eyebrow">{copy.chat.eyebrow}</span>
               <span className="ai-chat-topline"><span className="status-dot" /> {copy.chat.workspace}</span>
@@ -232,7 +233,7 @@ export function AIAssistantInterface({ account }: { account: AccountSummary }) {
             <span className="ai-route-chip"><Globe2 size={13} /> {language.toUpperCase()}</span>
             <span className="ai-route-chip is-route"><ShieldCheck size={13} /> {copy.chat.nvidiaRoute}</span>
             <Link className="ai-mobile-profile" href="/profile" aria-label={account.name}>
-              {account.image ? <img src={account.image} alt="" referrerPolicy="no-referrer" /> : <UserRound size={14} />}
+              {account.image ? <Image src={account.image} alt="" width={28} height={28} unoptimized referrerPolicy="no-referrer" /> : <UserRound size={14} />}
             </Link>
           </div>
         </header>
@@ -242,7 +243,7 @@ export function AIAssistantInterface({ account }: { account: AccountSummary }) {
             {messages.length === 0 ? (
               <div className="ai-empty-state">
                 <div className="ai-empty-portrait">
-                  <img src="/erma-model.png" alt="" />
+                  <Image src="/erma-model.png" alt="" width={96} height={96} />
                   <span>ERMA / ONLINE</span>
                 </div>
                 <p className="ai-empty-kicker">PLAYGROUND / 01</p>
@@ -257,9 +258,9 @@ export function AIAssistantInterface({ account }: { account: AccountSummary }) {
                     <div className="ai-message-identity">
                       <span className="ai-message-avatar">
                         {message.role === "assistant"
-                          ? <img src="/erma-model.png" alt="" />
+                          ? <Image src="/erma-model.png" alt="" width={42} height={42} />
                           : account.image
-                            ? <img src={account.image} alt="" referrerPolicy="no-referrer" />
+                            ? <Image src={account.image} alt="" width={42} height={42} unoptimized referrerPolicy="no-referrer" />
                             : accountInitials}
                       </span>
                       <span>
@@ -315,9 +316,7 @@ export function AIAssistantInterface({ account }: { account: AccountSummary }) {
                 ))}
               </div>
               <div className="ai-chat-tools">
-                <button type="button" className={searchEnabled ? "is-active" : ""} onClick={() => setSearchEnabled((enabled) => !enabled)}><Search size={13} /> {copy.chat.search}</button>
-                <button type="button" className={researchEnabled ? "is-active" : ""} onClick={() => setResearchEnabled((enabled) => !enabled)}><Globe2 size={13} /> {copy.chat.research}</button>
-                <button type="button" className={reasonEnabled ? "is-active" : ""} onClick={() => setReasonEnabled((enabled) => !enabled)}><BrainCircuit size={13} /> {copy.chat.reason}</button>
+                <button type="button" className={reasonEnabled ? "is-active" : ""} aria-pressed={reasonEnabled} onClick={() => setReasonEnabled((enabled) => !enabled)}><BrainCircuit size={13} /> {copy.chat.reason}</button>
               </div>
               <AIChatInput
                 key={composerSeed}

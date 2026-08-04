@@ -20,3 +20,7 @@ export type ClodexConsumeResult = ClodexAccessStatus & {
   error?: "access_required" | "limit_reached";
   retryAt?: number;
 };
+
+export type ClodexReleaseResult = ClodexAccessStatus & {
+  released: boolean;
+};

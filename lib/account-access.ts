@@ -1,11 +1,12 @@
 import { env } from "cloudflare:workers";
 
-import type { ClodexAccessStatus, ClodexConsumeResult, ClodexRedeemResult } from "@/lib/clodex-access";
+import type { ClodexAccessStatus, ClodexConsumeResult, ClodexRedeemResult, ClodexReleaseResult } from "@/lib/clodex-access";
 
 type AccountAccessStub = {
   getStatus(): Promise<ClodexAccessStatus>;
   redeem(code: string): Promise<ClodexRedeemResult>;
   consume(): Promise<ClodexConsumeResult>;
+  release(): Promise<ClodexReleaseResult>;
 };
 
 type AccountAccessNamespace = {
@@ -46,4 +47,8 @@ export async function redeemClodexAccess(email: string, code: string) {
 
 export async function consumeClodexAccess(email: string) {
   return (await getStub(email)).consume();
+}
+
+export async function releaseClodexAccess(email: string) {
+  return (await getStub(email)).release();
 }

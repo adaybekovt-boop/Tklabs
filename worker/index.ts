@@ -3,6 +3,7 @@ import { handleImageOptimization, DEFAULT_DEVICE_SIZES, DEFAULT_IMAGE_SIZES } fr
 import handler from "vinext/server/app-router-entry";
 
 export { ClodexAccess } from "./clodex-access";
+export { DemoRateLimit } from "./demo-rate-limit";
 
 interface Env {
   ASSETS: Fetcher;

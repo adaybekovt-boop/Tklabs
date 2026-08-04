@@ -1,15 +1,17 @@
 import { auth } from "@/auth";
-import { AccountAccessUnavailableError, consumeClodexAccess } from "@/lib/account-access";
+import { AccountAccessUnavailableError, consumeClodexAccess, releaseClodexAccess } from "@/lib/account-access";
+import { promptWithAttachments } from "@/lib/chat-prompt";
 import { getClodexModel } from "@/lib/clodex-models";
 
 export const runtime = "edge";
 
 const CLODEX_ENDPOINT = "https://clodex.xyz/v1/messages";
 const MAX_PROMPT_LENGTH = 180;
+const PROVIDER_TIMEOUT_MS = 30 * 1000;
 
 type Language = "ru" | "en";
 type ClodexResponse = { content?: Array<{ text?: string; type?: string }> | string };
-type ChatRequest = { prompt?: unknown; locale?: unknown; model?: unknown };
+type ChatRequest = { prompt?: unknown; locale?: unknown; model?: unknown; attachments?: unknown };
 
 function streamResponse(stream: ReadableStream<Uint8Array>) {
   return new Response(stream, {
@@ -26,13 +28,26 @@ function event(controller: ReadableStreamDefaultController<Uint8Array>, encoder:
   controller.enqueue(encoder.encode(`data: ${JSON.stringify(payload)}\n\n`));
 }
 
+function withTimeout<T>(promise: Promise<T>, timeoutMs: number) {
+  return new Promise<T>((resolve, reject) => {
+    const timeout = setTimeout(() => reject(new Error("Provider request timed out")), timeoutMs);
+    promise.then(resolve, reject).finally(() => clearTimeout(timeout));
+  });
+}
+
+function fetchWithTimeout(input: RequestInfo | URL, init: RequestInit, timeoutMs = PROVIDER_TIMEOUT_MS) {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
+  return fetch(input, { ...init, signal: controller.signal }).finally(() => clearTimeout(timeout));
+}
+
 function errorText(language: Language, type: "prompt" | "access" | "limit" | "provider" | "configuration") {
   const ru = {
-    prompt: `Prompt must be 1-${MAX_PROMPT_LENGTH} characters.`,
-    access: "Activate model access in your profile first.",
-    limit: "The Clodex limit is exhausted. Try again when the window resets.",
-    provider: "Clodex did not respond. Please try again.",
-    configuration: "Model access is being configured.",
+    prompt: `Запрос должен содержать от 1 до ${MAX_PROMPT_LENGTH} символов.`,
+    access: "Сначала активируйте доступ к моделям в профиле.",
+    limit: "Лимит Clodex исчерпан. Попробуйте снова после сброса окна.",
+    provider: "Clodex не ответил. Попробуйте ещё раз.",
+    configuration: "Доступ к моделям пока настраивается.",
   };
   const en = {
     prompt: `Prompt must be 1-${MAX_PROMPT_LENGTH} characters.`,
@@ -45,7 +60,7 @@ function errorText(language: Language, type: "prompt" | "access" | "limit" | "pr
 }
 
 async function answerWithClodex(prompt: string, apiKey: string, model: string) {
-  const response = await fetch(CLODEX_ENDPOINT, {
+  const response = await fetchWithTimeout(CLODEX_ENDPOINT, {
     method: "POST",
     headers: { "anthropic-version": "2023-06-01", "content-type": "application/json", "x-api-key": apiKey },
     body: JSON.stringify({
@@ -55,7 +70,7 @@ async function answerWithClodex(prompt: string, apiKey: string, model: string) {
       messages: [{ role: "user", content: prompt }],
     }),
   });
-  const payload = (await response.json().catch(() => null)) as ClodexResponse | null;
+  const payload = (await withTimeout(response.json().catch(() => null), PROVIDER_TIMEOUT_MS)) as ClodexResponse | null;
   if (!response.ok) throw new Error(`Clodex returned HTTP ${response.status}`);
   const answer = Array.isArray(payload?.content)
     ? payload.content.filter((part) => part.type === "text" || !part.type).map((part) => part.text ?? "").join("").trim()
@@ -96,8 +111,9 @@ export async function POST(request: Request) {
   }
 
   const startedAt = Date.now();
+  const providerPrompt = promptWithAttachments(prompt, body?.attachments);
   try {
-    const answer = await answerWithClodex(prompt, apiKey, model.id);
+    const answer = await answerWithClodex(providerPrompt, apiKey, model.id);
     const encoder = new TextEncoder();
     const stream = new ReadableStream<Uint8Array>({
       start(controller) {
@@ -111,6 +127,11 @@ export async function POST(request: Request) {
     });
     return streamResponse(stream);
   } catch (error) {
+    try {
+      await releaseClodexAccess(email);
+    } catch (releaseError) {
+      console.error("Unable to release failed Clodex allowance", releaseError);
+    }
     console.error("Clodex model request failed", { model: model.id, error: error instanceof Error ? error.message : String(error) });
     return Response.json({ error: errorText(language, "provider") }, { status: 502 });
   }

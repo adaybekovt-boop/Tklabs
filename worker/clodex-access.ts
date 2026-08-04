@@ -1,4 +1,4 @@
-import { DurableObject } from "cloudflare:workers";
+import { DurableObject, type DurableObjectState } from "cloudflare:workers";
 
 import {
   CLODEX_REQUEST_LIMIT,
@@ -6,6 +6,7 @@ import {
   type ClodexAccessStatus,
   type ClodexConsumeResult,
   type ClodexRedeemResult,
+  type ClodexReleaseResult,
 } from "@/lib/clodex-access";
 
 type ClodexAccessEnv = {
@@ -129,7 +130,7 @@ export class ClodexAccess extends DurableObject<ClodexAccessEnv> {
         ...this.status(now),
         redeemed: false,
         error: "invalid_code",
-        ...(updatedAttempts.attempt_count >= REDEMPTION_ATTEMPT_LIMIT
+        ...(updatedAttempts.attemptCount >= REDEMPTION_ATTEMPT_LIMIT
           ? { retryAt: updatedAttempts.windowStart + CLODEX_REQUEST_WINDOW_MS }
           : {}),
       };
@@ -173,5 +174,22 @@ export class ClodexAccess extends DurableObject<ClodexAccessEnv> {
       resetAt: windowStart + CLODEX_REQUEST_WINDOW_MS,
       allowed: true,
     };
+  }
+
+  async release(): Promise<ClodexReleaseResult> {
+    const now = Date.now();
+    const existing = this.currentUsage(now);
+    if (!existing) return { ...this.status(now), released: false };
+
+    if (existing.request_count <= 1) {
+      this.ctx.storage.sql.exec("DELETE FROM request_windows WHERE slot = 1");
+    } else {
+      this.ctx.storage.sql.exec(
+        "UPDATE request_windows SET request_count = ? WHERE slot = 1",
+        existing.request_count - 1,
+      );
+    }
+
+    return { ...this.status(now), released: true };
   }
 }

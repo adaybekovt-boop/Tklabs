@@ -1,0 +1,43 @@
+import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
+import test from "node:test";
+
+const root = new URL("../", import.meta.url);
+
+async function text(path) {
+  return readFile(new URL(path, root), "utf8");
+}
+
+test("CI enforces the checks that protect production changes", async () => {
+  const packageJson = JSON.parse(await text("package.json"));
+  const workflow = await text(".github/workflows/ci.yml");
+
+  assert.equal(packageJson.scripts.typecheck, "tsc --noEmit");
+  assert.match(packageJson.scripts.test, /tests\/\*\.test\.mjs/);
+  assert.match(workflow, /npm run typecheck/);
+  assert.match(workflow, /npm audit --omit=dev --audit-level=high/);
+});
+
+test("provider limits are durable and failed Clodex requests can release allowance", async () => {
+  const demoRoute = await text("app/api/demo/route.ts");
+  const clodexRoute = await text("app/api/clodex/route.ts");
+  const viteConfig = await text("vite.config.ts");
+  const worker = await text("worker/index.ts");
+
+  assert.match(demoRoute, /consumeDemoRequest/);
+  assert.doesNotMatch(demoRoute, /const requestLog = new Map/);
+  assert.match(clodexRoute, /releaseClodexAccess/);
+  assert.match(viteConfig, /name: "DEMO_RATE_LIMIT"/);
+  assert.match(viteConfig, /tag: "v2"/);
+  assert.match(worker, /export \{ DemoRateLimit \}/);
+});
+
+test("chat controls match the server contract", async () => {
+  const interfaceSource = await text("components/ui/ai-assistant-interface.tsx");
+  const inputSource = await text("components/ui/ai-chat-input.tsx");
+
+  assert.match(interfaceSource, /attachments: meta\.attachments/);
+  assert.doesNotMatch(interfaceSource, /searchEnabled|researchEnabled/);
+  assert.match(inputSource, /accept="text\/plain,text\/markdown/);
+  assert.match(inputSource, /file\.text\(\)/);
+});

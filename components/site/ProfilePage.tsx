@@ -2,6 +2,7 @@
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { ArrowLeft, KeyRound, Search, ShieldCheck, Sparkles } from "lucide-react";
 
 import { SignOutButton } from "@/components/auth/SignOutButton";
@@ -107,7 +108,7 @@ export function ProfilePage({ account }: { account: ProfileAccount }) {
 
       <section className={styles.hero}>
         <div className={styles.avatar} aria-hidden="true">
-          {account.image ? <img src={account.image} alt="" referrerPolicy="no-referrer" /> : initials(account.name)}
+          {account.image ? <Image src={account.image} alt="" width={64} height={64} unoptimized referrerPolicy="no-referrer" /> : initials(account.name)}
         </div>
         <div>
           <span className={styles.eyebrow}>АККАУНТ / GOOGLE</span>

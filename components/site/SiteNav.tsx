@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 
 import { useLanguage } from "@/components/providers/LanguageProvider";
 
@@ -25,7 +26,7 @@ export function SiteNav() {
   return (
     <header className="site-nav">
       <Link className="brand-lockup" href="/" aria-label="Imaginary Intelligence">
-        <span className="brand-mark" aria-hidden="true"><img src="/tk-logo.png" alt="" /></span>
+        <span className="brand-mark" aria-hidden="true"><Image src="/tk-logo.png" alt="" width={28} height={28} /></span>
         <span>
           <strong>IMAGINARY</strong>
           <small>INTELLIGENCE / FACILITY</small>

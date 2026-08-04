@@ -6,7 +6,7 @@ A satirical AI facility built with React, TypeScript, Tailwind CSS 4 and Vinext.
 
 Run npm install, then npm run dev.
 
-The AI chat uses the server-only /api/demo route. NVIDIA Build API is the primary provider through its OpenAI-compatible chat completions endpoint; Clodex remains an optional fallback and the deterministic edge response is used when no provider is available.
+The AI chat uses the server-only `/api/demo` route. NVIDIA Build API is the primary provider through its OpenAI-compatible chat completions endpoint; Clodex remains an optional fallback and the deterministic edge response is used when no provider is available. The composer accepts small `.txt` and `.md` attachments and sends their text as bounded prompt context; binary files are intentionally not accepted until a document pipeline is added.
 
 To enable NVIDIA locally, copy .env.example to .env.local and set NVIDIA_API_KEY_PRIMARY and NVIDIA_API_KEY_SECONDARY. Both keys stay server-side and are never bundled into the browser. The server uses the primary key first, swaps to the secondary key on quota or rate-limit responses, and then falls back to Clodex/local mode if both keys are unavailable. The chat sends a branded Erma key, while the server maps it to an allow-listed NVIDIA model ID.
 
@@ -16,16 +16,18 @@ The current aliases are grouped as light (ErmaSpark lite 0.9, Erma 1.0 instant, 
 
 Signed-in users have a Profile link in the top-right of AI Chats. The profile checks a private access code on the server, persists the resulting entitlement in one Cloudflare Durable Object per Google account, and then reveals the Clodex model catalog in both the profile and chat selector.
 
-Each enabled account is limited to five Clodex requests per 15-minute window. The Worker enforces this before calling Clodex, so the limit cannot be bypassed through the browser. `CLODEX_ACCESS_CODE` and `CLODEX_API_KEY` are server-side secrets. Set both in `.env.local` for local use and in the GitHub repository secrets for deployment; never commit the real access code.
+Each enabled account is limited to five Clodex requests per 15-minute window. The Worker enforces this before calling Clodex, so the limit cannot be bypassed through the browser; failed provider calls release their reserved request. `CLODEX_ACCESS_CODE` and `CLODEX_API_KEY` are server-side secrets. Set both in `.env.local` for local use and in the GitHub repository secrets for deployment; never commit the real access code.
 
-The Cloudflare Worker config creates the `ClodexAccess` Durable Object with SQLite-backed storage on deployment. The permitted model IDs are listed in `lib/clodex-models.ts` and are validated again by `/api/clodex`.
+The Cloudflare Worker config creates the `ClodexAccess` and `DemoRateLimit` Durable Objects with SQLite-backed storage on deployment. The permitted model IDs are listed in `lib/clodex-models.ts` and are validated again by `/api/clodex`.
 
 ## Useful commands
 
 - npm run dev - start the local development server
 - npm run build - create the production build
-- npm test - build and run server-render smoke tests
+- npm run typecheck - run the strict TypeScript check
+- npm test - build and run server-render and contract tests
 - npm run lint - check the TypeScript/React source
+- npm audit --omit=dev --audit-level=high - check production dependencies
 
 ## Project structure
 
