@@ -3,7 +3,7 @@ import { env } from "cloudflare:workers";
 import type { DemoConsumeResult } from "@/lib/demo-rate-limit";
 
 type DemoRateLimitStub = {
-  consume(): Promise<DemoConsumeResult>;
+  consumeDemo(): Promise<DemoConsumeResult>;
 };
 
 type DemoRateLimitNamespace = {
@@ -17,7 +17,7 @@ export class DemoRateLimitUnavailableError extends Error {
 }
 
 function getNamespace() {
-  const namespace = (env as unknown as { DEMO_RATE_LIMIT?: DemoRateLimitNamespace }).DEMO_RATE_LIMIT;
+  const namespace = (env as unknown as { CLODEX_ACCESS?: DemoRateLimitNamespace }).CLODEX_ACCESS;
   if (!namespace) throw new DemoRateLimitUnavailableError();
   return namespace;
 }
@@ -30,5 +30,5 @@ async function rateLimitObjectName(identifier: string) {
 
 export async function consumeDemoRequest(identifier: string) {
   if (!identifier.trim()) throw new DemoRateLimitUnavailableError();
-  return getNamespace().getByName(await rateLimitObjectName(identifier.trim())).consume();
+  return getNamespace().getByName(await rateLimitObjectName(identifier.trim())).consumeDemo();
 }

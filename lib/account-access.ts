@@ -1,11 +1,13 @@
 import { env } from "cloudflare:workers";
 
 import type { ClodexAccessStatus, ClodexConsumeResult, ClodexRedeemResult, ClodexReleaseResult } from "@/lib/clodex-access";
+import type { DemoConsumeResult } from "@/lib/demo-rate-limit";
 
 type AccountAccessStub = {
   getStatus(): Promise<ClodexAccessStatus>;
   redeem(code: string): Promise<ClodexRedeemResult>;
   consume(): Promise<ClodexConsumeResult>;
+  consumeDemo(): Promise<DemoConsumeResult>;
   release(): Promise<ClodexReleaseResult>;
 };
 

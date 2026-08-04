@@ -18,7 +18,7 @@ Signed-in users have a Profile link in the top-right of AI Chats. The profile ch
 
 Each enabled account is limited to five Clodex requests per 15-minute window. The Worker enforces this before calling Clodex, so the limit cannot be bypassed through the browser; failed provider calls release their reserved request. `CLODEX_ACCESS_CODE` and `CLODEX_API_KEY` are server-side secrets. Set both in `.env.local` for local use and in the GitHub repository secrets for deployment; never commit the real access code.
 
-The Cloudflare Worker config creates the `ClodexAccess` and `DemoRateLimit` Durable Objects with SQLite-backed storage on deployment. The permitted model IDs are listed in `lib/clodex-models.ts` and are validated again by `/api/clodex`.
+The Cloudflare Worker uses the already-migrated `ClodexAccess` Durable Object with SQLite-backed storage for both account entitlements and hashed public-demo identifiers. The demo limiter reuses its request-window table, so the feature does not require a new Durable Object migration and remains compatible with versioned Workers Builds. The permitted model IDs are listed in `lib/clodex-models.ts` and are validated again by `/api/clodex`.
 
 ## Useful commands
 

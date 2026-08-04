@@ -27,9 +27,15 @@ test("provider limits are durable and failed Clodex requests can release allowan
   assert.match(demoRoute, /consumeDemoRequest/);
   assert.doesNotMatch(demoRoute, /const requestLog = new Map/);
   assert.match(clodexRoute, /releaseClodexAccess/);
-  assert.match(viteConfig, /name: "DEMO_RATE_LIMIT"/);
-  assert.match(viteConfig, /tag: "v2"/);
-  assert.match(worker, /export \{ DemoRateLimit \}/);
+  assert.match(viteConfig, /name: "CLODEX_ACCESS"/);
+  assert.doesNotMatch(viteConfig, /DEMO_RATE_LIMIT|tag: "v2"|DemoRateLimit/);
+  assert.doesNotMatch(worker, /DemoRateLimit/);
+
+  const clodexWorker = await text("worker/clodex-access.ts");
+  const demoAccess = await text("lib/demo-rate-limit-access.ts");
+  assert.match(clodexWorker, /consumeDemo/);
+  assert.match(demoAccess, /CLODEX_ACCESS/);
+  assert.match(demoAccess, /consumeDemo/);
 });
 
 test("guest demo access and request-size protection stay aligned", async () => {

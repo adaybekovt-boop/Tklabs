@@ -8,15 +8,9 @@ const localWorkerConfig = {
   main: "./worker/index.ts",
   compatibility_flags: ["nodejs_compat"],
   durable_objects: {
-    bindings: [
-      { name: "CLODEX_ACCESS", class_name: "ClodexAccess" },
-      { name: "DEMO_RATE_LIMIT", class_name: "DemoRateLimit" },
-    ],
+    bindings: [{ name: "CLODEX_ACCESS", class_name: "ClodexAccess" }],
   },
-  migrations: [
-    { tag: "v1", new_sqlite_classes: ["ClodexAccess"] },
-    { tag: "v2", new_sqlite_classes: ["DemoRateLimit"] },
-  ],
+  migrations: [{ tag: "v1", new_sqlite_classes: ["ClodexAccess"] }],
   workers_dev: true,
 };
 
