@@ -2,9 +2,6 @@ name: Deploy Cloudflare Worker
 
 on:
   workflow_dispatch:
-  push:
-    branches:
-      - main
 
 permissions:
   contents: read
@@ -39,9 +36,6 @@ jobs:
         run: |
           test -n "$CLOUDFLARE_API_TOKEN"
           test -n "$CLOUDFLARE_ACCOUNT_ID"
-          test -n "$AUTH_SECRET"
-          test -n "$AUTH_GOOGLE_ID"
-          test -n "$AUTH_GOOGLE_SECRET"
       - name: Upload runtime secrets
         run: |
           set -euo pipefail
