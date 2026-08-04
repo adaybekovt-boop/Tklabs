@@ -142,3 +142,24 @@ test("chat voice controls stay browser-local and accessible", async () => {
   assert.match(translations, /voiceUnsupported/);
   assert.match(translations, /voiceDenied/);
 });
+
+test("Erma Lite defaults to a useful assistant and the chat path stays fast", async () => {
+  const models = await text("lib/models.ts");
+  const demoRoute = await text("app/api/demo/route.ts");
+  const interfaceSource = await text("components/ui/ai-assistant-interface.tsx");
+  const inputSource = await text("components/ui/ai-chat-input.tsx");
+  const chatStyles = await text("app/chat.css");
+
+  assert.match(models, /Erma Lite/);
+  assert.match(models, /normalizeErmaTone/);
+  assert.doesNotMatch(models, /Обязательно вставляй|В конце ответа резко|из-под парты/);
+  assert.match(demoRoute, /tone\?: unknown/);
+  assert.match(demoRoute, /normalizeErmaTone/);
+  assert.doesNotMatch(demoRoute, /await sleep\(result\.provider/);
+  assert.match(demoRoute, /chunkSize = 64/);
+  assert.match(interfaceSource, /stopGeneration/);
+  assert.match(interfaceSource, /tklabs\.erma-tone/);
+  assert.match(inputSource, /useState\(0\)/);
+  assert.match(chatStyles, /object-fit: contain/);
+  assert.match(chatStyles, /image-rendering: pixelated/);
+});

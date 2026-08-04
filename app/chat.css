@@ -379,6 +379,7 @@
   position: relative;
   width: 5.5rem;
   height: 5.5rem;
+  overflow: hidden;
   margin-bottom: 1.6rem;
   border: 1px solid var(--line-strong);
   background: #f2f1ed;
@@ -388,7 +389,9 @@
 .ai-empty-portrait img {
   width: 100%;
   height: 100%;
-  object-fit: cover;
+  object-fit: contain;
+  object-position: center;
+  image-rendering: pixelated;
   filter: grayscale(0.2) contrast(1.08);
 }
 
@@ -497,7 +500,9 @@
 .ai-message-avatar img {
   width: 100%;
   height: 100%;
-  object-fit: cover;
+  object-fit: contain;
+  object-position: center;
+  image-rendering: pixelated;
 }
 
 .ai-message-identity strong,
@@ -554,6 +559,28 @@
   gap: 0.45rem;
   padding: 0.55rem 0.75rem;
   border-top: 1px solid var(--line);
+}
+
+.ai-message-copy-button,
+.ai-stop-generation-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.35rem 0.65rem 0.5rem;
+  color: var(--text-tertiary);
+  font-family: var(--font-mono);
+  font-size: 0.54rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.ai-message-copy-button:hover,
+.ai-stop-generation-button:hover {
+  color: var(--primary);
+}
+
+.ai-stop-generation-button {
+  color: var(--orange);
 }
 
 .ai-voice-button,
@@ -940,7 +967,9 @@
 .ai-model-glyph img {
   width: 100%;
   height: 100%;
-  object-fit: cover;
+  object-fit: contain;
+  object-position: center;
+  image-rendering: pixelated;
 }
 
 .ai-effort-bars {

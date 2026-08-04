@@ -2,7 +2,7 @@ import { auth } from "@/auth";
 import { DemoRateLimitUnavailableError, consumeDemoRequest } from "@/lib/demo-rate-limit-access";
 import { AI_PRIVILEGED_SYSTEM_PROMPT, AI_SAFETY_SYSTEM_PROMPT, classifyPromptSafety, isUnsafeAssistantOutput, safetyRefusal } from "@/lib/ai-safety";
 import { promptWithAttachments } from "@/lib/chat-prompt";
-import { getErmaModel, getErmaSystemPrompt, type ErmaModel } from "@/lib/models";
+import { getErmaModel, getErmaSystemPrompt, normalizeErmaTone, type ErmaModel, type ErmaTone } from "@/lib/models";
 import { isPrivilegedAiEmail } from "@/lib/privileged-access";
 import { parseJsonBody, RequestBodyTooLargeError } from "@/lib/request-body";
 import { isTrustedRequestOrigin } from "@/lib/request-security";
@@ -21,7 +21,7 @@ type Language = "ru" | "en";
 type Provider = "nvidia" | "clodex" | "edge-fallback";
 type ProviderResult = { answer: string; provider: Provider; model: string; providerModel?: string };
 type ClodexResponse = { content?: Array<{ text?: string; type?: string }> | string };
-type ChatRequest = { prompt?: unknown; locale?: unknown; model?: unknown; reason?: unknown; effort?: unknown; attachments?: unknown };
+type ChatRequest = { prompt?: unknown; locale?: unknown; model?: unknown; reason?: unknown; effort?: unknown; tone?: unknown; attachments?: unknown };
 type NvidiaChunk = { choices?: Array<{ delta?: { content?: string | null } }> };
 type ReasoningEffort = "low" | "medium" | "high";
 
@@ -33,10 +33,6 @@ class NvidiaKeyRotationError extends Error {
     this.name = "NvidiaKeyRotationError";
     this.cooldownMs = cooldownMs;
   }
-}
-
-function sleep(milliseconds: number) {
-  return new Promise((resolve) => setTimeout(resolve, milliseconds));
 }
 
 function withTimeout<T>(promise: Promise<T>, timeoutMs: number) {
@@ -110,19 +106,19 @@ async function answerWithClodex(prompt: string, apiKey: string, language: Langua
   return { answer, model: CLODEX_MODEL, provider: "clodex" };
 }
 
-function nvidiaSystemPrompt(language: Language, model: ErmaModel, allowCode: boolean) {
-  const persona = getErmaSystemPrompt(model);
+function nvidiaSystemPrompt(language: Language, model: ErmaModel, allowCode: boolean, tone: ErmaTone) {
+  const persona = getErmaSystemPrompt(model, tone);
   const languageNote =
     language === "ru"
       ? "Отвечай на русском языке."
-      : "Reply in English, but keep the persona's Russian catchphrases and quirks untranslated.";
+      : "Reply in English and keep the answer natural for the user's language.";
   return `${persona}\n\n${languageNote}\n\n${allowCode ? AI_PRIVILEGED_SYSTEM_PROMPT : AI_SAFETY_SYSTEM_PROMPT}`;
 }
 
-function maxTokensFor(model: ErmaModel) {
-  if (model.tier === "heavy") return 8192;
-  if (model.tier === "medium") return 4096;
-  return 2048;
+function maxTokensFor(model: ErmaModel, effort: ReasoningEffort) {
+  if (model.tier === "heavy") return effort === "low" ? 4096 : effort === "high" ? 8192 : 6144;
+  if (model.tier === "medium") return effort === "low" ? 1536 : effort === "high" ? 4096 : 3072;
+  return effort === "low" ? 1024 : effort === "high" ? 2048 : 1536;
 }
 
 function reasoningBudgetFor(model: ErmaModel, effort: ReasoningEffort) {
@@ -132,17 +128,17 @@ function reasoningBudgetFor(model: ErmaModel, effort: ReasoningEffort) {
   return Math.min(2048, maxBudget);
 }
 
-function buildNvidiaBody(prompt: string, language: Language, model: ErmaModel, requestedReasoning: boolean, effort: ReasoningEffort, allowCode: boolean) {
+function buildNvidiaBody(prompt: string, language: Language, model: ErmaModel, requestedReasoning: boolean, effort: ReasoningEffort, allowCode: boolean, tone: ErmaTone) {
   const reasoningEnabled = model.reasoning || requestedReasoning || effort === "high";
   const body: Record<string, unknown> = {
     model: model.nvidiaModel,
     messages: [
-      { role: "system", content: nvidiaSystemPrompt(language, model, allowCode) },
+      { role: "system", content: nvidiaSystemPrompt(language, model, allowCode, tone) },
       { role: "user", content: prompt },
     ],
-    temperature: reasoningEnabled ? 0.6 : 0.7,
-    top_p: 0.95,
-    max_tokens: maxTokensFor(model),
+    temperature: tone === "character" ? (reasoningEnabled ? 0.58 : 0.65) : (reasoningEnabled ? 0.42 : 0.32),
+    top_p: tone === "character" ? 0.93 : 0.88,
+    max_tokens: maxTokensFor(model, effort),
     stream: true,
   };
 
@@ -154,11 +150,11 @@ function buildNvidiaBody(prompt: string, language: Language, model: ErmaModel, r
   return body;
 }
 
-async function fetchNvidiaBody(prompt: string, language: Language, model: ErmaModel, apiKey: string, requestedReasoning: boolean, effort: ReasoningEffort, allowCode: boolean) {
+async function fetchNvidiaBody(prompt: string, language: Language, model: ErmaModel, apiKey: string, requestedReasoning: boolean, effort: ReasoningEffort, allowCode: boolean, tone: ErmaTone) {
   const response = await fetchWithTimeout(NVIDIA_ENDPOINT, {
     method: "POST",
     headers: { authorization: `Bearer ${apiKey}`, "content-type": "application/json", accept: "text/event-stream" },
-    body: JSON.stringify(buildNvidiaBody(prompt, language, model, requestedReasoning, effort, allowCode)),
+    body: JSON.stringify(buildNvidiaBody(prompt, language, model, requestedReasoning, effort, allowCode, tone)),
   });
   if (!response.ok) {
     const errorText = await response.text().catch(() => "");
@@ -170,7 +166,7 @@ async function fetchNvidiaBody(prompt: string, language: Language, model: ErmaMo
   return response.body;
 }
 
-async function fetchNvidiaWithKeyRotation(prompt: string, language: Language, model: ErmaModel, requestedReasoning: boolean, effort: ReasoningEffort, allowCode: boolean) {
+async function fetchNvidiaWithKeyRotation(prompt: string, language: Language, model: ErmaModel, requestedReasoning: boolean, effort: ReasoningEffort, allowCode: boolean, tone: ErmaTone) {
   const keys = getNvidiaApiKeys();
   const candidateIndexes = getAvailableNvidiaKeyIndexes(keys);
   if (!candidateIndexes.length) throw new Error("No NVIDIA API key is available");
@@ -179,7 +175,7 @@ async function fetchNvidiaWithKeyRotation(prompt: string, language: Language, mo
   for (const keyIndex of candidateIndexes) {
     const apiKey = keys[keyIndex];
     try {
-      const body = await fetchNvidiaBody(prompt, language, model, apiKey, requestedReasoning, effort, allowCode);
+      const body = await fetchNvidiaBody(prompt, language, model, apiKey, requestedReasoning, effort, allowCode, tone);
       preferredNvidiaKeyIndex = keyIndex;
       return body;
     } catch (error) {
@@ -227,10 +223,12 @@ function pushEvent(controller: ReadableStreamDefaultController<Uint8Array>, enco
   controller.enqueue(encoder.encode(`data: ${JSON.stringify(payload)}\n\n`));
 }
 
-async function emitTextAnswer(controller: ReadableStreamDefaultController<Uint8Array>, encoder: TextEncoder, result: ProviderResult, startedAt: number) {
-  for (const [index, token] of result.answer.split(" ").entries()) {
-    pushEvent(controller, encoder, { token: `${index ? " " : ""}${token}` });
-    await sleep(result.provider === "clodex" ? 18 : 55);
+function emitTextAnswer(controller: ReadableStreamDefaultController<Uint8Array>, encoder: TextEncoder, result: ProviderResult, startedAt: number) {
+  const answer = result.answer.trim();
+  const codePoints = Array.from(answer);
+  const chunkSize = 64;
+  for (let index = 0; index < codePoints.length; index += chunkSize) {
+    pushEvent(controller, encoder, { token: codePoints.slice(index, index + chunkSize).join("") });
   }
   pushEvent(controller, encoder, { done: true, meta: metaFor(result, startedAt) });
 }
@@ -320,6 +318,7 @@ export async function POST(request: Request) {
   const model = getErmaModel(typeof body?.model === "string" ? body.model : undefined);
   const requestedReasoning = body?.reason === true;
   const effort = normalizeEffort(body?.effort);
+  const tone = normalizeErmaTone(body?.tone);
   const providerPrompt = promptWithAttachments(prompt, body?.attachments);
   let sessionEmail = "";
   try {
@@ -365,7 +364,7 @@ export async function POST(request: Request) {
   const encoder = new TextEncoder();
   if (getNvidiaApiKeys().length && model.nvidiaModel) {
     try {
-      const upstreamBody = await fetchNvidiaWithKeyRotation(providerPrompt, language, model, requestedReasoning, effort, privilegedAccount);
+      const upstreamBody = await fetchNvidiaWithKeyRotation(providerPrompt, language, model, requestedReasoning, effort, privilegedAccount, tone);
       const stream = new ReadableStream<Uint8Array>({
         async start(controller) {
           await emitNvidiaStream(upstreamBody, controller, encoder, providerPrompt, language, model, startedAt, privilegedAccount);
