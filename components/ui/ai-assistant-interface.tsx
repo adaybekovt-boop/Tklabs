@@ -293,7 +293,7 @@ export function AIAssistantInterface({ account }: { account: AccountSummary }) {
     <div className="ai-chat-interface">
       <aside className="ai-chat-sidebar">
         <Link className="ai-sidebar-brand" href="/" aria-label="Imaginary Intelligence">
-          <span className="ai-sidebar-mark"><Image src="/tk-logo.png" alt="" width={24} height={24} /></span>
+          <span className="ai-sidebar-mark"><Image src="/tk-logo.png" alt="" width={24} height={24} unoptimized /></span>
           <span><strong>TK LABS</strong><small>{copy.nav.aiChats}</small></span>
         </Link>
 
@@ -333,7 +333,7 @@ export function AIAssistantInterface({ account }: { account: AccountSummary }) {
       <section className="ai-chat-workspace">
         <header className="ai-chat-topbar">
           <div className="ai-chat-heading">
-            <Image className="ai-mobile-logo" src="/tk-logo.png" alt="" width={24} height={24} />
+            <Image className="ai-mobile-logo" src="/tk-logo.png" alt="" width={24} height={24} unoptimized />
             <span>
               <span className="eyebrow">{copy.chat.eyebrow}</span>
               <span className="ai-chat-topline"><span className="status-dot" /> {copy.chat.workspace}</span>
@@ -354,7 +354,7 @@ export function AIAssistantInterface({ account }: { account: AccountSummary }) {
             {messages.length === 0 ? (
               <div className="ai-empty-state">
                 <div className="ai-empty-portrait">
-                  <Image src="/erma-model.png" alt="" width={96} height={96} />
+                  <Image src="/erma-model.png" alt="Erma AI" width={96} height={96} unoptimized />
                   <span>ERMA / ONLINE</span>
                 </div>
                 <p className="ai-empty-kicker">PLAYGROUND / 01</p>
@@ -369,7 +369,7 @@ export function AIAssistantInterface({ account }: { account: AccountSummary }) {
                     <div className="ai-message-identity">
                       <span className="ai-message-avatar">
                         {message.role === "assistant"
-                          ? <Image src="/erma-model.png" alt="" width={42} height={42} />
+                          ? <Image src="/erma-model.png" alt="Erma AI" width={42} height={42} unoptimized />
                           : account.image
                             ? <Image src={account.image} alt="" width={42} height={42} unoptimized referrerPolicy="no-referrer" />
                             : accountInitials}
