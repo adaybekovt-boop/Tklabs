@@ -87,6 +87,8 @@ test("patch notes are linked and written as an English release log", async () =>
   assert.match(header, /href: "\/patch-notes"/);
   assert.match(footer, /href="\/patch-notes"/);
   assert.match(translations, /patchNotes: "Patch Notes"/);
+  assert.match(translations, /version: "v0\.5\.3"/);
+  assert.match(translations, /version: "v0\.5\.2"/);
   assert.match(translations, /version: "v0\.5\.1"/);
   assert.match(translations, /Developers & release transparency/);
 });
@@ -107,12 +109,41 @@ test("profile uses the provider avatar and exposes admin state", async () => {
 
   assert.match(profile, /session\?\.user\?\.image/);
   assert.doesNotMatch(profile, /aida-public/);
+  assert.doesNotMatch(profile, /grayscale/);
+  assert.doesNotMatch(await text("app/developers/page.tsx"), /grayscale/);
   assert.match(profile, /adminAccess/);
   assert.match(profile, /adminState/);
   assert.match(translations, /Модельный маршрут Clodex/);
   assert.match(translations, /Clodex model route/);
   assert.match(footer, /grid w-full grid-cols-2/);
   assert.match(css, /--spacing-section-gap: 72px/);
+  assert.match(css, /overflow-wrap: anywhere/);
+});
+
+test("mobile layouts avoid fixed-width content traps", async () => {
+  const home = await text("app/page.tsx");
+  const input = await text("components/ui/ai-chat-input.tsx");
+  const login = await text("app/login/page.tsx");
+
+  assert.match(home, /md:hidden/);
+  assert.match(home, /aspect-\[4\/5\] lg:aspect-auto/);
+  assert.doesNotMatch(home, /min-w-\[700px\]/);
+  assert.match(input, /w-\[min\(290px,calc\(100vw-2rem\)\)\]/);
+  assert.match(login, /grid-cols-1.*sm:grid-cols-2/);
+});
+
+test("theme switching is persistent and available from the global shell", async () => {
+  const layout = await text("app/layout.tsx");
+  const header = await text("components/site/StitchHeader.tsx");
+  const toggle = await text("components/site/ThemeToggle.tsx");
+  const css = await text("app/globals.css");
+
+  assert.match(layout, /tklabs-theme/);
+  assert.match(layout, /suppressHydrationWarning/);
+  assert.match(header, /ThemeToggle/);
+  assert.match(toggle, /localStorage\.setItem\(THEME_STORAGE_KEY, nextTheme\)/);
+  assert.match(css, /html\[data-theme="dark"\]/);
+  assert.match(css, /--color-surface-container-lowest: #171717/);
 });
 
 test("privileged workspace access is reflected in the client and profile", async () => {

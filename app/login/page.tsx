@@ -29,7 +29,7 @@ export default async function LoginPage() {
           <p className="label-caps mb-8 text-secondary">{text.login.account}</p>
           <h1 className="display-title mb-6">{text.login.title}</h1>
           <p className="max-w-md text-[18px] leading-[1.7] text-on-surface-variant">{text.login.description}</p>
-          <div className="mt-16 grid grid-cols-2 gap-px border border-primary bg-primary text-[12px] uppercase tracking-[0.1em]">
+          <div className="mt-16 grid grid-cols-1 gap-px border border-primary bg-primary text-[12px] uppercase tracking-[0.1em] sm:grid-cols-2">
             <span className="bg-surface p-5">{text.login.identity}</span>
             <span className="bg-surface p-5">{text.login.session}</span>
           </div>

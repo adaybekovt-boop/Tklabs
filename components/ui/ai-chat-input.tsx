@@ -391,7 +391,7 @@ export const PromptInput = React.forwardRef<HTMLDivElement, PromptInputProps>(fu
 
               <div
                 className={cn(
-                  "absolute bottom-full left-0 z-40 mb-3 max-h-[360px] w-[290px] origin-bottom-left overflow-y-auto border border-outline-variant bg-white p-2 transition-[opacity,transform] duration-250",
+                  "absolute bottom-full left-0 z-40 mb-3 max-h-[min(360px,70vh)] w-[min(290px,calc(100vw-2rem))] origin-bottom-left overflow-y-auto border border-outline-variant bg-white p-2 transition-[opacity,transform] duration-250",
                   modelMenuOpen ? "pointer-events-auto translate-y-0 scale-100 opacity-100" : "pointer-events-none translate-y-2 scale-[0.98] opacity-0",
                 )}
               >

@@ -44,7 +44,7 @@ export default async function DevelopersPage() {
                     alt={`${person.name} portrait`}
                     fill
                     sizes="(min-width: 768px) 42vw, 100vw"
-                    className="object-cover object-top grayscale"
+                    className="object-cover object-top"
                   />
                 </div>
                 <h3 className="mt-8 font-serif text-[34px]">{person.name}</h3>

@@ -14,6 +14,8 @@ export const dictionaries = {
       login: "Войти",
       profile: "Профиль",
       language: "Язык",
+      themeLight: "Светлая тема",
+      themeDark: "Тёмная тема",
     },
     footer: {
       privacy: "Конфиденциальность",
@@ -132,6 +134,30 @@ export const dictionaries = {
       title: "What changed in TK LAB.",
       intro: "A public, English-language log of product, interface, and reliability updates. New releases will be added here as the system evolves.",
       entries: [
+        {
+          date: "05 Aug 2026",
+          version: "v0.5.3",
+          title: "Light / dark workspace themes",
+          summary: "TK LAB now supports a persistent dark workspace without sacrificing contrast, hierarchy, or mobile readability.",
+          changes: [
+            "Added a theme switcher to the global header with accessible labels and a clear active state.",
+            "Persisted the selected theme locally and applied it before the page paints to avoid a bright-theme flash.",
+            "Moved surfaces, borders, text, buttons, scrollbars, and selection colors onto shared theme tokens.",
+            "Adjusted translucent overlays and chat surfaces so the laboratory remains readable in both modes.",
+          ],
+        },
+        {
+          date: "05 Aug 2026",
+          version: "v0.5.2",
+          title: "Mobile hardening & color identity",
+          summary: "The interface is more resilient on narrow screens, with fluid content and full-color account and developer portraits.",
+          changes: [
+            "Replaced the mobile model table with responsive cards so long Russian labels no longer force a horizontal scroll.",
+            "Removed fixed viewport traps from hero, transparency, access, and composer layouts while preserving intentional image aspect ratios.",
+            "Restored full-color authenticated avatars and developer portraits instead of applying grayscale styling.",
+            "Improved text wrapping, control sizing, and tap targets across compact mobile layouts.",
+          ],
+        },
         {
           date: "05 Aug 2026",
           version: "v0.5.1",
@@ -363,6 +389,8 @@ export const dictionaries = {
       login: "Sign in",
       profile: "Profile",
       language: "Language",
+      themeLight: "Light theme",
+      themeDark: "Dark theme",
     },
     footer: {
       privacy: "Privacy",
@@ -481,6 +509,30 @@ export const dictionaries = {
       title: "What changed in TK LAB.",
       intro: "A public, English-language log of product, interface, and reliability updates. New releases will be added here as the system evolves.",
       entries: [
+        {
+          date: "05 Aug 2026",
+          version: "v0.5.3",
+          title: "Light / dark workspace themes",
+          summary: "TK LAB now supports a persistent dark workspace without sacrificing contrast, hierarchy, or mobile readability.",
+          changes: [
+            "Added a theme switcher to the global header with accessible labels and a clear active state.",
+            "Persisted the selected theme locally and applied it before the page paints to avoid a bright-theme flash.",
+            "Moved surfaces, borders, text, buttons, scrollbars, and selection colors onto shared theme tokens.",
+            "Adjusted translucent overlays and chat surfaces so the laboratory remains readable in both modes.",
+          ],
+        },
+        {
+          date: "05 Aug 2026",
+          version: "v0.5.2",
+          title: "Mobile hardening & color identity",
+          summary: "The interface is more resilient on narrow screens, with fluid content and full-color account and developer portraits.",
+          changes: [
+            "Replaced the mobile model table with responsive cards so long Russian labels no longer force a horizontal scroll.",
+            "Removed fixed viewport traps from hero, transparency, access, and composer layouts while preserving intentional image aspect ratios.",
+            "Restored full-color authenticated avatars and developer portraits instead of applying grayscale styling.",
+            "Improved text wrapping, control sizing, and tap targets across compact mobile layouts.",
+          ],
+        },
         {
           date: "05 Aug 2026",
           version: "v0.5.1",

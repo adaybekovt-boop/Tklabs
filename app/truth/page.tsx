@@ -24,7 +24,7 @@ export default async function TruthPage() {
           <p className="border-l border-primary pl-7 text-[18px] leading-[1.7] text-on-surface-variant md:col-span-4 md:col-start-9">{text.truth.intro}</p>
         </section>
         <section className="mb-section-gap grid gap-6 md:grid-cols-12">
-          <div className="relative min-h-[560px] md:col-span-8">
+          <div className="relative aspect-[4/3] md:aspect-auto md:min-h-[560px] md:col-span-8">
             <Image src={STRUCTURE_IMAGE} alt={text.truth.structureAlt} fill sizes="(min-width: 768px) 67vw, 100vw" unoptimized className="object-cover grayscale" />
           </div>
           <div className="flex flex-col justify-between border border-primary bg-white p-10 md:col-span-4">
@@ -50,10 +50,10 @@ export default async function TruthPage() {
             ))}
           </div>
         </section>
-        <section className="relative min-h-[360px] overflow-hidden">
+        <section className="relative min-h-[280px] overflow-hidden md:min-h-[360px]">
           <Image src={PAPER_IMAGE} alt={text.truth.paperAlt} fill sizes="100vw" unoptimized className="object-cover grayscale opacity-80" />
-          <div className="absolute inset-0 bg-white/55" />
-          <div className="relative z-10 flex min-h-[360px] flex-col items-center justify-center px-8 text-center">
+          <div className="absolute inset-0 bg-surface/55" />
+          <div className="relative z-10 flex min-h-[280px] flex-col items-center justify-center px-8 text-center md:min-h-[360px]">
             <h2 className="headline-title max-w-xl">{text.truth.docsTitle}</h2>
             <Link href="/legal/api" className="quiet-button quiet-button--dark mt-8">{text.truth.openApi}</Link>
           </div>

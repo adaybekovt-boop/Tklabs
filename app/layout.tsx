@@ -3,6 +3,11 @@ import type { Metadata } from "next";
 import "@/app/globals.css";
 import { getLocale } from "@/lib/locale";
 
+const THEME_INIT_SCRIPT = `try {
+  const theme = window.localStorage.getItem("tklabs-theme");
+  if (theme === "dark" || theme === "light") document.documentElement.dataset.theme = theme;
+} catch {}`;
+
 export async function generateMetadata(): Promise<Metadata> {
   const locale = await getLocale();
   return locale === "en"
@@ -19,7 +24,10 @@ export async function generateMetadata(): Promise<Metadata> {
 export default async function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   const locale = await getLocale();
   return (
-    <html lang={locale}>
+    <html lang={locale} suppressHydrationWarning>
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }} />
+      </head>
       <body>{children}</body>
     </html>
   );

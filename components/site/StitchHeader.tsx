@@ -2,6 +2,7 @@ import Link from "next/link";
 
 import { auth } from "@/auth";
 import { LanguageToggle } from "@/components/site/LanguageToggle";
+import { ThemeToggle } from "@/components/site/ThemeToggle";
 import { getDictionary, type Dictionary } from "@/lib/i18n";
 import { getLocale } from "@/lib/locale";
 
@@ -46,6 +47,7 @@ export async function StitchHeader({ active }: StitchHeaderProps) {
           ))}
         </nav>
         <div className="flex items-center gap-4">
+          <ThemeToggle lightLabel={text.nav.themeLight} darkLabel={text.nav.themeDark} />
           <LanguageToggle locale={locale} label={text.nav.language} />
           <Link href={signedIn ? "/profile" : "/login"} className="quiet-button min-h-9 px-3 text-[11px] md:min-h-10 md:px-5 md:text-[12px]">
             {signedIn ? text.nav.profile : text.nav.login}
