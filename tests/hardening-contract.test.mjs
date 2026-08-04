@@ -38,13 +38,13 @@ test("provider limits are durable and failed Clodex requests can release allowan
   assert.match(demoAccess, /consumeDemo/);
 });
 
-test("guest demo access and request-size protection stay aligned", async () => {
+test("guest and privileged demo access stay aligned with request-size protection", async () => {
   const demoRoute = await text("app/api/demo/route.ts");
   const requestBody = await text("lib/request-body.ts");
   const requestSecurity = await text("lib/request-security.ts");
   const nextConfig = await text("next.config.ts");
 
-  assert.doesNotMatch(demoRoute, /const session = await auth\(\)/);
+  assert.match(demoRoute, /auth\(\)/);
   assert.match(demoRoute, /parseJsonBody/);
   assert.match(requestBody, /DEFAULT_JSON_BODY_LIMIT_BYTES/);
   assert.match(requestBody, /RequestBodyTooLargeError/);
@@ -66,10 +66,29 @@ test("AI safety policy blocks code and prompt-override paths before providers", 
   assert.match(safety, /isUnsafeAssistantOutput/);
   assert.match(safety, /base64|rot13|obfuscated/);
   assert.match(safety, /system\|developer/);
-  assert.match(demoRoute, /classifyPromptSafety\(providerPrompt\)/);
-  assert.match(clodexRoute, /classifyPromptSafety\(providerPrompt\)/);
+  assert.match(demoRoute, /classifyPromptSafety\(providerPrompt/);
+  assert.match(clodexRoute, /classifyPromptSafety\(providerPrompt/);
   assert.doesNotMatch(interfaceSource, /Code2|id: "code"/);
   assert.doesNotMatch(models, /Кодинг:|\[Код\]|\[Полный идеальный код\]|qwen.*coder/);
+});
+
+test("privileged accounts bypass broken demo/account limiters without weakening override protection", async () => {
+  const privileged = await text("lib/privileged-access.ts");
+  const demoRoute = await text("app/api/demo/route.ts");
+  const clodexRoute = await text("app/api/clodex/route.ts");
+  const profileRoute = await text("app/api/profile/access/route.ts");
+  const safety = await text("lib/ai-safety.ts");
+
+  assert.match(privileged, /kandykbayevtagir@gmail\.com/);
+  assert.match(privileged, /adaybekovt@bk\.ru/);
+  assert.match(demoRoute, /isPrivilegedAiEmail/);
+  assert.match(demoRoute, /if \(!privilegedAccount\)/);
+  assert.match(clodexRoute, /isPrivilegedAiEmail/);
+  assert.match(clodexRoute, /allowanceReserved/);
+  assert.match(profileRoute, /privilegedAccessStatus/);
+  assert.match(safety, /AI_PRIVILEGED_SYSTEM_PROMPT/);
+  assert.match(safety, /allowCode/);
+  assert.match(safety, /instruction_override/);
 });
 
 test("runtime rejects Russian, English, and tagged jailbreak/code requests", async () => {
