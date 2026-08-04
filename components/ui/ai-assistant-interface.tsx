@@ -164,6 +164,7 @@ export function AIAssistantInterface({ account }: { account: AccountSummary }) {
   };
 
   async function handleSubmit(prompt: string, meta: ChatSubmitMeta) {
+    stopSpeech();
     const stamp = Date.now();
     const userMessage: Message = { id: String(stamp) + "-user", role: "user", text: prompt };
     const assistantMessage: Message = { id: String(stamp) + "-assistant", role: "assistant", text: "" };
@@ -230,6 +231,7 @@ export function AIAssistantInterface({ account }: { account: AccountSummary }) {
   };
 
   const clearChat = () => {
+    stopSpeech();
     setMessages([]);
     setActiveCategory(null);
     setComposerValue("");
