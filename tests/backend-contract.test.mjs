@@ -87,6 +87,7 @@ test("patch notes are linked and written as an English release log", async () =>
   assert.match(header, /href: "\/patch-notes"/);
   assert.match(footer, /href="\/patch-notes"/);
   assert.match(translations, /patchNotes: "Patch Notes"/);
+  assert.match(translations, /version: "v0\.5\.1"/);
   assert.match(translations, /Developers & release transparency/);
 });
 
@@ -96,6 +97,22 @@ test("the header reflects the authenticated session", async () => {
   assert.match(header, /await auth\(\)/);
   assert.match(header, /href=\{signedIn \? "\/profile" : "\/login"\}/);
   assert.match(header, /signedIn \? text\.nav\.profile : text\.nav\.login/);
+});
+
+test("profile uses the provider avatar and exposes admin state", async () => {
+  const profile = await text("app/profile/page.tsx");
+  const translations = await text("lib/i18n.ts");
+  const footer = await text("components/site/StitchFooter.tsx");
+  const css = await text("app/globals.css");
+
+  assert.match(profile, /session\?\.user\?\.image/);
+  assert.doesNotMatch(profile, /aida-public/);
+  assert.match(profile, /adminAccess/);
+  assert.match(profile, /adminState/);
+  assert.match(translations, /Модельный маршрут Clodex/);
+  assert.match(translations, /Clodex model route/);
+  assert.match(footer, /grid w-full grid-cols-2/);
+  assert.match(css, /--spacing-section-gap: 72px/);
 });
 
 test("privileged workspace access is reflected in the client and profile", async () => {

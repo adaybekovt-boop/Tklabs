@@ -21,7 +21,7 @@ export default async function StatusPage() {
         </section>
         <StatusBoard locale={locale} />
         <section>
-          <div className="mb-8 flex items-end justify-between border-b-[0.5px] border-primary pb-6">
+          <div className="mb-8 flex flex-col items-start gap-3 border-b-[0.5px] border-primary pb-6 sm:flex-row sm:items-end sm:justify-between">
             <h2 className="headline-title">{text.status.incidents}</h2>
             <span className="label-caps text-secondary">{text.status.last90}</span>
           </div>

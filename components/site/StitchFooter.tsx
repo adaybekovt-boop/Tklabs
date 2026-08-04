@@ -10,7 +10,7 @@ export async function StitchFooter() {
     <footer className="mt-section-gap border-t-[0.5px] border-primary bg-surface">
       <div className="stitch-container flex flex-col items-start justify-between gap-8 py-8 md:flex-row md:items-center">
         <span className="font-serif text-[28px]">TK LAB</span>
-        <nav className="flex flex-wrap gap-6 text-[14px] text-secondary" aria-label={text.nav.documentation}>
+        <nav className="grid w-full grid-cols-2 gap-x-6 gap-y-3 text-[13px] text-secondary md:flex md:w-auto md:flex-wrap md:gap-6 md:text-[14px]" aria-label={text.nav.documentation}>
           <Link href="/models">{text.footer.models}</Link>
           <Link href="/access">{text.footer.access}</Link>
           <Link href="/documentation">{text.footer.documentation}</Link>
@@ -22,7 +22,7 @@ export async function StitchFooter() {
           <Link href="/truth">{text.footer.truth}</Link>
           <Link href="/status">{text.footer.status}</Link>
         </nav>
-        <span className="text-[13px] text-secondary">{text.footer.copyright}</span>
+        <span className="max-w-[240px] text-[13px] text-secondary md:max-w-none">{text.footer.copyright}</span>
       </div>
     </footer>
   );

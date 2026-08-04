@@ -32,7 +32,7 @@ export async function StitchHeader({ active }: StitchHeaderProps) {
 
   return (
     <header className="sticky top-0 z-50 border-b-[0.5px] border-primary bg-surface/95 backdrop-blur-sm">
-      <div className="stitch-container flex min-h-[80px] items-center justify-between gap-8">
+      <div className="stitch-container flex min-h-[68px] items-center justify-between gap-3 md:min-h-[80px] md:gap-8">
         <Link href="/" className="shrink-0 font-serif text-[28px] tracking-[-0.03em]">TK LAB</Link>
         <nav className="hidden items-center gap-7 lg:flex" aria-label={text.nav.home}>
           {navigation.map((item) => (
@@ -47,7 +47,7 @@ export async function StitchHeader({ active }: StitchHeaderProps) {
         </nav>
         <div className="flex items-center gap-4">
           <LanguageToggle locale={locale} label={text.nav.language} />
-          <Link href={signedIn ? "/profile" : "/login"} className="quiet-button min-h-10 px-5">
+          <Link href={signedIn ? "/profile" : "/login"} className="quiet-button min-h-9 px-3 text-[11px] md:min-h-10 md:px-5 md:text-[12px]">
             {signedIn ? text.nav.profile : text.nav.login}
           </Link>
         </div>
