@@ -22,7 +22,7 @@ function errorResponse(error: string, status: number, requestId?: string) {
   return Response.json({ error, ...(requestId ? { requestId } : {}) }, noStore({ status, headers: requestId ? { "x-request-id": requestId } : undefined }));
 }
 
-async function sessionEmail(readSession: SessionReader = auth) {
+async function sessionEmail(readSession: SessionReader) {
   try {
     return (await readSession())?.user?.email?.trim().toLowerCase() ?? "";
   } catch (error) {
@@ -102,7 +102,7 @@ function proxyAudio(
   return stream;
 }
 
-export async function GET(readSession: SessionReader = auth) {
+export async function handleTtsGet(readSession: SessionReader) {
   const email = await sessionEmail(readSession);
   if (email === null) return errorResponse("Speech service is temporarily unavailable.", 503);
   if (!email) return errorResponse("Authentication required.", 401);
@@ -112,7 +112,19 @@ export async function GET(readSession: SessionReader = auth) {
   );
 }
 
-export async function POST(request: Request, readSession: SessionReader = auth) {
+function retryAfterSeconds(timestamp: number | null) {
+  if (!timestamp) return null;
+  return Math.max(1, Math.ceil((timestamp - Date.now()) / 1000));
+}
+
+function reservationRetryAfter(error: string | undefined, requestResetAt: number | null, dayResetAt: number) {
+  if (error === "request_limit") return retryAfterSeconds(requestResetAt);
+  if (error === "daily_quota") return retryAfterSeconds(dayResetAt);
+  if (error === "parallel_request") return 1;
+  return null;
+}
+
+export async function handleTtsPost(request: Request, readSession: SessionReader) {
   const requestId = crypto.randomUUID();
   if (!isTrustedRequestOrigin(request)) return errorResponse("Request origin is not allowed.", 403, requestId);
 
@@ -150,7 +162,8 @@ export async function POST(request: Request, readSession: SessionReader = auth) 
           : "Daily speech character quota reached.";
       const status = reservation.error === "daily_quota" || reservation.error === "request_limit" ? 429 : 409;
       const response = errorResponse(message, status, requestId);
-      if (reservation.requestResetAt) response.headers.set("retry-after", String(Math.max(1, Math.ceil((reservation.requestResetAt - Date.now()) / 1000))));
+      const retryAfter = reservationRetryAfter(reservation.error, reservation.requestResetAt, reservation.dayResetAt);
+      if (retryAfter !== null) response.headers.set("retry-after", String(retryAfter));
       return response;
     }
     reservationId = reservation.reservationId ?? "";
@@ -215,4 +228,13 @@ export async function POST(request: Request, readSession: SessionReader = auth) 
     if (!(error instanceof DOMException && error.name === "AbortError")) console.error("tts.provider_failed", { requestId, reason: error instanceof Error ? error.name : "unknown" });
     return errorResponse("High-quality speech is temporarily unavailable.", 502, requestId);
   }
+}
+
+export async function GET(_request: Request) {
+  void _request;
+  return handleTtsGet(auth);
+}
+
+export async function POST(request: Request) {
+  return handleTtsPost(request, auth);
 }

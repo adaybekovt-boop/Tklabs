@@ -25,7 +25,7 @@ function normalizeTarget(value: unknown) {
   return email;
 }
 
-export async function POST(request: Request, readSession: SessionReader = auth) {
+export async function handleAdminClodexRevoke(request: Request, readSession: SessionReader) {
   const requestId = newRequestId();
   if (!isTrustedRequestOrigin(request)) return response({ error: "Request origin is not allowed.", requestId }, requestId, 403);
 
@@ -57,4 +57,8 @@ export async function POST(request: Request, readSession: SessionReader = auth) 
     console.error("clodex.admin_revoke_failed", { requestId, reason: error instanceof Error ? error.name : "unknown" });
     return response({ error: "Unable to revoke model access.", requestId }, requestId, 503);
   }
+}
+
+export async function POST(request: Request) {
+  return handleAdminClodexRevoke(request, auth);
 }

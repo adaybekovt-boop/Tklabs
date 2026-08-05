@@ -162,6 +162,7 @@ function makeTtsStub(result = "success") {
       this.privileged = privileged;
       if (result === "parallel") return Promise.resolve({ allowed: false, error: "parallel_request", requestLimit: 5, requestWindowMs: 900_000, requestsRemaining: 0, requestResetAt: Date.now() + 1000, dailyCharacterQuota: 10_000, charactersRemaining: 9_000, dayResetAt: Date.now() + 86_400_000 });
       if (result === "quota") return Promise.resolve({ allowed: false, error: "request_limit", requestLimit: 5, requestWindowMs: 900_000, requestsRemaining: 0, requestResetAt: Date.now() + 1000, dailyCharacterQuota: 10_000, charactersRemaining: 9_000, dayResetAt: Date.now() + 86_400_000 });
+      if (result === "daily") return Promise.resolve({ allowed: false, error: "daily_quota", requestLimit: 5, requestWindowMs: 900_000, requestsRemaining: 4, requestResetAt: Date.now() + 1000, dailyCharacterQuota: 10_000, charactersRemaining: 0, dayResetAt: Date.now() + 86_400_000 });
       return Promise.resolve({ allowed: true, reservationId: "tts-1", requestLimit: 5, requestWindowMs: 900_000, requestsRemaining: 4, requestResetAt: Date.now() + 900_000, dailyCharacterQuota: 10_000, charactersRemaining: 9_999, dayResetAt: Date.now() + 86_400_000 });
     },
     commitTts() { this.committed += 1; return Promise.resolve({ allowed: true }); },
@@ -175,8 +176,8 @@ test("POST /api/tts uses Unicode code points and commits only after the audio st
   process.env.ELEVENLABS_API_KEY = "test-eleven-key";
   process.env.ELEVENLABS_VOICE_ID = "test-voice";
   globalThis.fetch = async () => new Response(new Uint8Array([1, 2, 3]), { status: 200, headers: { "content-type": "audio/mpeg" } });
-  const { POST } = await loadTts(stub);
-  const response = await POST(speechRequest("🙂"), signedInSession);
+  const { handleTtsPost } = await loadTts(stub);
+  const response = await handleTtsPost(speechRequest("🙂"), signedInSession);
   assert.equal(response.status, 200);
   await response.arrayBuffer();
   assert.equal(stub.reservedCharacters, 1);
@@ -191,8 +192,8 @@ test("POST /api/tts passes the server-side privileged policy only for an allowli
   process.env.ELEVENLABS_VOICE_ID = "test-voice";
   process.env.UNLIMITED_AI_EMAILS = " user@example.com, USER@example.com ";
   globalThis.fetch = async () => new Response(new Uint8Array([1]), { status: 200, headers: { "content-type": "audio/mpeg" } });
-  const { POST } = await loadTts(stub);
-  const response = await POST(speechRequest("hello"), signedInSession);
+  const { handleTtsPost } = await loadTts(stub);
+  const response = await handleTtsPost(speechRequest("hello"), signedInSession);
   assert.equal(response.status, 200);
   await response.arrayBuffer();
   assert.equal(stub.privileged, true);
@@ -204,19 +205,35 @@ test("POST /api/tts releases on provider failure, rejects parallel quota, and sk
   process.env.ELEVENLABS_API_KEY = "test-eleven-key";
   process.env.ELEVENLABS_VOICE_ID = "test-voice";
   globalThis.fetch = async () => new Response("provider failed", { status: 503 });
-  const { POST } = await loadTts(failureStub);
-  assert.equal((await POST(speechRequest("hello"), signedInSession)).status, 502);
+  const { handleTtsPost } = await loadTts(failureStub);
+  assert.equal((await handleTtsPost(speechRequest("hello"), signedInSession)).status, 502);
   assert.equal(failureStub.released, 1);
 
   const parallelStub = makeTtsStub("parallel");
   const parallelRoute = await loadTts(parallelStub);
-  assert.equal((await parallelRoute.POST(speechRequest("hello"), signedInSession)).status, 409);
+  const parallelResponse = await parallelRoute.handleTtsPost(speechRequest("hello"), signedInSession);
+  assert.equal(parallelResponse.status, 409);
+  assert.equal(parallelResponse.headers.get("retry-after"), "1");
+
+  const quotaStub = makeTtsStub("quota");
+  const quotaRoute = await loadTts(quotaStub);
+  const requestQuotaResponse = await quotaRoute.handleTtsPost(speechRequest("hello"), signedInSession);
+  assert.equal(requestQuotaResponse.status, 429);
+  const requestRetryAfter = Number(requestQuotaResponse.headers.get("retry-after"));
+  assert.ok(requestRetryAfter > 0 && requestRetryAfter <= 2);
+
+  const dailyStub = makeTtsStub("daily");
+  const dailyRoute = await loadTts(dailyStub);
+  const dailyQuotaResponse = await dailyRoute.handleTtsPost(speechRequest("hello"), signedInSession);
+  assert.equal(dailyQuotaResponse.status, 429);
+  const dailyRetryAfter = Number(dailyQuotaResponse.headers.get("retry-after"));
+  assert.ok(dailyRetryAfter > 60 * 60, "daily quota should use the day reset timestamp");
 
   const abortedStub = makeTtsStub();
   const abortedRoute = await loadTts(abortedStub);
   const controller = new AbortController();
   controller.abort();
-  assert.equal((await abortedRoute.POST(speechRequest("hello", controller.signal), signedInSession)).status, 499);
+  assert.equal((await abortedRoute.handleTtsPost(speechRequest("hello", controller.signal), signedInSession)).status, 499);
   assert.equal(abortedStub.reserved, 0);
 });
 
@@ -301,13 +318,13 @@ test("protected routes fail closed without an authentication session", async () 
 
 test("admin Clodex revoke route is origin-checked and the legacy self-revoke URL is retired", async () => {
   setCloudflareEnv({});
-  const [{ POST: adminRevoke }, { POST: legacyRevoke }] = await Promise.all([
+  const [{ POST: adminRevoke, handleAdminClodexRevoke }, { POST: legacyRevoke }] = await Promise.all([
     import(`../app/api/admin/clodex/revoke/route.ts?admin-revoke=${Math.random()}`),
     import(`../app/api/clodex/revoke/route.ts?legacy-revoke=${Math.random()}`),
   ]);
   const invalidOrigin = await adminRevoke(request({ email: "target@example.com" }, { origin: "https://evil.example" }));
   assert.equal(invalidOrigin.status, 403);
-  const unauthenticated = await adminRevoke(request({ email: "target@example.com" }), async () => null);
+  const unauthenticated = await handleAdminClodexRevoke(request({ email: "target@example.com" }), async () => null);
   assert.equal(unauthenticated.status, 401);
   process.env.UNLIMITED_AI_EMAILS = "admin@example.com";
   process.env.ACCOUNT_ID_SECRET = "admin-account-secret";
@@ -317,14 +334,27 @@ test("admin Clodex revoke route is origin-checked and the legacy self-revoke URL
     revoke: async () => ({ revoked: true, active: false, hasGrant: true }),
   };
   setCloudflareEnv({ CLODEX_ACCESS: { getByName: () => adminStub } });
-  const revoked = await adminRevoke(request({ email: " Target@Example.com " }), async () => ({ user: { email: "ADMIN@example.com" } }));
+  const revoked = await handleAdminClodexRevoke(request({ email: " Target@Example.com " }), async () => ({ user: { email: "ADMIN@example.com" } }));
   assert.equal(revoked.status, 200);
   const revokedPayload = await revoked.json();
   assert.equal(revokedPayload.revoked, true);
   assert.equal(revokedPayload.active, false);
   assert.equal(revokedPayload.hasGrant, true);
   assert.match(revokedPayload.requestId, /^[0-9a-f-]{36}$/);
-  const oversized = await adminRevoke(request({ email: "x".repeat(9_000) }), async () => ({ user: { email: "admin@example.com" } }));
+  const oversized = await handleAdminClodexRevoke(request({ email: "x".repeat(9_000) }), async () => ({ user: { email: "admin@example.com" } }));
   assert.equal(oversized.status, 413);
   assert.equal((await legacyRevoke(request({}))).status, 410);
+});
+
+test("public route handlers keep the Next.js framework signature", async () => {
+  const tts = await loadTts(makeTtsStub());
+  const ttsGet = await tts.GET(new Request("https://tklabs.uk/api/tts"));
+  const ttsPost = await tts.POST(speechRequest("hello"));
+  assert.ok([401, 503].includes(ttsGet.status));
+  assert.ok([401, 503].includes(ttsPost.status));
+
+  setCloudflareEnv({});
+  const admin = await import(`../app/api/admin/clodex/revoke/route.ts?framework-signature=${Math.random()}`);
+  const adminPost = await admin.POST(request({ email: "target@example.com" }));
+  assert.ok([401, 503].includes(adminPost.status));
 });
