@@ -166,6 +166,7 @@ test("patch notes are linked and written as an English release log", async () =>
   assert.match(nav, /href: "\/patch-notes"/);
   assert.match(footer, /href="\/patch-notes"/);
   assert.match(translations, /patchNotes: "Patch Notes"/);
+  assert.match(translations, /version: "v0\.7\.1"/);
   assert.match(translations, /version: "v0\.7\.0"/);
   assert.match(translations, /version: "v0\.6\.3"/);
   assert.match(translations, /version: "v0\.6\.2"/);
