@@ -77,7 +77,7 @@ npm run build
 npm audit --omit=dev --audit-level=high
 ```
 
-Final local result before this follow-up: all checks passed, including 10 unit tests and 22 integration/contract tests. The follow-up validation is rerun after the changes and recorded in the PR. The production dependency audit reported zero vulnerabilities. The integration suite uses a small Cloudflare binding loader and mocked NVIDIA/fake Durable Object providers; it never calls a paid provider or production database. Both GitHub Validate jobs passed. The separate Cloudflare Workers Build check failed on PR #24 (latest observed build `e7985ba1-59a9-4178-84d7-907735c367e2`); its dashboard log requires repository Cloudflare access, so this change does not claim that external failure is fixed.
+Final follow-up result: `npm ci`, production audit, typecheck, lint, 11 unit tests, 29 integration/contract tests, `npm test`, production build, and `git diff --check` all pass locally. The production dependency audit reported zero vulnerabilities. The integration suite uses a small Cloudflare binding loader and mocked NVIDIA/fake Durable Object providers; it never calls a paid provider or production database. Both GitHub Validate jobs passed. The separate Cloudflare Workers Build check failed on PR #24 (latest observed build `e7985ba1-59a9-4178-84d7-907735c367e2`); its dashboard log requires repository Cloudflare access, so this change does not claim that external failure is fixed.
 
 ## Rollback
 
