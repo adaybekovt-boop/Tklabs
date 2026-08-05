@@ -115,8 +115,8 @@ test("terms consent is database-backed, versioned, and admin-reviewable", async 
   assert.doesNotMatch(gate, /localFallback|local-terms-consent|localStorage|document\.cookie/si, "consent must fail closed until D1 records it");
   assert.match(admin, /isPrivilegedAiEmail/);
   assert.match(admin, /TermsDocument language=\{locale\}/);
-  assert.match(workflow, /D1_DATABASE_ID:.*c4085a86-0fec-49f2-b2ed-5999190fcc30/);
-  assert.match(viteConfig, /DEFAULT_D1_DATABASE_ID = "c4085a86-0fec-49f2-b2ed-5999190fcc30"/);
+  assert.match(workflow, /D1_DATABASE_ID:.*7b481442-f635-41f2-ba5d-a62f106c518c/);
+  assert.match(viteConfig, /DEFAULT_D1_DATABASE_ID = "7b481442-f635-41f2-ba5d-a62f106c518c"/);
   assert.match(workflow, /Apply D1 schema/);
   assert.match(legalDoc, /## Русская редакция/);
   assert.match(legalDoc, /## English edition/);
