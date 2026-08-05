@@ -11,7 +11,7 @@ import { parseEmailAllowlist } from "../lib/privileged-access";
 import { getRateLimitIdentity, hmacSha256Hex } from "../lib/rate-limit-identity";
 import { accountObjectName, legacyAccountObjectName } from "../lib/account-id";
 import { TTS_DAILY_CHARACTER_QUOTA, TTS_MAX_TEXT_LENGTH, TTS_PRIVILEGED_DAILY_CHARACTER_QUOTA, TTS_PRIVILEGED_REQUEST_LIMIT, TTS_REQUEST_LIMIT, getTtsPolicy } from "../lib/tts-rate-limit";
-import { getMigrationFiles, parseAppliedMigrationNames, pendingMigrations } from "../scripts/migrate-d1.mjs";
+import { buildD1MigrationsArgs, getMigrationFiles, runD1Migrations, validateMigrationSql } from "../scripts/migrate-d1.mjs";
 import { canCommitReservation, isReservationExpired, reservationExpiresAt } from "../lib/reservation-policy";
 
 test("privileged e-mail allowlists normalize, deduplicate, and default to empty", () => {
@@ -73,12 +73,47 @@ test("account object IDs use a separate HMAC secret and retain a legacy migratio
   }
 });
 
-test("D1 migration runner executes only valid pending files and never treats failed files as applied", () => {
+test("D1 migration runner delegates pending selection and atomic ledger writes to Wrangler", () => {
   assert.deepEqual(getMigrationFiles(["0002_add.sql", "0001_init.sql", "README.md"]), ["0001_init.sql", "0002_add.sql"]);
   assert.throws(() => getMigrationFiles(["bad name.sql"]), /Invalid D1 migration filename/);
-  const applied = parseAppliedMigrationNames('{"results":[{"name":"0001_init.sql"}]}');
-  assert.deepEqual(pendingMigrations(["0001_init.sql", "0002_add.sql"], applied), ["0002_add.sql"]);
-  assert.throws(() => parseAppliedMigrationNames("wrangler failed"));
+  validateMigrationSql([{ name: "0001_init.sql", sql: "CREATE TABLE example (id INTEGER PRIMARY KEY);" }]);
+  assert.throws(
+    () => validateMigrationSql([{ name: "0001_init.sql", sql: "BEGIN; CREATE TABLE example (id INTEGER); COMMIT;" }]),
+    /transaction statements/,
+  );
+
+  const calls: Array<{ file: string; args: readonly string[]; options: { cwd: string; stdio: string; env: NodeJS.ProcessEnv } }> = [];
+  const run = (file: string, args: readonly string[], options: { cwd: string; stdio: "inherit"; env: NodeJS.ProcessEnv }) => {
+    calls.push({ file, args, options });
+    return Buffer.from("");
+  };
+  runD1Migrations({ database: "tklabs", config: "dist/server/wrangler.json", root: "/repo", run });
+  assert.deepEqual(calls, [{
+    file: "npx",
+    args: buildD1MigrationsArgs("tklabs", "dist/server/wrangler.json"),
+    options: { cwd: "/repo", stdio: "inherit", env: process.env },
+  }]);
+  assert.ok(calls[0].args.includes("--remote"));
+  assert.ok(!calls[0].args.includes("--file"));
+  assert.ok(!calls[0].args.includes("--command"));
+  runD1Migrations({ database: "tklabs", config: "dist/server/wrangler.json", root: "/repo", run });
+  assert.equal(calls.length, 2);
+  assert.deepEqual(calls[1].args, calls[0].args);
+
+  const failedCalls: string[] = [];
+  assert.throws(
+    () => runD1Migrations({
+      database: "tklabs",
+      config: "dist/server/wrangler.json",
+      root: "/repo",
+      run: () => {
+        failedCalls.push("migration-and-ledger-command");
+        throw new Error("migration failed");
+      },
+    }),
+    /migration failed/,
+  );
+  assert.deepEqual(failedCalls, ["migration-and-ledger-command"]);
 });
 
 test("TTS policy has a bounded request, window and daily character quota", () => {
