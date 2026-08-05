@@ -27,6 +27,7 @@ Copy .env.example to .env.local and set:
     AUTH_GOOGLE_ID=...
     AUTH_GOOGLE_SECRET=...
     RATE_LIMIT_SECRET=...
+    ACCOUNT_ID_SECRET=...
     NVIDIA_API_KEY_PRIMARY=...
     NVIDIA_API_KEY_SECONDARY=...
     ELEVENLABS_API_KEY=... (optional high-quality speech)
@@ -43,7 +44,7 @@ Never expose AUTH_GOOGLE_SECRET or AUTH_SECRET as NEXT_PUBLIC variables and neve
 
 The Validate workflow runs on pushes and pull requests. GitHub Pages is not used because this application has server-side OAuth routes.
 
-The Deploy Cloudflare Worker workflow runs on pushes to `main` and can also be started manually. Add these repository secrets before enabling production deployment:
+The Deploy Cloudflare Worker workflow runs only after the matching `Validate` workflow succeeds for a push to `main`. Add these repository secrets before enabling production deployment:
 
     CLOUDFLARE_API_TOKEN
     CLOUDFLARE_ACCOUNT_ID
@@ -51,6 +52,7 @@ The Deploy Cloudflare Worker workflow runs on pushes to `main` and can also be s
     AUTH_GOOGLE_ID
     AUTH_GOOGLE_SECRET
     RATE_LIMIT_SECRET (required HMAC key for public demo buckets)
+    ACCOUNT_ID_SECRET (required separate HMAC key for account Durable Object IDs)
     NVIDIA_API_KEY_PRIMARY (required for Erma)
     NVIDIA_API_KEY_SECONDARY (optional rotation key)
     UNLIMITED_AI_EMAILS (optional comma-separated server-side allowlist)
@@ -61,4 +63,4 @@ The Deploy Cloudflare Worker workflow runs on pushes to `main` and can also be s
     ELEVENLABS_VOICE_ID (required with the ElevenLabs key)
     ELEVENLABS_MODEL_ID (optional; defaults to eleven_multilingual_v2)
 
-Set the non-secret Actions variable `CLODEX_ENABLED` to `true` only when the Clodex experiment is ready. `AUTH_URL` is a public Wrangler variable and should match the canonical site origin. The production workflow sets it to `https://tklabs.uk`; do not ship a Worker with `AUTH_URL=http://localhost:3000`. If `AUTH_URL` is omitted, Auth.js uses the trusted forwarded request host instead of assuming localhost. The workflow builds the Vinext Worker, validates mandatory values, applies the D1 migration, uploads runtime secrets to Cloudflare, and deploys the generated Worker configuration. A custom domain can be attached in Cloudflare later; then add its exact callback URL in Google Cloud Console.
+Set the non-secret Actions variables `CLODEX_ENABLED` and optional `CLODEX_GRANT_TTL_DAYS` only when the Clodex experiment is ready. `AUTH_URL` is a public Wrangler variable and should match the canonical site origin. The production workflow sets it to `https://tklabs.uk`; do not ship a Worker with `AUTH_URL=http://localhost:3000`. If `AUTH_URL` is omitted, Auth.js uses the trusted forwarded request host instead of assuming localhost. The workflow validates the exact commit, downloads its validated Worker artifact, applies every ordered D1 migration, uploads runtime secrets to Cloudflare, and deploys the generated Wrangler configuration. A custom domain can be attached in Cloudflare later; then add its exact callback URL in Google Cloud Console.

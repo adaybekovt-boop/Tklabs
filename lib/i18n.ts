@@ -136,6 +136,19 @@ export const dictionaries = {
       entries: [
         {
           date: "05 авг. 2026",
+          version: "v0.8.0",
+          title: "Production hardening follow-up",
+          summary: "Резервации, лимиты, идентификаторы аккаунтов и pipeline деплоя стали устойчивее к сбоям и повторным запросам.",
+          changes: [
+            "Добавлены идемпотентные reserve/commit/release для публичного demo и TTS: ошибка провайдера больше не расходует лимит пользователя.",
+            "ElevenLabs ограничен 2 000 символами за запрос, 10 запросами за 15 минут, 20 000 символами в день и одной параллельной генерацией на аккаунт.",
+            "Clodex entitlement получил срок действия, версию гранта и revoke endpoint; старые Durable Objects продолжают читаться через legacy lookup.",
+            "Идентификаторы аккаунтов переведены на отдельный HMAC-секрет, а health-check кэширует состояние на 60 секунд с ограниченным stale fallback.",
+            "Deploy теперь использует ровно тот Worker artifact, который прошёл Validate; D1 запускает все упорядоченные миграции, а чат разделён на hooks и UI-компоненты.",
+          ],
+        },
+        {
+          date: "05 авг. 2026",
           version: "v0.7.1",
           title: "Усиление основной ветки",
           summary: "Работы по укреплению репозитория объединены в main: границы безопасности стали строже, операции понятнее, а pipeline проверен.",
@@ -595,6 +608,19 @@ export const dictionaries = {
       title: "What changed in TK LAB.",
       intro: "A public, English-language log of product, interface, and reliability updates. New releases will be added here as the system evolves.",
       entries: [
+        {
+          date: "05 Aug 2026",
+          version: "v0.8.0",
+          title: "Production hardening follow-up",
+          summary: "Reservations, limits, account identifiers, and the deployment pipeline are now more resilient to provider failures and retries.",
+          changes: [
+            "Added idempotent reserve/commit/release flows for public demo and TTS so provider failures do not consume user allowance.",
+            "Capped ElevenLabs at 2,000 characters per request, 10 requests per 15 minutes, 20,000 characters per day, and one in-flight generation per account.",
+            "Added Clodex entitlement expiry, grant versioning, and a revoke endpoint while preserving legacy Durable Object lookup.",
+            "Moved account IDs to a separate HMAC secret and cached provider health for 60 seconds with a bounded stale fallback.",
+            "Deploy now uses the exact Worker artifact that passed Validate; D1 applies all ordered migrations, and chat responsibilities are split into hooks and UI components.",
+          ],
+        },
         {
           date: "05 Aug 2026",
           version: "v0.7.1",

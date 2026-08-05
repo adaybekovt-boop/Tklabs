@@ -17,7 +17,10 @@ test("production deployment and browser capabilities match the current app", asy
   const workerTypes = await text("types/cloudflare-workers-runtime.d.ts");
   const securityHeaders = await import(new URL("lib/security-headers.mjs", root));
 
-  assert.match(workflow, /push:[\s\S]*branches:[\s\S]*- main/);
+  assert.match(workflow, /workflow_run:/);
+  assert.match(workflow, /workflow_run\.conclusion == 'success'/);
+  assert.match(workflow, /workflow_run\.head_branch == 'main'/);
+  assert.match(workflow, /Download validated Worker build/);
   assert.match(workflow, /concurrency:/);
   assert.match(workflow, /AUTH_URL: https:\/\/tklabs\.uk/);
   assert.match(viteConfig, /const configuredAuthUrl = process\.env\.AUTH_URL\?\.trim\(\);/);
@@ -26,7 +29,7 @@ test("production deployment and browser capabilities match the current app", asy
   assert.equal(securityHeaders.SECURITY_HEADERS.find((header) => header.key === "Permissions-Policy")?.value, "camera=(), microphone=(self), geolocation=(), payment=()");
   assert.doesNotMatch(nextConfig, /microphone=\(\)/);
   assert.match(packageJson.scripts.test, /test:unit/);
-  assert.match(packageJson.scripts["test:integration"], /node --test/);
+  assert.match(packageJson.scripts["test:integration"], /--test/);
   assert.doesNotMatch(tsconfig, /cloudflare:workers/, "native Cloudflare bindings must stay external in production builds");
   assert.match(workerTypes, /declare module "cloudflare:workers"/);
 });
@@ -50,6 +53,7 @@ test("status page uses live health checks", async () => {
 test("high-quality speech stays server-side and has a browser fallback", async () => {
   const route = await text("app/api/tts/route.ts");
   const playground = await text("components/playground/PlaygroundChat.tsx");
+  const speechHook = await text("hooks/use-speech.ts");
   const workflow = await text(".github/workflows/deploy-cloudflare.yml");
 
   assert.match(route, /ELEVENLABS_API_KEY/);
@@ -60,9 +64,42 @@ test("high-quality speech stays server-side and has a browser fallback", async (
   assert.match(route, /Authentication required/);
   assert.match(playground, /fetch\("\/api\/tts"/);
   assert.match(playground, /ttsAvailable/);
-  assert.match(playground, /speakWithBrowser/);
+  assert.match(speechHook, /speakWithBrowser/);
+  assert.match(route, /TTS_MAX_TEXT_LENGTH/);
+  assert.match(route, /reserveTts/);
   assert.match(workflow, /ELEVENLABS_API_KEY/);
   assert.match(workflow, /ELEVENLABS_VOICE_ID/);
+});
+
+test("production hardening keeps quota, entitlement and migration contracts explicit", async () => {
+  const tts = await text("app/api/tts/route.ts");
+  const demo = await text("app/api/demo/route.ts");
+  const account = await text("lib/account-access.ts");
+  const accountId = await text("lib/account-id.ts");
+  const durableObject = await text("worker/clodex-access.ts");
+  const migrationRunner = await text("scripts/migrate-d1.mjs");
+  const workflow = await text(".github/workflows/deploy-cloudflare.yml");
+
+  assert.match(tts, /TTS_MAX_TEXT_LENGTH/);
+  assert.match(tts, /reserveTts/);
+  assert.match(tts, /releaseReservation/);
+  assert.doesNotMatch(tts, /speechText\.slice\(/);
+  assert.match(demo, /reserveDemoRequest/);
+  assert.match(demo, /commitDemo/);
+  assert.match(demo, /releaseDemo/);
+  assert.match(accountId, /HMAC/);
+  assert.match(accountId, /legacyAccountObjectName/);
+  assert.match(account, /legacyAccountObjectName/);
+  assert.match(durableObject, /expires_at/);
+  assert.match(durableObject, /revoked_at/);
+  assert.match(durableObject, /grant_version/);
+  assert.match(durableObject, /reserveTts/);
+  assert.match(durableObject, /reserveDemo/);
+  assert.match(migrationRunner, /readdirSync/);
+  assert.match(migrationRunner, /\.sort\(\)/);
+  assert.match(workflow, /ACCOUNT_ID_SECRET/);
+  assert.match(workflow, /npm run db:migrate/);
+  assert.match(workflow, /workflow_run\.conclusion == 'success'/);
 });
 
 test("the public Erma catalog exposes one model per working tier", async () => {
@@ -117,7 +154,7 @@ test("terms consent is database-backed, versioned, and admin-reviewable", async 
   assert.match(admin, /TermsDocument language=\{locale\}/);
   assert.match(workflow, /D1_DATABASE_ID:.*7b481442-f635-41f2-ba5d-a62f106c518c/);
   assert.match(viteConfig, /DEFAULT_D1_DATABASE_ID = "7b481442-f635-41f2-ba5d-a62f106c518c"/);
-  assert.match(workflow, /Apply D1 schema/);
+  assert.match(workflow, /Apply all D1 migrations/);
   assert.match(legalDoc, /## Русская редакция/);
   assert.match(legalDoc, /## English edition/);
   assert.match(implementation, /D1 storage/);
@@ -171,6 +208,7 @@ test("patch notes are linked and written as an English release log", async () =>
   assert.match(nav, /href: "\/patch-notes"/);
   assert.match(footer, /href="\/patch-notes"/);
   assert.match(translations, /patchNotes: "Patch Notes"/);
+  assert.match(translations, /version: "v0\.8\.0"/);
   assert.match(translations, /version: "v0\.7\.1"/);
   assert.match(translations, /version: "v0\.7\.0"/);
   assert.match(translations, /version: "v0\.6\.3"/);
@@ -241,7 +279,7 @@ test("privileged workspace access is reflected in the client and profile", async
   const accessRoute = await text("app/api/profile/access/route.ts");
   const input = await text("components/ui/ai-chat-input.tsx");
 
-  assert.match(publicModels, /PRIVILEGED_MAX_PROMPT_LENGTH = 16_000/);
+  assert.match(publicModels, /PUBLIC_MAX_PROMPT_LENGTH = 2_000/);
   assert.match(playground, /clodexAccess\?\.unlimited \? PRIVILEGED_MAX_PROMPT_LENGTH/);
   assert.match(playground, /maxLength=\{promptLimit\}/);
   assert.match(profile, /isPrivilegedAiEmail/);
@@ -259,12 +297,14 @@ test("new Playground does not show the duplicated empty-state heading", async ()
 
 test("chat uses one JSON response contract and keeps model selection mobile-safe", async () => {
   const playground = await text("components/playground/PlaygroundChat.tsx");
+  const chatHook = await text("hooks/use-chat-request.ts");
+  const toolbar = await text("components/playground/ChatToolbar.tsx");
   const messageList = await text("components/playground/MessageList.tsx");
   const input = await text("components/ui/ai-chat-input.tsx");
   const css = await text("app/globals.css");
 
-  assert.match(playground, /response\.json\(\)/);
-  assert.match(playground, /actualProvider/);
+  assert.match(chatHook, /response\.json\(\)/);
+  assert.match(chatHook, /actualProvider/);
   assert.match(messageList, /fallbackNotice/);
   assert.match(input, /max-\[420px\]:fixed/);
   assert.match(input, /aria-haspopup="listbox"/);
@@ -275,6 +315,6 @@ test("chat uses one JSON response contract and keeps model selection mobile-safe
   assert.doesNotMatch(playground, /text\/event-stream|data:\s*\$\{JSON\.stringify/);
   assert.doesNotMatch(playground, /message\.id === lastMessage\?\.id && message\.content/);
   assert.match(input, /items-center gap-2/);
-  assert.match(playground, /overflow-x-auto/);
+  assert.match(toolbar, /overflow-x-auto/);
   assert.doesNotMatch(css, /response-meta-enter/);
 });

@@ -12,10 +12,11 @@
     "typecheck": "tsc --noEmit",
     "lint": "eslint . --ignore-pattern dist --ignore-pattern .next",
     "test:unit": "tsx --test tests/behavior.test.ts",
-    "test:integration": "node --test tests/*.test.mjs",
+    "test:integration": "node --import tsx --experimental-loader ./tests/cloudflare-loader.mjs --test tests/*.test.mjs",
     "test": "npm run test:unit && npm run test:integration",
     "check": "npm run typecheck && npm run lint && npm test && npm run build",
-    "db:generate": "drizzle-kit generate"
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "node scripts/migrate-d1.mjs"
   },
   "dependencies": {
     "class-variance-authority": "^0.7.1",

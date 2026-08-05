@@ -43,3 +43,11 @@ jobs:
         run: npm test
       - name: Production build
         run: npm run build
+      - name: Upload validated Worker build
+        uses: actions/upload-artifact@v4
+        with:
+          name: worker-build
+          path: dist
+          if-no-files-found: error
+          include-hidden-files: true
+          retention-days: 3

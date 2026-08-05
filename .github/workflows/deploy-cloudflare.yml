@@ -1,10 +1,11 @@
 name: Deploy Cloudflare Worker
 
 on:
-  push:
+  workflow_run:
+    workflows: ["Validate"]
+    types: [completed]
     branches:
       - main
-  workflow_dispatch:
 
 concurrency:
   group: cloudflare-production
@@ -12,9 +13,14 @@ concurrency:
 
 permissions:
   contents: read
+  actions: read
 
 jobs:
   deploy:
+    if: >-
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.event == 'push' &&
+      github.event.workflow_run.head_branch == 'main'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     env:
@@ -23,9 +29,11 @@ jobs:
       AUTH_SECRET: ${{ secrets.AUTH_SECRET }}
       AUTH_URL: https://tklabs.uk
       CLODEX_ENABLED: ${{ vars.CLODEX_ENABLED || 'false' }}
+      CLODEX_GRANT_TTL_DAYS: ${{ vars.CLODEX_GRANT_TTL_DAYS || '30' }}
       AUTH_GOOGLE_ID: ${{ secrets.AUTH_GOOGLE_ID }}
       AUTH_GOOGLE_SECRET: ${{ secrets.AUTH_GOOGLE_SECRET }}
       RATE_LIMIT_SECRET: ${{ secrets.RATE_LIMIT_SECRET }}
+      ACCOUNT_ID_SECRET: ${{ secrets.ACCOUNT_ID_SECRET }}
       UNLIMITED_AI_EMAILS: ${{ secrets.UNLIMITED_AI_EMAILS }}
       CLODEX_API_KEY: ${{ secrets.CLODEX_API_KEY }}
       CLODEX_ACCESS_CODE: ${{ secrets.CLODEX_ACCESS_CODE }}
@@ -37,8 +45,10 @@ jobs:
       D1_DATABASE_ID: ${{ secrets.D1_DATABASE_ID || '7b481442-f635-41f2-ba5d-a62f106c518c' }}
       CLODEX_PROMO_EMAILS: ${{ secrets.CLODEX_PROMO_EMAILS }}
     steps:
-      - name: Checkout
+      - name: Checkout validated commit
         uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
@@ -46,16 +56,24 @@ jobs:
           cache: npm
       - name: Install dependencies
         run: npm ci
-      - name: Build Vinext Worker
-        run: npm run build
+      - name: Download validated Worker build
+        uses: actions/download-artifact@v4
+        with:
+          name: worker-build
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          repository: ${{ github.repository }}
+          run-id: ${{ github.event.workflow_run.id }}
+          path: dist
       - name: Check required secrets
         run: |
+          set -euo pipefail
           test -n "$CLOUDFLARE_API_TOKEN"
           test -n "$CLOUDFLARE_ACCOUNT_ID"
           test -n "$AUTH_SECRET"
           test -n "$AUTH_GOOGLE_ID"
           test -n "$AUTH_GOOGLE_SECRET"
           test -n "$RATE_LIMIT_SECRET"
+          test -n "$ACCOUNT_ID_SECRET"
           test -n "$NVIDIA_API_KEY_PRIMARY"
           if [ "$CLODEX_ENABLED" = "true" ]; then
             test -n "$CLODEX_API_KEY"
@@ -64,21 +82,21 @@ jobs:
       - name: Upload runtime secrets
         run: |
           set -euo pipefail
-          for name in AUTH_SECRET AUTH_GOOGLE_ID AUTH_GOOGLE_SECRET RATE_LIMIT_SECRET UNLIMITED_AI_EMAILS CLODEX_API_KEY CLODEX_ACCESS_CODE CLODEX_PROMO_EMAILS NVIDIA_API_KEY_PRIMARY NVIDIA_API_KEY_SECONDARY ELEVENLABS_API_KEY ELEVENLABS_VOICE_ID ELEVENLABS_MODEL_ID; do
+          for name in AUTH_SECRET AUTH_GOOGLE_ID AUTH_GOOGLE_SECRET RATE_LIMIT_SECRET ACCOUNT_ID_SECRET UNLIMITED_AI_EMAILS CLODEX_API_KEY CLODEX_ACCESS_CODE CLODEX_PROMO_EMAILS NVIDIA_API_KEY_PRIMARY NVIDIA_API_KEY_SECONDARY ELEVENLABS_API_KEY ELEVENLABS_VOICE_ID ELEVENLABS_MODEL_ID; do
             value="${!name:-}"
             if [ -n "$value" ]; then
               printf '%s' "$value" | npx wrangler secret put "$name" --config dist/server/wrangler.json
             fi
           done
-      - name: Apply D1 schema
-        run: npx wrangler d1 execute tklabs --remote --file=drizzle/0000_nappy_gunslinger.sql --config dist/server/wrangler.json
+      - name: Apply all D1 migrations
+        run: npm run db:migrate
       - name: Deploy
         id: deploy
         shell: bash
         run: |
           set -euo pipefail
-          npx wrangler deploy --config dist/server/wrangler.json 2>&1 | tee deploy.log
-          url="$(grep -Eo 'https://[A-Za-z0-9._-]+\\.workers\\.dev' deploy.log | tail -n 1 || true)"
+          npx wrangler deploy --var "AUTH_URL:$AUTH_URL" --var "CLODEX_ENABLED:$CLODEX_ENABLED" --var "CLODEX_GRANT_TTL_DAYS:$CLODEX_GRANT_TTL_DAYS" --config dist/server/wrangler.json 2>&1 | tee deploy.log
+          url="$(grep -Eo 'https://[A-Za-z0-9._-]+\.workers\.dev' deploy.log | tail -n 1 || true)"
           if [ -z "$url" ]; then
             echo "Cloudflare did not return a workers.dev URL"
             exit 1
@@ -88,4 +106,6 @@ jobs:
             echo "## Cloudflare Worker"
             echo
             echo "[Open deployed site]($url)"
+            echo
+            echo "Validated commit: `${{ github.event.workflow_run.head_sha }}`"
           } >> "$GITHUB_STEP_SUMMARY"

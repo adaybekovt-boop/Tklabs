@@ -28,7 +28,8 @@ The main responsibilities are separated into:
 - `lib/models/server.ts` and `lib/models/clodex-server.ts` — server-only provider IDs and routing configuration.
 - `worker/` — Durable Object implementation and Worker entry point.
 - `db/` and `drizzle/` — the D1 schema and migration used by terms consent.
-- `components/playground/` — chat orchestration, composer, messages, and browser-local sessions.
+- `components/playground/` — stable UI composition for the chat toolbar, suggestions, messages, and composer.
+- `hooks/` — chat request lifecycle, browser-local archive identity, and speech/TTS fallback logic.
 
 ## Local development
 
@@ -54,6 +55,7 @@ The Playground page requires a signed-in account. The `/api/demo` endpoint has a
 - `POST /api/demo` — bounded Erma route with same-origin checks, attachment limits, HMAC-derived demo buckets, provider fallback metadata, and JSON responses.
 - `POST /api/clodex` — optional authenticated Clodex route; returns 404 while `CLODEX_ENABLED` is not `true`.
 - `GET|POST /api/profile/access` — feature-gated Clodex status and redemption.
+- `POST /api/clodex/revoke` — authenticated self-revoke for an active Clodex entitlement.
 - `POST /api/tts` — authenticated ElevenLabs speech proxy; the browser speech API is the fallback.
 - `GET|POST /api/account/terms` — D1-backed, versioned agreement status and acceptance.
 - `GET /api/status` — safe, no-store live checks; it never calls an AI generation endpoint.
@@ -81,12 +83,14 @@ On provider failure, `meta.fallbackReason` is present and the UI tells the user 
 
 ## Limits and security boundaries
 
-- Public prompt: 180 Unicode characters; privileged prompt: 16,000 Unicode characters.
+- Public prompt: 2,000 Unicode characters; privileged prompt: 16,000 Unicode characters.
 - Maximum three `.txt`/`.md` attachments.
 - Public attachment: 16 KiB per file and 8,000 Unicode characters of combined context.
 - Privileged attachment: 64 KiB per file and 32,000 Unicode characters of combined context.
 - The final provider prompt is validated before any external provider call. Oversize input returns 400 or 413; it is not silently truncated.
-- Public demo usage uses a finite Durable Object window. HMAC-SHA-256 uses `RATE_LIMIT_SECRET`; raw IP addresses are not stored or logged.
+- Public demo usage uses an idempotent Durable Object reserve/commit/release window; provider failure releases the reservation.
+- ElevenLabs text is limited to 2,000 characters, one in-flight request per account, 10 requests per 15 minutes, and 20,000 characters per day. Failed or aborted audio streams release their reservation.
+- HMAC-SHA-256 uses `RATE_LIMIT_SECRET` for public buckets and the separate `ACCOUNT_ID_SECRET` for account object IDs; raw IP addresses and e-mail addresses are not stored as identifiers or logged.
 - Only `cf-connecting-ip` on a Cloudflare request is considered as an IP signal. Arbitrary `x-forwarded-for` values are ignored. Non-Cloudflare anonymous clients receive a signed HttpOnly fallback cookie.
 - Provider keys, OAuth credentials, access codes, model IDs, and system prompts are server-only.
 - User text is rendered as text, not injected as HTML, and user code is never executed by the application.
@@ -102,6 +106,7 @@ Required for production:
 - `AUTH_GOOGLE_ID`
 - `AUTH_GOOGLE_SECRET`
 - `RATE_LIMIT_SECRET`
+- `ACCOUNT_ID_SECRET`
 - `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` in GitHub Actions
 
 Provider and feature configuration:
@@ -109,6 +114,7 @@ Provider and feature configuration:
 - `NVIDIA_API_KEY_PRIMARY`, optional `NVIDIA_API_KEY_SECONDARY`
 - `UNLIMITED_AI_EMAILS`, a comma-separated server-side allowlist; unset means no privileged accounts
 - `CLODEX_ENABLED=true|false`
+- `CLODEX_GRANT_TTL_DAYS` is a bounded non-secret variable (default 30 days) for newly redeemed grants; legacy grants remain valid until explicitly revoked or re-redeemed.
 - `CLODEX_API_KEY`, `CLODEX_ACCESS_CODE`, and `CLODEX_PROMO_EMAILS` only when the Clodex experiment is enabled
 - `ELEVENLABS_API_KEY`, `ELEVENLABS_VOICE_ID`, and optional `ELEVENLABS_MODEL_ID`
 - `AUTH_URL` is a public origin variable, not a secret
@@ -125,17 +131,19 @@ Provider and feature configuration:
 - `npm run build` — one production Worker build.
 - `npm run check` — typecheck, lint, tests, and build.
 - `npm run db:generate` — generate a reviewed Drizzle migration when the D1 schema changes.
+- `npm run db:migrate` — apply every ordered `drizzle/*.sql` migration idempotently to the configured remote D1 database.
 
 ## Cloudflare deployment
 
-Pushes to `main` run [the deployment workflow](.github/workflows/deploy-cloudflare.yml). It:
+The [Validate workflow](.github/workflows/ci.yml) runs on pull requests and branches. A push to `main` can trigger [the deployment workflow](.github/workflows/deploy-cloudflare.yml) only after the matching Validate run succeeds. It:
 
 1. installs the lockfile with `npm ci`;
-2. builds the Worker once;
-3. verifies mandatory production secrets;
-4. uploads only runtime secrets with `wrangler secret put`;
-5. applies the idempotent D1 migration;
-6. deploys the generated Wrangler configuration.
+2. runs audit, typecheck, lint, behavior tests, and the production build in Validate;
+3. transfers the validated Worker build for the exact commit;
+4. verifies mandatory production secrets;
+5. uploads only runtime secrets with `wrangler secret put`;
+6. applies all ordered D1 migrations through `npm run db:migrate`;
+7. deploys the validated Wrangler configuration.
 
 Public values such as `AUTH_URL` and `CLODEX_ENABLED` are Wrangler vars. API keys, HMAC keys, OAuth secrets, access codes, and allowlists are runtime secrets.
 
@@ -146,9 +154,14 @@ Public values such as `AUTH_URL` and `CLODEX_ENABLED` are Wrangler vars. API key
 - [AUTH_SETUP.md](AUTH_SETUP.md) documents Google OAuth configuration.
 - `terms_accepted`, `terms_accepted_at`, `terms_version`, and `language` are stored in D1. Consent is never authorized by `localStorage` or cookies.
 - The hidden Clodex promo field is controlled by the server-side `CLODEX_PROMO_EMAILS` allowlist and the feature flag.
+- Account Durable Objects retain a legacy SHA-256 lookup path during migration, but all new account IDs use HMAC-SHA-256 with `ACCOUNT_ID_SECRET`.
 
 ## Contributing and security
 
 Read [CONTRIBUTING.md](CONTRIBUTING.md) before opening a change. Security reports belong in [SECURITY.md](SECURITY.md); do not publish secrets or sensitive account data in issues.
 
 The project is licensed under the MIT License. See [LICENSE](LICENSE).
+
+## Operational notes
+
+The Cloudflare account used by GitHub Actions must own the `tklabs.uk` zone and the intended Worker. A successful deploy to a different `workers.dev` account does not make the custom domain healthy. Verify the account ID, Worker route/custom domain, D1 binding, OAuth callback URI, and runtime secrets together before diagnosing an AI or login failure.
