@@ -49,6 +49,7 @@ test("terms consent is database-backed, versioned, and admin-reviewable", async 
   const consent = await text("lib/terms-consent.ts");
   const route = await text("app/api/account/terms/route.ts");
   const gate = await text("components/legal/TermsGate.tsx");
+  const localConsent = await text("lib/local-terms-consent.ts");
   const admin = await text("app/admin/terms/page.tsx");
   const workflow = await text(".github/workflows/deploy-cloudflare.yml");
   const viteConfig = await text("vite.config.ts");
@@ -66,6 +67,8 @@ test("terms consent is database-backed, versioned, and admin-reviewable", async 
   assert.match(route, /isTrustedRequestOrigin/);
   assert.doesNotMatch(gate, /localStorage|document\.cookie/si, "the gate must not use browser storage as consent authority");
   assert.match(gate, /response\.status === 503/);
+  assert.match(gate, /localFallback/);
+  assert.match(localConsent, /CURRENT_TERMS_VERSION/);
   assert.match(admin, /isPrivilegedAiEmail/);
   assert.match(admin, /TermsDocument language=\{locale\}/);
   assert.match(workflow, /D1_DATABASE_ID:.*c4085a86-0fec-49f2-b2ed-5999190fcc30/);

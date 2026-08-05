@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 
 import { CURRENT_TERMS_VERSION, getTerms, type TermsLanguage } from "@/lib/terms";
+import { readLocalTermsConsent, writeLocalTermsConsent } from "@/lib/local-terms-consent";
 
 type ConsentStatus = {
   required: boolean;
@@ -10,7 +11,7 @@ type ConsentStatus = {
   language: TermsLanguage | null;
 };
 
-export function TermsGate({ enabled, locale }: { enabled: boolean; locale: TermsLanguage }) {
+export function TermsGate({ enabled, locale, localFallback = false }: { enabled: boolean; locale: TermsLanguage; localFallback?: boolean }) {
   const [open, setOpen] = useState(false);
   const [stage, setStage] = useState<"language" | "terms">("language");
   const [language, setLanguage] = useState<TermsLanguage>(locale);
@@ -24,6 +25,12 @@ export function TermsGate({ enabled, locale }: { enabled: boolean; locale: Terms
 
     let active = true;
     const unavailableText = getTerms(locale).unavailable;
+    const localConsent = localFallback ? readLocalTermsConsent() : null;
+    if (localConsent) {
+      return () => {
+        active = false;
+      };
+    }
     void fetch("/api/account/terms", { credentials: "same-origin", cache: "no-store" })
       .then(async (response) => {
         const payload = await response.json() as ConsentStatus & { error?: string };
@@ -38,7 +45,7 @@ export function TermsGate({ enabled, locale }: { enabled: boolean; locale: Terms
       })
       .catch(() => {
         if (active) {
-          setError(unavailableText);
+          setError(localFallback ? null : unavailableText);
           setOpen(true);
         }
       });
@@ -46,7 +53,7 @@ export function TermsGate({ enabled, locale }: { enabled: boolean; locale: Terms
     return () => {
       active = false;
     };
-  }, [enabled, locale, retryToken]);
+  }, [enabled, locale, localFallback, retryToken]);
 
   useEffect(() => {
     if (!open) return;
@@ -73,11 +80,21 @@ export function TermsGate({ enabled, locale }: { enabled: boolean; locale: Terms
         body: JSON.stringify({ language, version: CURRENT_TERMS_VERSION }),
       });
       if (!response.ok) {
+        if (localFallback) {
+          writeLocalTermsConsent(language);
+          setOpen(false);
+          return;
+        }
         setError(response.status === 503 ? text.unavailable : text.acceptanceError);
         return;
       }
       setOpen(false);
     } catch {
+      if (localFallback) {
+        writeLocalTermsConsent(language);
+        setOpen(false);
+        return;
+      }
       setError(text.acceptanceError);
     } finally {
       setBusy(false);
@@ -89,7 +106,7 @@ export function TermsGate({ enabled, locale }: { enabled: boolean; locale: Terms
       <div className="m-auto w-full max-w-3xl border border-primary bg-surface p-6 shadow-2xl sm:p-10">
         {stage === "language" ? (
           <div className="mx-auto max-w-xl py-8 text-center sm:py-14">
-            <p className="label-caps mb-6 text-secondary">TK LAB / REQUIRED</p>
+            <p className="label-caps mb-6 text-secondary">TK LAB / {localFallback ? "LOCAL ONLY" : "REQUIRED"}</p>
             <h1 id="terms-gate-title" className="headline-title">{text.chooseLanguage}</h1>
             <p className="mt-5 leading-[1.7] text-on-surface-variant">{text.requiredNotice}</p>
             <div className="mt-10 grid gap-3 sm:grid-cols-2">
@@ -128,6 +145,7 @@ export function TermsGate({ enabled, locale }: { enabled: boolean; locale: Terms
               <button type="button" className="label-caps text-secondary underline underline-offset-4 hover:text-primary" onClick={() => setStage("language")}>RU / EN</button>
             </div>
             <p className="mt-7 max-w-2xl leading-[1.7] text-on-surface-variant">{text.intro}</p>
+            {localFallback && <p className="mt-3 text-[12px] text-secondary">Local development mode: this acceptance is stored only in this browser.</p>}
             <div className="mt-8 max-h-[48vh] overflow-y-auto border-y border-outline-variant py-7 pr-3 sm:max-h-[52vh]">
               <div className="space-y-10">
                 {text.sections.map((section) => (
