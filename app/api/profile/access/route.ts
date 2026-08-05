@@ -39,11 +39,11 @@ async function getAuthenticatedEmail() {
 }
 
 export async function GET() {
-  if (!isClodexEnabled()) return disabledResponse();
   const email = await getAuthenticatedEmail();
   if (email === null) return unavailableResponse();
   if (!email) return Response.json({ error: "Authentication required." }, { status: 401, headers: { "cache-control": "no-store" } });
   if (isPrivilegedAiEmail(email)) return Response.json(privilegedAccessStatus(), { headers: { "cache-control": "no-store" } });
+  if (!isClodexEnabled()) return disabledResponse();
 
   try {
     return Response.json(await getClodexAccessStatus(email), { headers: { "cache-control": "no-store" } });
@@ -55,13 +55,13 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
-  if (!isClodexEnabled()) return Response.json({ error: "Clodex access is disabled." }, { status: 404, headers: { "cache-control": "no-store" } });
   if (!isTrustedRequestOrigin(request)) return Response.json({ error: "Request origin is not allowed." }, { status: 403, headers: { "cache-control": "no-store" } });
 
   const email = await getAuthenticatedEmail();
   if (email === null) return unavailableResponse();
   if (!email) return Response.json({ error: "Authentication required." }, { status: 401, headers: { "cache-control": "no-store" } });
   if (isPrivilegedAiEmail(email)) return Response.json(privilegedAccessStatus(), { headers: { "cache-control": "no-store" } });
+  if (!isClodexEnabled()) return Response.json({ error: "Clodex access is disabled." }, { status: 404, headers: { "cache-control": "no-store" } });
   if (!isClodexPromoEligible(email)) return Response.json({ error: "Access-code redemption is not enabled for this account." }, { status: 403, headers: { "cache-control": "no-store" } });
 
   let body: { code?: unknown } | null;
