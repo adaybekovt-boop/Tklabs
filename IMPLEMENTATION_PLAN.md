@@ -46,6 +46,7 @@
 - [x] D1 deployment now delegates pending-file selection and the `d1_migrations` ledger to official `wrangler d1 migrations apply --remote`; the migration SQL and ledger insert execute together, failed files are not marked applied, and a repeat with no pending files is a no-op.
 - [x] TTS counts Unicode code points with `Array.from`, honors pre-provider aborts, and enforces public/privileged production quotas with one parallel request and a 2,000-code-point request cap.
 - [x] Added behavioral coverage for fallback settlement, account precedence, admin route failure modes, framework-compatible route signatures, TTS retry windows, official migration delegation, health binding contract, and exact TTS policy defaults.
+- [x] Made Cloudflare the runtime-secret source of truth, removed GitHub runtime-secret duplication, and added a name-only feature-aware preflight before D1/deploy.
 
 ### P1 — backend architecture — completed
 
@@ -77,7 +78,7 @@ npm run build
 npm audit --omit=dev --audit-level=high
 ```
 
-Final follow-up result: local `npm ci`, production audit, typecheck, lint, 11 unit tests, 30 integration/contract tests, `npm test`, production build, `wrangler deploy --dry-run`, and `git diff --check` pass. The production dependency audit reports zero vulnerabilities. The integration suite uses a small Cloudflare binding loader and mocked NVIDIA/fake Durable Object providers; it never calls a paid provider or production database. Cloudflare build `0b43d7c8-7270-4a7e-b060-65b0309637a0` first failed with API error `10181` because the generated `DB` binding used stale database ID `7b481442-f635-41f2-ba5d-a62f106c518c`. After switching to the verified live `tklabs` database `c4085a86-0fec-49f2-b2ed-5999190fcc30`, build `9160d75a-23d9-435a-a4c3-e8242626f372` built and packaged successfully but the duplicate Cloudflare Git Integration failed with API error `10211`: its version upload cannot apply the Worker’s Durable Object migration. Git Integration was then disconnected in the dashboard; GitHub Actions remains the sole production deployment path.
+Final follow-up result: local `npm ci`, production audit, typecheck, lint, 12 unit tests, 30 integration/contract tests, `npm test`, production build, `wrangler deploy --dry-run`, and `git diff --check` pass. The production dependency audit reports zero vulnerabilities. The integration suite uses a small Cloudflare binding loader and mocked NVIDIA/fake Durable Object providers; it never calls a paid provider or production database. Cloudflare build `0b43d7c8-7270-4a7e-b060-65b0309637a0` first failed with API error `10181` because the generated `DB` binding used stale database ID `7b481442-f635-41f2-ba5d-a62f106c518c`. After switching to the verified live `tklabs` database `c4085a86-0fec-49f2-b2ed-5999190fcc30`, build `9160d75a-23d9-435a-a4c3-e8242626f372` built and packaged successfully but the duplicate Cloudflare Git Integration failed with API error `10211`: its version upload cannot apply the Worker’s Durable Object migration. Git Integration was then disconnected in the dashboard; GitHub Actions remains the sole production deployment path. The name-only Cloudflare secret preflight is covered by unit tests; the local Wrangler token is authenticated to a different Cloudflare account, so target-account verification remains a deployment-owner action.
 
 ## Rollback
 
@@ -90,5 +91,6 @@ Rollback is a revert of the draft PR. Durable Object schema changes are additive
 - The inspected Cloudflare Git Integration used repository root `/`, Node.js `24.18.0`, `npm run build`, and `npx wrangler versions upload`; it had production branch `main`, non-production builds enabled, and no build variables. It is now disconnected so it cannot compete with the GitHub Actions contract or attempt a version upload containing Durable Object migrations.
 - GitHub Actions is now the sole production deploy path. The historical Cloudflare check may remain visible as failed for the old builds, but it is disabled rather than treated as a passing deployment signal.
 - Ensure the Cloudflare Worker runtime contains the required HMAC/provider secrets, including `RATE_LIMIT_SECRET` and `ACCOUNT_ID_SECRET`; secret values must be entered manually and are not stored in this repository.
+- Verify GitHub repository-level Actions secret names contain only `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID`; the current local `gh secret list` returned no repository-level names, so this remains an owner action.
 - Confirm the GitHub deployment account owns the `tklabs.uk` zone and the intended Worker; a local Wrangler account may not have access to that zone.
 - Review open PR #8 separately; it is from an earlier architecture and should not be merged without rebasing and re-review.

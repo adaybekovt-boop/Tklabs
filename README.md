@@ -105,12 +105,8 @@ See [`.env.example`](.env.example) for the complete list.
 
 Required for production:
 
-- `AUTH_SECRET`
-- `AUTH_GOOGLE_ID`
-- `AUTH_GOOGLE_SECRET`
-- `RATE_LIMIT_SECRET`
-- `ACCOUNT_ID_SECRET`
-- `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` in GitHub Actions
+- `AUTH_SECRET`, `AUTH_GOOGLE_ID`, `AUTH_GOOGLE_SECRET`, `RATE_LIMIT_SECRET`, `ACCOUNT_ID_SECRET`, and `NVIDIA_API_KEY_PRIMARY` as Cloudflare Worker secrets.
+- `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` as the only GitHub Actions secrets. Runtime secrets are not copied from GitHub during deployment.
 
 Provider and feature configuration:
 
@@ -137,6 +133,7 @@ Provider and feature configuration:
 - `npm run check` — typecheck, lint, tests, and build.
 - `npm run db:generate` — generate a reviewed Drizzle migration when the D1 schema changes.
 - `npm run db:migrate` — validate the ordered `drizzle/*.sql` files and invoke the official `wrangler d1 migrations apply tklabs --remote` flow. Wrangler selects only pending files and writes its `d1_migrations` ledger row in the same D1 execution as each migration.
+- `npm run cloudflare:check-secrets` — query Cloudflare for secret names only and validate feature-gated runtime requirements; it never prints secret values.
 
 ## Cloudflare deployment
 
@@ -146,11 +143,13 @@ The [Validate workflow](.github/workflows/ci.yml) runs on pull requests and bran
 2. runs audit, typecheck, lint, behavior tests, and the production build in Validate;
 3. transfers the validated Worker build for the exact commit;
 4. verifies mandatory production secrets;
-5. uploads only runtime secrets with `wrangler secret put`;
+5. validates Cloudflare runtime secret names without copying or rewriting their values;
 6. validates and applies only pending D1 migrations through the official `wrangler d1 migrations apply` command. Each migration and its `d1_migrations` ledger insert are one execution; a failed migration is not marked applied;
-7. deploys the validated Wrangler configuration.
+7. deploys the validated Wrangler configuration while explicitly managing non-secret production variables.
 
 Public values such as `AUTH_URL`, `CLODEX_ENABLED`, `CLODEX_GRANT_VERSION`, and TTS quota values are Wrangler vars. API keys, HMAC keys, OAuth secrets, access codes, and allowlists are runtime secrets.
+
+Cloudflare is the source of truth for runtime Worker secrets. The deployment preflight checks only their names. GitHub Actions stores only the Cloudflare deployment credentials and never runs `wrangler secret put` for application secrets.
 
 ## Terms, privacy, and access
 
