@@ -9,7 +9,7 @@ import { ScrollReveal } from "@/components/ui/scroll-reveal";
 import { getDictionary } from "@/lib/i18n";
 import { getLocale } from "@/lib/locale";
 import { isClodexEnabled } from "@/lib/feature-flags";
-import { isClodexPromoEligible, isPrivilegedAiEmail } from "@/lib/privileged-access";
+import { isAdminEmail, isClodexPromoEligible, isPrivilegedAiEmail } from "@/lib/privileged-access";
 import { PromoCodePanel } from "@/components/profile/PromoCodePanel";
 
 export default async function ProfilePage() {
@@ -18,6 +18,7 @@ export default async function ProfilePage() {
 
   const text = getDictionary(await getLocale());
   const unlimited = isPrivilegedAiEmail(session?.user?.email);
+  const isAdmin = isAdminEmail(session?.user?.email);
   const promoEligible = isClodexEnabled() && isClodexPromoEligible(session?.user?.email);
   const profileImage = session?.user?.image?.trim();
   const profileInitials = (session?.user?.name ?? session?.user?.email ?? "TK")
@@ -69,7 +70,7 @@ export default async function ProfilePage() {
             ))}
           </ScrollReveal>
         </section>
-        {(promoEligible || unlimited) && (
+        {(promoEligible || isAdmin) && (
           <section className="mt-section-gap grid gap-8 border-t-[0.5px] border-primary pt-10 md:grid-cols-12">
             <div className="md:col-span-4">
               <p className="label-caps text-secondary">{text.profile.adminToolsLabel}</p>
@@ -77,7 +78,7 @@ export default async function ProfilePage() {
             </div>
             <div className="space-y-5 md:col-span-7 md:col-start-6">
               {promoEligible && <PromoCodePanel labels={text.profile.promo} />}
-              {unlimited && <Link href="/admin/terms" className="label-caps inline-flex border-b border-primary pb-2 text-primary">{text.profile.reviewAgreement} ↗</Link>}
+              {isAdmin && <Link href="/admin/terms" className="label-caps inline-flex border-b border-primary pb-2 text-primary">{text.profile.reviewAgreement} ↗</Link>}
             </div>
           </section>
         )}

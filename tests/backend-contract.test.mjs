@@ -124,11 +124,12 @@ test("production hardening keeps quota, entitlement and migration contracts expl
   assert.match(workflow, /CLOUDFLARE_ACCOUNT_ID/);
   assert.doesNotMatch(workflow, /Upload runtime secrets/);
   assert.doesNotMatch(workflow, /wrangler secret put/);
-  for (const runtimeSecret of ["AUTH_SECRET", "AUTH_GOOGLE_ID", "AUTH_GOOGLE_SECRET", "RATE_LIMIT_SECRET", "ACCOUNT_ID_SECRET", "NVIDIA_API_KEY_PRIMARY", "CLODEX_API_KEY", "CLODEX_ACCESS_CODE", "ELEVENLABS_API_KEY"]) {
+  for (const runtimeSecret of ["AUTH_SECRET", "AUTH_GOOGLE_ID", "AUTH_GOOGLE_SECRET", "RATE_LIMIT_SECRET", "ACCOUNT_ID_SECRET", "TERMS_USER_ID_SECRET", "NVIDIA_API_KEY_PRIMARY", "CLODEX_API_KEY", "CLODEX_ACCESS_CODE", "ELEVENLABS_API_KEY"]) {
     assert.doesNotMatch(workflow, new RegExp(`^\\s+${runtimeSecret}:\\s+\\$\\{\\{`, "m"), `${runtimeSecret} must remain Cloudflare-owned`);
   }
   assert.match(workflow, /Validate and build production Worker/);
-  assert.match(admin, /isPrivilegedAiEmail/);
+  assert.match(admin, /isAdminEmail/);
+  assert.doesNotMatch(admin, /isPrivilegedAiEmail/, "admin revoke must use the separate ADMIN_EMAILS allowlist, not UNLIMITED_AI_EMAILS");
   assert.match(admin, /parseJsonBody<RevokeBody>\(request, 8 \* 1024\)/);
   assert.match(admin, /export async function POST\(request: Request\)/);
   assert.match(admin, /handleAdminClodexRevoke\(request, auth\)/);
@@ -167,6 +168,7 @@ test("terms consent is database-backed, versioned, and admin-reviewable", async 
   const schema = await text("db/schema.ts");
   const terms = await text("lib/terms.ts");
   const consent = await text("lib/terms-consent.ts");
+  const userId = await text("lib/terms-user-id.ts");
   const route = await text("app/api/account/terms/route.ts");
   const gate = await text("components/legal/TermsGate.tsx");
   const admin = await text("app/admin/terms/page.tsx");
@@ -182,12 +184,17 @@ test("terms consent is database-backed, versioned, and admin-reviewable", async 
   assert.match(terms, /CURRENT_TERMS_VERSION = "2026-08-05"/);
   assert.match(terms, /satisfies Record<TermsLanguage, TermsContent>/);
   assert.match(consent, /acceptedVersion !== CURRENT_TERMS_VERSION/);
+  assert.match(consent, /legacyTermsUserId/);
+  assert.match(userId, /HMAC|hmacSha256Hex/);
+  assert.match(userId, /legacyTermsUserId/);
+  assert.doesNotMatch(consent, /crypto\.subtle\.digest\("SHA-256"/, "userIdForEmail must use HMAC, not bare SHA-256");
   assert.match(route, /POST/);
   assert.match(route, /isTrustedRequestOrigin/);
   assert.doesNotMatch(gate, /localStorage|document\.cookie/si, "the gate must not use browser storage as consent authority");
   assert.match(gate, /response\.status === 503/);
   assert.doesNotMatch(gate, /localFallback|local-terms-consent|localStorage|document\.cookie/si, "consent must fail closed until D1 records it");
-  assert.match(admin, /isPrivilegedAiEmail/);
+  assert.match(admin, /isAdminEmail/);
+  assert.doesNotMatch(admin, /isPrivilegedAiEmail/, "admin/terms must use the separate ADMIN_EMAILS allowlist, not UNLIMITED_AI_EMAILS");
   assert.match(admin, /TermsDocument language=\{locale\}/);
   assert.match(viteConfig, /DEFAULT_D1_DATABASE_ID = "c4085a86-0fec-49f2-b2ed-5999190fcc30"/);
   assert.match(workflow, /Apply all D1 migrations/);

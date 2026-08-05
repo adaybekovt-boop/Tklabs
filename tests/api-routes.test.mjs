@@ -361,7 +361,7 @@ test("admin Clodex revoke route is origin-checked and the legacy self-revoke URL
   assert.equal(invalidOrigin.status, 403);
   const unauthenticated = await handleAdminClodexRevoke(request({ email: "target@example.com" }), async () => null);
   assert.equal(unauthenticated.status, 401);
-  process.env.UNLIMITED_AI_EMAILS = "admin@example.com";
+  process.env.ADMIN_EMAILS = "admin@example.com";
   process.env.ACCOUNT_ID_SECRET = "admin-account-secret";
   process.env.CLODEX_ENABLED = "false";
   const adminStub = {

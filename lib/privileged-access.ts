@@ -29,6 +29,18 @@ export function isPrivilegedAiEmail(email: string | null | undefined) {
   return hasUnlimitedAccess(email, process.env.UNLIMITED_AI_EMAILS);
 }
 
+/**
+ * Administrator actions (revoking another account's access, reviewing all
+ * accounts' terms consent) use their own allowlist, separate from
+ * UNLIMITED_AI_EMAILS. That list grants AI/TTS quota bypass and may be
+ * handed out more broadly (e.g. beta testers); it must not also grant
+ * admin power over other users' accounts.
+ */
+export function isAdminEmail(email: string | null | undefined) {
+  const normalized = email?.trim().toLowerCase() ?? "";
+  return Boolean(normalized && parseEmailAllowlist(process.env.ADMIN_EMAILS).has(normalized));
+}
+
 export function privilegedAccessStatus(): ClodexAccessStatus {
   return {
     hasGrant: true,

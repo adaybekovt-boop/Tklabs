@@ -91,8 +91,42 @@ const HARMFUL_OUTPUT_PATTERNS = [
   /\b(?:disable|evade|bypass)\b.{0,100}\b(?:antivirus|edr|authentication|security controls?)\b/i,
 ];
 
-export function isUnsafeAssistantOutput(answer: string, options: SafetyOptions = {}) {
-  return answer.length > (options.allowCode ? 48_000 : 12_000) || matchesAny(answer, HARMFUL_OUTPUT_PATTERNS);
+const ASSISTANT_OUTPUT_LIMIT = { standard: 12_000, privileged: 48_000 };
+
+export type AssistantOutputVerdict =
+  | { verdict: "unsafe" }
+  | { verdict: "truncated"; text: string }
+  | { verdict: "ok"; text: string };
+
+/**
+ * A response that merely exceeds the length cap (e.g. Erma Pro at high
+ * reasoning effort legitimately runs long) is not a jailbreak or a harmful-
+ * content match. It must never trigger the same refusal as "unsafe" — it is
+ * truncated to the cap instead, so the account still gets a usable answer.
+ */
+export function evaluateAssistantOutput(answer: string, options: SafetyOptions = {}): AssistantOutputVerdict {
+  if (matchesAny(answer, HARMFUL_OUTPUT_PATTERNS)) return { verdict: "unsafe" };
+  const limit = options.allowCode ? ASSISTANT_OUTPUT_LIMIT.privileged : ASSISTANT_OUTPUT_LIMIT.standard;
+  if (answer.length > limit) return { verdict: "truncated", text: answer.slice(0, limit) };
+  return { verdict: "ok", text: answer };
+}
+
+export type AssistantContentVerdict =
+  | { verdict: "unsafe" }
+  | { verdict: "ok"; answer: string; thinking?: string };
+
+/**
+ * A reasoning model's chain-of-thought block is real model output, not UI
+ * chrome — it gets the same safety and length checks as the answer before
+ * either is shown, so a jailbreak can't hide in the "thinking" block.
+ */
+export function evaluateAssistantContent(content: { answer: string; thinking?: string }, options: SafetyOptions = {}): AssistantContentVerdict {
+  const answerEvaluation = evaluateAssistantOutput(content.answer, options);
+  if (answerEvaluation.verdict === "unsafe") return { verdict: "unsafe" };
+  if (!content.thinking) return { verdict: "ok", answer: answerEvaluation.text };
+  const thinkingEvaluation = evaluateAssistantOutput(content.thinking, options);
+  if (thinkingEvaluation.verdict === "unsafe") return { verdict: "unsafe" };
+  return { verdict: "ok", answer: answerEvaluation.text, thinking: thinkingEvaluation.text };
 }
 
 export function safetyRefusal(language: SafetyLanguage, reason: SafetyReason = "code_generation") {

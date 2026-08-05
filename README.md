@@ -93,7 +93,7 @@ On provider failure, `meta.fallbackReason` is present and the UI tells the user 
 - ElevenLabs text is limited to 2,000 Unicode code points, one in-flight request per account, 5 requests per 15 minutes, and 10,000 characters per day for public users. Privileged accounts use 30 requests per 15 minutes and 100,000 characters per day. Failed, expired, or aborted audio streams release their reservation.
 - Demo and TTS reservations expire after two minutes; cleanup refunds expired reservations atomically and retains only a bounded history.
 - Clodex grants use the server-side `CLODEX_GRANT_VERSION` policy (default `v2`). A grant with an old, revoked, or expired version is not resurrected through the legacy object-name lookup.
-- HMAC-SHA-256 uses `RATE_LIMIT_SECRET` for public buckets and the separate `ACCOUNT_ID_SECRET` for account object IDs; raw IP addresses and e-mail addresses are not stored as identifiers or logged.
+- HMAC-SHA-256 uses `RATE_LIMIT_SECRET` for public buckets, the separate `ACCOUNT_ID_SECRET` for account object IDs, and the separate `TERMS_USER_ID_SECRET` for D1 `users` row IDs; raw IP addresses and e-mail addresses are not stored as identifiers or logged.
 - Only `cf-connecting-ip` on a Cloudflare request is considered as an IP signal. Arbitrary `x-forwarded-for` values are ignored. Non-Cloudflare anonymous clients receive a signed HttpOnly fallback cookie.
 - Provider keys, OAuth credentials, access codes, model IDs, and system prompts are server-only.
 - User text is rendered as text, not injected as HTML, and user code is never executed by the application.
@@ -105,13 +105,14 @@ See [`.env.example`](.env.example) for the complete list.
 
 Required for production:
 
-- `AUTH_SECRET`, `AUTH_GOOGLE_ID`, `AUTH_GOOGLE_SECRET`, `RATE_LIMIT_SECRET`, `ACCOUNT_ID_SECRET`, and `NVIDIA_API_KEY_PRIMARY` as Cloudflare Worker secrets.
+- `AUTH_SECRET`, `AUTH_GOOGLE_ID`, `AUTH_GOOGLE_SECRET`, `RATE_LIMIT_SECRET`, `ACCOUNT_ID_SECRET`, `TERMS_USER_ID_SECRET`, and `NVIDIA_API_KEY_PRIMARY` as Cloudflare Worker secrets.
 - `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` as the only GitHub Actions secrets. Runtime secrets are not copied from GitHub during deployment.
 
 Provider and feature configuration:
 
 - `NVIDIA_API_KEY_PRIMARY`, optional `NVIDIA_API_KEY_SECONDARY`
 - `UNLIMITED_AI_EMAILS`, an optional comma-separated server-side allowlist of complete email addresses; entries are trimmed/lowercased, malformed lists fail closed, and unset means no privileged accounts
+- `ADMIN_EMAILS`, a separate optional comma-separated allowlist for administrator actions (`/api/admin/clodex/revoke`, `/admin/terms`); it is deliberately not the same list as `UNLIMITED_AI_EMAILS` so that unlimited AI usage never implies admin power over other accounts, and it follows the same normalize/fail-closed rules
 - `CLODEX_ENABLED=true|false`
 - `CLODEX_GRANT_TTL_DAYS` is a bounded non-secret variable (default 30 days) for newly redeemed grants.
 - `CLODEX_GRANT_VERSION` is a bounded non-secret policy version (default `v2`); changing it intentionally invalidates grants from older policies.
@@ -159,6 +160,7 @@ Cloudflare is the source of truth for runtime Worker secrets. The deployment pre
 - `terms_accepted`, `terms_accepted_at`, `terms_version`, and `language` are stored in D1. Consent is never authorized by `localStorage` or cookies.
 - The hidden Clodex promo field is controlled by the server-side `CLODEX_PROMO_EMAILS` allowlist and the feature flag.
 - Account Durable Objects retain a legacy SHA-256 lookup path during migration, but all new account IDs use HMAC-SHA-256 with `ACCOUNT_ID_SECRET`.
+- D1 `users` row IDs use HMAC-SHA-256 with `TERMS_USER_ID_SECRET`; rows are looked up by the unique `email` column, so rows created before this migration are backfilled to the HMAC id opportunistically instead of needing a dual-lookup path.
 
 ## Contributing and security
 

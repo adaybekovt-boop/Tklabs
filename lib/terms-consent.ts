@@ -3,6 +3,7 @@ import { eq } from "drizzle-orm";
 import { getDb } from "@/db";
 import { users } from "@/db/schema";
 import { CURRENT_TERMS_VERSION, type TermsLanguage } from "@/lib/terms";
+import { legacyTermsUserId, termsUserId } from "@/lib/terms-user-id";
 
 export class TermsStorageUnavailableError extends Error {
   constructor() {
@@ -30,12 +31,6 @@ function normalizeEmail(email: string) {
   return email.trim().toLowerCase();
 }
 
-async function userIdForEmail(email: string) {
-  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(normalizeEmail(email)));
-  const hash = Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, "0")).join("");
-  return `user:${hash}`;
-}
-
 function serializeDate(value: Date | null | undefined) {
   return value ? value.toISOString() : null;
 }
@@ -47,7 +42,7 @@ async function ensureUser(user: TermsUser) {
   try {
     const db = getDb();
     const now = new Date();
-    const id = await userIdForEmail(email);
+    const id = await termsUserId(email);
     await db.insert(users).values({
       id,
       email,
@@ -63,8 +58,18 @@ async function ensureUser(user: TermsUser) {
         updatedAt: now,
       },
     }).run();
-    const row = await db.select().from(users).where(eq(users.email, email)).get();
+    let row = await db.select().from(users).where(eq(users.email, email)).get();
     if (!row) throw new TermsStorageUnavailableError();
+    // `id` is looked up only via the unique `email` column above, never
+    // recomputed and matched, so switching hash functions never breaks a
+    // lookup. Rows created before the HMAC migration still carry the bare
+    // SHA-256 id (onConflictDoUpdate never rewrites `id`); backfill them to
+    // the HMAC id opportunistically. `id` has no external references (see
+    // db/schema.ts), so rewriting the primary key here is safe.
+    if (row.id !== id && row.id === (await legacyTermsUserId(email))) {
+      await db.update(users).set({ id }).where(eq(users.email, email)).run();
+      row = { ...row, id };
+    }
     return { db, row };
   } catch (error) {
     if (error instanceof TermsStorageUnavailableError) throw error;

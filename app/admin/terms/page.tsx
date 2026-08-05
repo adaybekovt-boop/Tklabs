@@ -5,14 +5,14 @@ import { TermsDocument } from "@/components/legal/TermsDocument";
 import { StitchFooter } from "@/components/site/StitchFooter";
 import { StitchHeader } from "@/components/site/StitchHeader";
 import { getLocale } from "@/lib/locale";
-import { isPrivilegedAiEmail } from "@/lib/privileged-access";
+import { isAdminEmail } from "@/lib/privileged-access";
 import { CURRENT_TERMS_VERSION, getTerms } from "@/lib/terms";
 
 export const dynamic = "force-dynamic";
 
 export default async function AdminTermsPage() {
   const session = await auth();
-  if (!isPrivilegedAiEmail(session?.user?.email)) redirect("/");
+  if (!isAdminEmail(session?.user?.email)) redirect("/");
 
   const locale = await getLocale();
   const primary = getTerms(locale);

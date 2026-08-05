@@ -67,7 +67,7 @@ The build keeps a production D1 binding even when `D1_DATABASE_ID` is absent, so
 
 ## Admin review
 
-`/admin/terms` is protected by `isPrivilegedAiEmail`, the same allowlist used for the existing unlimited founder accounts. It renders both languages from the same runtime source. Opening this page does not change the current user’s database record and does not re-trigger the gate.
+`/admin/terms` is protected by `isAdminEmail`, backed by the `ADMIN_EMAILS` allowlist — a separate list from `UNLIMITED_AI_EMAILS` (unlimited AI usage) so that neither grant implies the other. It renders both languages from the same runtime source. Opening this page does not change the current user’s database record and does not re-trigger the gate.
 
 ## Hidden promo-code field
 

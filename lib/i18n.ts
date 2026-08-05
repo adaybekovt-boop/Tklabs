@@ -1,6 +1,345 @@
 export type Locale = "ru" | "en";
 
-export const dictionaries = {
+interface NavDictionary {
+  home: string;
+  models: string;
+  access: string;
+  laboratory: string;
+  status: string;
+  documentation: string;
+  developers: string;
+  patchNotes: string;
+  login: string;
+  profile: string;
+  language: string;
+  themeLight: string;
+  themeDark: string;
+}
+
+interface FooterDictionary {
+  privacy: string;
+  terms: string;
+  api: string;
+  truth: string;
+  status: string;
+  models: string;
+  access: string;
+  documentation: string;
+  developers: string;
+  patchNotes: string;
+  copyright: string;
+}
+
+interface HomeDictionary {
+  eyebrow: string;
+  title: string;
+  description: string;
+  openLab: string;
+  howItWorks: string;
+  environmentTitle: string;
+  environmentDescription: string;
+  architectureLabel: string;
+  modesTitle: string;
+  tableModel: string;
+  tablePurpose: string;
+  tableLimit: string;
+  tableStatus: string;
+  rows: [string, string, string, string][];
+  accessNote: string;
+  threeLevels: string;
+  labTitle: string;
+  labNote: string;
+  enterLab: string;
+  disclosure: string;
+  principles: string;
+  heroAlt: string;
+  labAlt: string;
+}
+
+interface ModelsDictionary {
+  eyebrow: string;
+  title: string;
+  intro: string;
+  cycles: [string, string, string][];
+  catalogTitle: string;
+  modelCount: string;
+  descriptions: {
+    lightQuick: string;
+    lightReasoning: string;
+    medium: string;
+    heavyVision: string;
+    heavy: string;
+  };
+  openInLab: string;
+  preview: string;
+  available: string;
+  think: string;
+}
+
+interface AccessLevel {
+  name: string;
+  title: string;
+  description: string;
+  note: string;
+}
+
+interface AccessDictionary {
+  eyebrow: string;
+  title: string;
+  intro: string;
+  levels: AccessLevel[];
+  tokens: string;
+  openLab: string;
+  howTitle: string;
+  howFirst: string;
+  howSecond: string;
+  signIn: string;
+}
+
+interface DocumentationEntry {
+  href: string;
+  label: string;
+  title: string;
+  description: string;
+}
+
+interface DocumentationDictionary {
+  eyebrow: string;
+  title: string;
+  intro: string;
+  documents: DocumentationEntry[];
+  openSection: string;
+  quickStart: string;
+  quickTitle: string;
+  openLab: string;
+}
+
+interface DeveloperPerson {
+  name: string;
+  initials: string;
+  role: string;
+  image: string;
+  description: string;
+}
+
+interface DevelopersDictionary {
+  eyebrow: string;
+  title: string;
+  intro: string;
+  sectionTitle: string;
+  sectionIntro: string;
+  people: DeveloperPerson[];
+  noteTitle: string;
+  note: string;
+}
+
+interface PatchNoteEntry {
+  date: string;
+  version: string;
+  title: string;
+  summary: string;
+  changes: string[];
+}
+
+interface PatchNotesDictionary {
+  eyebrow: string;
+  title: string;
+  intro: string;
+  entries: PatchNoteEntry[];
+  openLaboratory: string;
+}
+
+interface LegalSection {
+  label: string;
+  title: string;
+  intro: string;
+  sections: [string, string, string][];
+}
+
+interface LegalDictionary {
+  contents: string;
+  terms: LegalSection;
+  api: LegalSection;
+  privacy: LegalSection;
+}
+
+interface LoginDictionary {
+  secure: string;
+  account: string;
+  title: string;
+  description: string;
+  identity: string;
+  session: string;
+  method: string;
+  google: string;
+  or: string;
+  back: string;
+  note: string;
+}
+
+interface ProfilePromoDictionary {
+  trigger: string;
+  label: string;
+  placeholder: string;
+  submit: string;
+  close: string;
+  success: string;
+  invalid: string;
+  unavailable: string;
+}
+
+interface ProfileDictionary {
+  eyebrow: string;
+  accessLevel: string;
+  standardAccess: string;
+  adminAccess: string;
+  state: string;
+  active: string;
+  adminState: string;
+  fallbackName: string;
+  localEmail: string;
+  parameters: string;
+  description: string;
+  availableModels: string;
+  modelsValue: string;
+  unlimitedModelsValue: string;
+  dailyLimit: string;
+  dailyValue: string;
+  unlimitedDailyValue: string;
+  archive: string;
+  archiveValue: string;
+  clodex: string;
+  clodexValue: string;
+  clodexUnlimitedValue: string;
+  portraitAlt: string;
+  adminToolsLabel: string;
+  adminToolsTitle: string;
+  reviewAgreement: string;
+  promo: ProfilePromoDictionary;
+}
+
+interface StatusDictionary {
+  eyebrow: string;
+  title: string;
+  intro: string;
+  allWorking: string;
+  checking: string;
+  partial: string;
+  down: string;
+  checked: string;
+  lastChecked: string;
+  refresh: string;
+  infrastructure: string;
+  working: string;
+  degraded: string;
+  unavailable: string;
+  notConfigured: string;
+  incidents: string;
+  historyNote: string;
+  services: string[];
+  ms: string;
+}
+
+interface TruthDictionary {
+  eyebrow: string;
+  title: string;
+  intro: string;
+  principle: string;
+  principleTitle: string;
+  principleText: string;
+  registry: string;
+  registryIntro: string;
+  registryRows: [string, string, string][];
+  docsTitle: string;
+  openApi: string;
+  structureAlt: string;
+  paperAlt: string;
+}
+
+interface ChatInputDictionary {
+  effort: string;
+  effortLow: string;
+  effortMedium: string;
+  effortHigh: string;
+  model: string;
+  request: string;
+  openAttachment: string;
+  addAttachment: string;
+  close: string;
+  stopRecording: string;
+  send: string;
+  voiceInput: string;
+  voiceUnsupported: string;
+  voiceDenied: string;
+  listening: string;
+  attachmentTooLarge: string;
+  hintExpanded: string;
+  hintCollapsed: string;
+}
+
+interface ChatDictionary {
+  ready: string;
+  streaming: string;
+  thinking: string;
+  reasoningLabel: string;
+  reasoningShow: string;
+  reasoningHide: string;
+  clodexReady: string;
+  newDialog: string;
+  history: string;
+  emptyKicker: string;
+  emptyTitle: string;
+  emptyDescription: string;
+  learn: string;
+  write: string;
+  suggestionLearn: string;
+  suggestionWrite: string;
+  close: string;
+  suggestions: {
+    learn: string[];
+    write: string[];
+  };
+  reasoningOff: string;
+  reasoningOn: string;
+  toneProfessional: string;
+  toneCharacter: string;
+  toneErma: string;
+  copied: string;
+  copy: string;
+  speak: string;
+  stopSpeaking: string;
+  voiceUnsupported: string;
+  copyFailed: string;
+  speechFailed: string;
+  generationStopped: string;
+  networkError: string;
+  authExpired: string;
+  apiError: string;
+  demoNote: string;
+  historyEmpty: string;
+  promptPlaceholder: string;
+  fallbackNotice: string;
+  input: ChatInputDictionary;
+}
+
+export interface Dictionary {
+  nav: NavDictionary;
+  footer: FooterDictionary;
+  home: HomeDictionary;
+  models: ModelsDictionary;
+  access: AccessDictionary;
+  documentation: DocumentationDictionary;
+  developers: DevelopersDictionary;
+  patchNotes: PatchNotesDictionary;
+  legal: LegalDictionary;
+  login: LoginDictionary;
+  profile: ProfileDictionary;
+  status: StatusDictionary;
+  truth: TruthDictionary;
+  chat: ChatDictionary;
+}
+
+export const dictionaries: Record<Locale, Dictionary> = {
   ru: {
     nav: {
       home: "Главная",
@@ -416,6 +755,9 @@ export const dictionaries = {
       ready: "Система готова",
       streaming: "Получаем ответ",
       thinking: "Думает...",
+      reasoningLabel: "Ход рассуждений",
+      reasoningShow: "Показать ход рассуждений",
+      reasoningHide: "Скрыть ход рассуждений",
       clodexReady: "Erma + Clodex доступны",
       newDialog: "Новый диалог",
       history: "Локальные сессии",
@@ -450,9 +792,6 @@ export const dictionaries = {
       demoNote: "Демо: 3 запроса в день · история хранится только в этом браузере",
       historyEmpty: "Сохранённых диалогов пока нет.",
       promptPlaceholder: "Спросите что-нибудь…",
-      providerNvidia: "NVIDIA Build API",
-      providerClodex: "Clodex",
-      providerFallback: "Локальный резерв",
       fallbackNotice: "Выбранная модель временно недоступна. Ответ сформирован резервным режимом.",
       input: {
         effort: "Уровень рассуждения",
@@ -891,6 +1230,9 @@ export const dictionaries = {
       ready: "System ready",
       streaming: "Receiving response",
       thinking: "Thinking...",
+      reasoningLabel: "Reasoning trace",
+      reasoningShow: "Show reasoning trace",
+      reasoningHide: "Hide reasoning trace",
       clodexReady: "Erma + Clodex available",
       newDialog: "New conversation",
       history: "Browser sessions",
@@ -925,9 +1267,6 @@ export const dictionaries = {
       demoNote: "Demo: 3 requests per day · history stays in this browser",
       historyEmpty: "No saved conversations yet.",
       promptPlaceholder: "Ask anything…",
-      providerNvidia: "NVIDIA Build API",
-      providerClodex: "Clodex",
-      providerFallback: "Local fallback",
       fallbackNotice: "The selected model is temporarily unavailable. This answer was produced by a fallback mode.",
       input: {
         effort: "Reasoning level",
@@ -951,10 +1290,8 @@ export const dictionaries = {
       },
     },
   },
-} as const;
-
-export type Dictionary = (typeof dictionaries)["ru"];
+};
 
 export function getDictionary(locale: Locale): Dictionary {
-  return dictionaries[locale] as Dictionary;
+  return dictionaries[locale];
 }

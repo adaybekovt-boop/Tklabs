@@ -1,6 +1,6 @@
 import { auth } from "@/auth";
 import { AccountAccessUnavailableError, revokeClodexAccess } from "@/lib/account-access";
-import { isPrivilegedAiEmail } from "@/lib/privileged-access";
+import { isAdminEmail } from "@/lib/privileged-access";
 import { newRequestId } from "@/lib/ai/provider-http";
 import { parseJsonBody, RequestBodyTooLargeError } from "@/lib/request-body";
 import { isTrustedRequestOrigin } from "@/lib/request-security";
@@ -37,7 +37,7 @@ export async function handleAdminClodexRevoke(request: Request, readSession: Ses
   }
   const adminEmail = session?.user?.email?.trim().toLowerCase() ?? "";
   if (!adminEmail) return response({ error: "Authentication required.", requestId }, requestId, 401);
-  if (!isPrivilegedAiEmail(adminEmail)) return response({ error: "Administrator access required.", requestId }, requestId, 403);
+  if (!isAdminEmail(adminEmail)) return response({ error: "Administrator access required.", requestId }, requestId, 403);
 
   let body: RevokeBody | null;
   try {
