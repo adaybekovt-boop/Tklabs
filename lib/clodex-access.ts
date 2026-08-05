@@ -2,6 +2,8 @@ export const CLODEX_REQUEST_LIMIT = 5;
 export const CLODEX_REQUEST_WINDOW_MS = 15 * 60 * 1000;
 
 export type ClodexAccessStatus = {
+  /** True once this account has ever received a grant, even if it is no longer active. */
+  hasGrant: boolean;
   active: boolean;
   unlimited?: boolean;
   limit: number;

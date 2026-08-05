@@ -24,7 +24,7 @@ function unavailableResponse() {
 
 function disabledResponse() {
   return Response.json(
-    { active: false, unlimited: false, limit: 0, windowMs: 0, remaining: 0, resetAt: null },
+    { hasGrant: false, active: false, unlimited: false, limit: 0, windowMs: 0, remaining: 0, resetAt: null },
     { headers: { "cache-control": "no-store" } },
   );
 }

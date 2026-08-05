@@ -208,8 +208,8 @@ export async function POST(request: Request) {
     await commitDemo();
     return resultResponse({ answer: result.answer, provider: "nvidia", actualModel: result.actualModel }, requestedModel, requestId, startedAt, rateLimitCookie);
   } catch (error) {
-    await releaseDemo();
     if (request.signal.aborted) {
+      await releaseDemo();
       return jsonResponse({ error: "Request cancelled.", requestId }, requestId, 499, rateLimitCookie);
     }
     const reason = error instanceof Error && error.message === "nvidia_not_configured" ? "nvidia_not_configured" : "nvidia_request_failed";
@@ -221,6 +221,12 @@ export async function POST(request: Request) {
       reason,
     });
     const fallback = await resolveFallback({ prompt: providerPrompt, language, allowCode: privilegedAccount, requestId, requestedModel, primaryReason: reason, signal: request.signal });
+    // A provider reservation is committed only when an external provider
+    // actually produced the answer. Local deterministic fallback is free and
+    // must refund the reservation. This also keeps full-provider failures
+    // honest instead of consuming demo quota.
+    if (fallback.provider === "clodex") await commitDemo();
+    else await releaseDemo();
     return resultResponse(fallback, requestedModel, requestId, startedAt, rateLimitCookie);
   }
 }

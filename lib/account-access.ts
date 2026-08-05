@@ -13,7 +13,7 @@ type AccountAccessStub = {
   reserveDemo(): Promise<DemoReservationResult>;
   commitDemo(reservationId: string): Promise<DemoReservationResult>;
   releaseDemo(reservationId: string): Promise<DemoReleaseResult>;
-  reserveTts(characters: number): Promise<TtsReservationResult>;
+  reserveTts(characters: number, privileged: boolean): Promise<TtsReservationResult>;
   commitTts(reservationId: string): Promise<TtsReservationResult>;
   releaseTts(reservationId: string): Promise<TtsReservationReleaseResult>;
   release(reservationId: string): Promise<ClodexReleaseResult>;
@@ -54,9 +54,12 @@ async function getStubPair(email: string) {
 async function getStub(email: string) {
   const { current, legacy } = await getStubPair(email);
   const currentStatus = await current.getStatus();
-  if (currentStatus.active || current === legacy) return current;
+  // Object-name migrations must not resurrect an expired, revoked, or
+  // version-invalid grant from the legacy hash. A non-empty current object is
+  // authoritative forever; legacy is consulted only for a truly empty object.
+  if (currentStatus.hasGrant || current === legacy) return current;
   const legacyStatus = await legacy.getStatus();
-  return legacyStatus.active ? legacy : current;
+  return legacyStatus.hasGrant ? legacy : current;
 }
 
 export async function getClodexAccessStatus(email: string) {
@@ -79,8 +82,8 @@ export async function revokeClodexAccess(email: string) {
   return (await getStub(email)).revoke();
 }
 
-export async function reserveTts(email: string, characters: number) {
-  return (await getStub(email)).reserveTts(characters);
+export async function reserveTts(email: string, characters: number, privileged: boolean) {
+  return (await getStub(email)).reserveTts(characters, privileged);
 }
 
 export async function commitTts(email: string, reservationId: string) {

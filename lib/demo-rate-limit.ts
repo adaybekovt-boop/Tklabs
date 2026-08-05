@@ -11,6 +11,8 @@ export type DemoRateLimitStatus = {
 export type DemoConsumeResult = DemoRateLimitStatus & {
   allowed: boolean;
   reservationId?: string;
+  committed?: boolean;
+  expired?: boolean;
 };
 
 export type DemoReservationResult = DemoConsumeResult;
@@ -18,4 +20,5 @@ export type DemoReservationResult = DemoConsumeResult;
 export type DemoReleaseResult = DemoRateLimitStatus & {
   released: boolean;
   reservationId: string;
+  expired?: boolean;
 };

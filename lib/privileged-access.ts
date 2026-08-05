@@ -20,6 +20,7 @@ export function isPrivilegedAiEmail(email: string | null | undefined) {
 
 export function privilegedAccessStatus(): ClodexAccessStatus {
   return {
+    hasGrant: true,
     active: true,
     unlimited: true,
     limit: Number.MAX_SAFE_INTEGER,
