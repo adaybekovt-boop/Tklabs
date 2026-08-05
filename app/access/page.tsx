@@ -6,7 +6,7 @@ import { FlowButton } from "@/components/ui/flow-button";
 import { ScrollReveal, StaggerContainer, StaggerItem } from "@/components/ui/scroll-reveal";
 import { getDictionary } from "@/lib/i18n";
 import { getLocale } from "@/lib/locale";
-import { MAX_TOKENS_BY_TIER, type ErmaTier } from "@/lib/erma-public";
+import { MAX_TOKENS_BY_TIER, type ErmaTier } from "@/lib/models/public";
 
 export const metadata: Metadata = {
   title: "TK LAB — Access",

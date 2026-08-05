@@ -12,7 +12,7 @@ Version: `2026-08-05`
 6. `POST /api/account/terms` validates the same-origin request, session, language, payload size, and exact current version before writing the consent fields.
 7. On success, the modal closes. A later request reads the database record and does not show the gate until the version changes.
 
-The gate is intentionally blocking only for a signed-in user whose record requires consent. Public pages and signed-out users remain accessible. An administrator can review the full agreement at `/admin/terms` without resetting anyone’s consent.
+The gate is intentionally blocking only for a signed-in user whose record requires consent. Public pages and signed-out users remain accessible. If Auth.js or D1 is unavailable, the gate fails closed and keeps the agreement pending; it never grants access from `localStorage` or a cookie. An administrator can review the full agreement at `/admin/terms` without resetting anyone’s consent.
 
 ## D1 storage
 

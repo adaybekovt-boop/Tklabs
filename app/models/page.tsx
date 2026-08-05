@@ -6,7 +6,7 @@ import { StitchHeader } from "@/components/site/StitchHeader";
 import { ScrollReveal, StaggerContainer, StaggerItem } from "@/components/ui/scroll-reveal";
 import { getDictionary } from "@/lib/i18n";
 import { getLocale } from "@/lib/locale";
-import { PUBLIC_ERMA_MODELS, type PublicErmaModel } from "@/lib/erma-public";
+import { PUBLIC_ERMA_MODELS, type PublicErmaModel } from "@/lib/models/public";
 
 export const metadata: Metadata = {
   title: "TK LAB — Models",

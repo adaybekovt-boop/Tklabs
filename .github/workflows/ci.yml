@@ -5,9 +5,16 @@ on:
     branches:
       - main
       - "agent/**"
+      - "fix/**"
+      - "feature/**"
+      - "codex/**"
   pull_request:
     branches:
       - main
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 permissions:
   contents: read
@@ -28,7 +35,11 @@ jobs:
         run: npm ci
       - name: Audit production dependencies
         run: npm audit --omit=dev --audit-level=high
+      - name: Typecheck
+        run: npm run typecheck
       - name: Lint
         run: npm run lint
-      - name: Build and smoke test
+      - name: Tests
         run: npm test
+      - name: Production build
+        run: npm run build

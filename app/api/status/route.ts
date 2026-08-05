@@ -1,5 +1,7 @@
 import { env } from "cloudflare:workers";
 
+import { isClodexEnabled } from "@/lib/feature-flags";
+
 export const runtime = "edge";
 
 type HealthStatus = "operational" | "degraded" | "down" | "not_configured";
@@ -8,6 +10,7 @@ type HealthCheck = {
   id: string;
   status: HealthStatus;
   latencyMs: number | null;
+  required?: boolean;
 };
 
 const PROVIDER_TIMEOUT_MS = 2_500;
@@ -43,16 +46,18 @@ async function providerCheck(
   url: string,
   headers: Record<string, string>,
   configured: boolean,
+  required = true,
 ): Promise<HealthCheck> {
-  if (!configured) return { id, status: "not_configured", latencyMs: null };
-  return { id, ...(await probe(url, headers)) };
+  if (!configured) return { id, status: "not_configured", latencyMs: null, required };
+  return { id, required, ...(await probe(url, headers)) };
 }
 
 export async function GET() {
   const nvidiaKey = firstEnv("NVIDIA_API_KEY_PRIMARY", "NVIDIA_API_KEY_1", "NVIDIA_API_KEY");
   const clodexKey = firstEnv("CLODEX_API_KEY");
+  const clodexEnabled = isClodexEnabled();
   const authConfigured = Boolean(firstEnv("AUTH_SECRET") && firstEnv("AUTH_GOOGLE_ID") && firstEnv("AUTH_GOOGLE_SECRET"));
-  const rateLimitConfigured = Boolean((env as unknown as { CLODEX_ACCESS?: unknown }).CLODEX_ACCESS);
+  const rateLimitConfigured = Boolean((env as unknown as { CLODEX_ACCESS?: unknown }).CLODEX_ACCESS && process.env.RATE_LIMIT_SECRET?.trim());
 
   const checks = await Promise.all([
     providerCheck(
@@ -65,17 +70,18 @@ export async function GET() {
       "clodex",
       "https://clodex.xyz/v1/models",
       clodexKey ? { "anthropic-version": "2023-06-01", "x-api-key": clodexKey } : {},
-      Boolean(clodexKey),
+      clodexEnabled && Boolean(clodexKey),
+      false,
     ),
     Promise.resolve<HealthCheck>({ id: "auth", status: authConfigured ? "operational" : "not_configured", latencyMs: null }),
     Promise.resolve<HealthCheck>({ id: "access", status: rateLimitConfigured ? "operational" : "not_configured", latencyMs: null }),
   ]);
 
   const checkedAt = new Date().toISOString();
-  const allOperational = checks.every((check) => check.status === "operational");
+  const allOperational = checks.filter((check) => check.required !== false).every((check) => check.status === "operational");
 
   return Response.json(
     { checkedAt, source: "live", ok: allOperational, services: checks },
-    { headers: { "cache-control": "public, max-age=15, s-maxage=30" } },
+    { headers: { "cache-control": "no-store" } },
   );
 }

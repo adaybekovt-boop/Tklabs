@@ -14,11 +14,14 @@ test("production deployment and browser capabilities match the current app", asy
   const packageJson = JSON.parse(await text("package.json"));
   const tsconfig = await text("tsconfig.json");
   const workerTypes = await text("types/cloudflare-workers-runtime.d.ts");
+  const securityHeaders = await import(new URL("lib/security-headers.mjs", root));
 
   assert.match(workflow, /push:[\s\S]*branches:[\s\S]*- main/);
   assert.match(workflow, /concurrency:/);
-  assert.match(nextConfig, /microphone=\(self\)/);
-  assert.match(packageJson.scripts.test, /node --test tests\/\*\.test\.mjs/);
+  assert.equal(securityHeaders.SECURITY_HEADERS.find((header) => header.key === "Permissions-Policy")?.value, "camera=(), microphone=(self), geolocation=(), payment=()");
+  assert.doesNotMatch(nextConfig, /microphone=\(\)/);
+  assert.match(packageJson.scripts.test, /test:unit/);
+  assert.match(packageJson.scripts["test:integration"], /node --test/);
   assert.doesNotMatch(tsconfig, /cloudflare:workers/, "native Cloudflare bindings must stay external in production builds");
   assert.match(workerTypes, /declare module "cloudflare:workers"/);
 });
@@ -31,6 +34,8 @@ test("status page uses live health checks", async () => {
   assert.match(route, /PROVIDER_TIMEOUT_MS = 2_500/);
   assert.match(route, /integrate\.api\.nvidia\.com\/v1\/models/);
   assert.match(route, /clodex\.xyz\/v1\/models/);
+  assert.match(route, /isClodexEnabled/);
+  assert.match(route, /clodexEnabled && Boolean\(clodexKey\),\s+false,/s);
   assert.match(route, /cache-control/);
   assert.match(page, /StatusBoard/);
   assert.match(board, /fetch\("\/api\/status"/);
@@ -56,8 +61,8 @@ test("high-quality speech stays server-side and has a browser fallback", async (
 });
 
 test("the public Erma catalog exposes one model per working tier", async () => {
-  const publicModels = await text("lib/erma-public.ts");
-  const serverModels = await text("lib/models.ts");
+  const publicModels = await text("lib/models/public.ts");
+  const serverModels = await text("lib/models/server.ts");
 
   for (const model of ["Erma Lite", "Erma Core", "Erma Pro"]) {
     assert.match(publicModels, new RegExp(`name: "${model}"`));
@@ -65,6 +70,8 @@ test("the public Erma catalog exposes one model per working tier", async () => {
   }
   assert.doesNotMatch(publicModels, /erma-instant|erma-polos|erma-dalos|erma-reborn|erma-asimasi/);
   assert.doesNotMatch(serverModels, /erma-instant|erma-polos|erma-dalos|erma-reborn|erma-asimasi/);
+  assert.doesNotMatch(publicModels, /nvidiaModel|tools: true|vision: true/);
+  assert.match(serverModels, /nvidiaModel:/);
 });
 
 test("protected API routes fail safely when Auth.js is unavailable", async () => {
@@ -72,7 +79,7 @@ test("protected API routes fail safely when Auth.js is unavailable", async () =>
   const access = await text("app/api/profile/access/route.ts");
 
   assert.match(clodex, /Authentication service is temporarily unavailable/);
-  assert.match(clodex, /getAuthenticatedEmail|Unable to read authentication session/);
+  assert.match(clodex, /await auth\(\)|Authentication service is temporarily unavailable/);
   assert.match(access, /getAuthenticatedEmail/);
   assert.match(access, /unavailableResponse/);
 });
@@ -83,7 +90,6 @@ test("terms consent is database-backed, versioned, and admin-reviewable", async 
   const consent = await text("lib/terms-consent.ts");
   const route = await text("app/api/account/terms/route.ts");
   const gate = await text("components/legal/TermsGate.tsx");
-  const localConsent = await text("lib/local-terms-consent.ts");
   const admin = await text("app/admin/terms/page.tsx");
   const workflow = await text(".github/workflows/deploy-cloudflare.yml");
   const viteConfig = await text("vite.config.ts");
@@ -101,8 +107,7 @@ test("terms consent is database-backed, versioned, and admin-reviewable", async 
   assert.match(route, /isTrustedRequestOrigin/);
   assert.doesNotMatch(gate, /localStorage|document\.cookie/si, "the gate must not use browser storage as consent authority");
   assert.match(gate, /response\.status === 503/);
-  assert.match(gate, /localFallback/);
-  assert.match(localConsent, /CURRENT_TERMS_VERSION/);
+  assert.doesNotMatch(gate, /localFallback|local-terms-consent|localStorage|document\.cookie/si, "consent must fail closed until D1 records it");
   assert.match(admin, /isPrivilegedAiEmail/);
   assert.match(admin, /TermsDocument language=\{locale\}/);
   assert.match(workflow, /D1_DATABASE_ID:.*c4085a86-0fec-49f2-b2ed-5999190fcc30/);
@@ -161,6 +166,7 @@ test("patch notes are linked and written as an English release log", async () =>
   assert.match(nav, /href: "\/patch-notes"/);
   assert.match(footer, /href="\/patch-notes"/);
   assert.match(translations, /patchNotes: "Patch Notes"/);
+  assert.match(translations, /version: "v0\.7\.0"/);
   assert.match(translations, /version: "v0\.6\.3"/);
   assert.match(translations, /version: "v0\.6\.2"/);
   assert.match(translations, /version: "v0\.5\.3"/);
@@ -223,7 +229,7 @@ test("theme switching is persistent and available from the global shell", async 
 });
 
 test("privileged workspace access is reflected in the client and profile", async () => {
-  const publicModels = await text("lib/erma-public.ts");
+  const publicModels = await text("lib/models/public.ts");
   const playground = await text("components/playground/PlaygroundChat.tsx");
   const profile = await text("app/profile/page.tsx");
   const input = await text("components/ui/ai-chat-input.tsx");
@@ -242,19 +248,24 @@ test("new Playground does not show the duplicated empty-state heading", async ()
   assert.equal(playground.split(heading).length - 1, 1);
 });
 
-test("chat keeps response metadata out of the answer footer and keeps model selection mobile-safe", async () => {
+test("chat uses one JSON response contract and keeps model selection mobile-safe", async () => {
   const playground = await text("components/playground/PlaygroundChat.tsx");
+  const messageList = await text("components/playground/MessageList.tsx");
   const input = await text("components/ui/ai-chat-input.tsx");
   const css = await text("app/globals.css");
 
-  assert.doesNotMatch(playground, /response-meta-enter|latencyMs|providerLabel|<Timer/);
+  assert.match(playground, /response\.json\(\)/);
+  assert.match(playground, /actualProvider/);
+  assert.match(messageList, /fallbackNotice/);
   assert.match(input, /max-\[420px\]:fixed/);
   assert.match(input, /aria-haspopup="listbox"/);
   assert.match(input, /min-w-0 flex-1/);
+  assert.match(input, /maxAttachmentContextLength/);
+  assert.doesNotMatch(input, /content: \(await file\.text\(\)\)\.slice/);
   assert.doesNotMatch(input, /role="button"/, "attachment controls must use real buttons, not nested button-like spans");
-  assert.match(playground, /let assistantContent = ""/);
-  assert.match(playground, /message\.id === lastMessage\?\.id && message\.content/);
-  assert.match(playground, /gap-12/);
+  assert.doesNotMatch(playground, /text\/event-stream|data:\s*\$\{JSON\.stringify/);
+  assert.doesNotMatch(playground, /message\.id === lastMessage\?\.id && message\.content/);
+  assert.match(input, /items-center gap-2/);
   assert.match(playground, /overflow-x-auto/);
   assert.doesNotMatch(css, /response-meta-enter/);
 });

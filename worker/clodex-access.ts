@@ -23,6 +23,12 @@ type UsageRow = {
   request_count: number;
 };
 
+type ReservationRow = {
+  reservation_id: string;
+  window_start: number;
+  released: number;
+};
+
 type AttemptRow = {
   window_start: number;
   attempt_count: number;
@@ -61,11 +67,28 @@ export class ClodexAccess extends DurableObject<ClodexAccessEnv> {
         window_start INTEGER NOT NULL,
         request_count INTEGER NOT NULL
       );
+      CREATE TABLE IF NOT EXISTS clodex_request_windows (
+        slot INTEGER PRIMARY KEY CHECK (slot = 1),
+        window_start INTEGER NOT NULL,
+        request_count INTEGER NOT NULL
+      );
+      CREATE TABLE IF NOT EXISTS demo_request_windows (
+        slot INTEGER PRIMARY KEY CHECK (slot = 1),
+        window_start INTEGER NOT NULL,
+        request_count INTEGER NOT NULL
+      );
+      CREATE TABLE IF NOT EXISTS clodex_reservations (
+        reservation_id TEXT PRIMARY KEY,
+        window_start INTEGER NOT NULL,
+        released INTEGER NOT NULL DEFAULT 0
+      );
       CREATE TABLE IF NOT EXISTS redemption_attempts (
         slot INTEGER PRIMARY KEY CHECK (slot = 1),
         window_start INTEGER NOT NULL,
         attempt_count INTEGER NOT NULL
       );
+      INSERT OR IGNORE INTO clodex_request_windows (slot, window_start, request_count)
+        SELECT slot, window_start, request_count FROM request_windows;
     `);
   }
 
@@ -73,14 +96,14 @@ export class ClodexAccess extends DurableObject<ClodexAccessEnv> {
     return this.ctx.storage.sql.exec<{ activated_at: number }>("SELECT activated_at FROM access_grants WHERE slot = 1").toArray().length > 0;
   }
 
-  private currentUsage(now: number, windowMs = CLODEX_REQUEST_WINDOW_MS) {
-    const row = this.ctx.storage.sql.exec<UsageRow>("SELECT window_start, request_count FROM request_windows WHERE slot = 1").toArray()[0];
+  private currentUsage(now: number, table: "clodex_request_windows" | "demo_request_windows", windowMs: number) {
+    const row = this.ctx.storage.sql.exec<UsageRow>(`SELECT window_start, request_count FROM ${table} WHERE slot = 1`).toArray()[0];
     if (!row || now - row.window_start >= windowMs) return null;
     return row;
   }
 
   private status(now = Date.now()): ClodexAccessStatus {
-    const usage = this.currentUsage(now);
+    const usage = this.currentUsage(now, "clodex_request_windows", CLODEX_REQUEST_WINDOW_MS);
     return {
       active: this.isActive(),
       limit: CLODEX_REQUEST_LIMIT,
@@ -153,7 +176,7 @@ export class ClodexAccess extends DurableObject<ClodexAccessEnv> {
     const now = Date.now();
     if (!this.isActive()) return { ...this.status(now), allowed: false, error: "access_required" };
 
-    const existing = this.currentUsage(now);
+    const existing = this.currentUsage(now, "clodex_request_windows", CLODEX_REQUEST_WINDOW_MS);
     if (existing && existing.request_count >= CLODEX_REQUEST_LIMIT) {
       return {
         ...this.status(now),
@@ -165,10 +188,16 @@ export class ClodexAccess extends DurableObject<ClodexAccessEnv> {
 
     const windowStart = existing?.window_start ?? now;
     const requestCount = (existing?.request_count ?? 0) + 1;
+    const reservationId = crypto.randomUUID();
     this.ctx.storage.sql.exec(
-      "INSERT INTO request_windows (slot, window_start, request_count) VALUES (1, ?, ?) ON CONFLICT(slot) DO UPDATE SET window_start = excluded.window_start, request_count = excluded.request_count",
+      "INSERT INTO clodex_request_windows (slot, window_start, request_count) VALUES (1, ?, ?) ON CONFLICT(slot) DO UPDATE SET window_start = excluded.window_start, request_count = excluded.request_count",
       windowStart,
       requestCount,
+    );
+    this.ctx.storage.sql.exec(
+      "INSERT INTO clodex_reservations (reservation_id, window_start, released) VALUES (?, ?, 0)",
+      reservationId,
+      windowStart,
     );
 
     return {
@@ -178,13 +207,14 @@ export class ClodexAccess extends DurableObject<ClodexAccessEnv> {
       remaining: CLODEX_REQUEST_LIMIT - requestCount,
       resetAt: windowStart + CLODEX_REQUEST_WINDOW_MS,
       allowed: true,
+      reservationId,
     };
   }
 
   /** Reuse the already-migrated request window table for the public demo. */
   async consumeDemo(): Promise<DemoConsumeResult> {
     const now = Date.now();
-    const existing = this.currentUsage(now, DEMO_REQUEST_WINDOW_MS);
+    const existing = this.currentUsage(now, "demo_request_windows", DEMO_REQUEST_WINDOW_MS);
     if (existing && existing.request_count >= DEMO_REQUEST_LIMIT) {
       return {
         limit: DEMO_REQUEST_LIMIT,
@@ -198,7 +228,7 @@ export class ClodexAccess extends DurableObject<ClodexAccessEnv> {
     const windowStart = existing?.window_start ?? now;
     const requestCount = (existing?.request_count ?? 0) + 1;
     this.ctx.storage.sql.exec(
-      "INSERT INTO request_windows (slot, window_start, request_count) VALUES (1, ?, ?) ON CONFLICT(slot) DO UPDATE SET window_start = excluded.window_start, request_count = excluded.request_count",
+      "INSERT INTO demo_request_windows (slot, window_start, request_count) VALUES (1, ?, ?) ON CONFLICT(slot) DO UPDATE SET window_start = excluded.window_start, request_count = excluded.request_count",
       windowStart,
       requestCount,
     );
@@ -212,20 +242,27 @@ export class ClodexAccess extends DurableObject<ClodexAccessEnv> {
     };
   }
 
-  async release(): Promise<ClodexReleaseResult> {
+  async release(reservationId: string): Promise<ClodexReleaseResult> {
     const now = Date.now();
-    const existing = this.currentUsage(now);
-    if (!existing) return { ...this.status(now), released: false };
+    const reservation = this.ctx.storage.sql.exec<ReservationRow>(
+      "SELECT reservation_id, window_start, released FROM clodex_reservations WHERE reservation_id = ?",
+      reservationId,
+    ).toArray()[0];
+    const existing = this.currentUsage(now, "clodex_request_windows", CLODEX_REQUEST_WINDOW_MS);
+    if (!reservation || reservation.released || !existing || existing.window_start !== reservation.window_start) {
+      return { ...this.status(now), released: false, reservationId };
+    }
 
     if (existing.request_count <= 1) {
-      this.ctx.storage.sql.exec("DELETE FROM request_windows WHERE slot = 1");
+      this.ctx.storage.sql.exec("DELETE FROM clodex_request_windows WHERE slot = 1");
     } else {
       this.ctx.storage.sql.exec(
-        "UPDATE request_windows SET request_count = ? WHERE slot = 1",
+        "UPDATE clodex_request_windows SET request_count = ? WHERE slot = 1",
         existing.request_count - 1,
       );
     }
+    this.ctx.storage.sql.exec("UPDATE clodex_reservations SET released = 1 WHERE reservation_id = ?", reservationId);
 
-    return { ...this.status(now), released: true };
+    return { ...this.status(now), released: true, reservationId };
   }
 }

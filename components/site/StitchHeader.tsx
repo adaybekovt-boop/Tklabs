@@ -39,7 +39,7 @@ export async function StitchHeader({ active }: StitchHeaderProps) {
           </div>
         </div>
       </header>
-      <TermsGate enabled={signedIn} locale={locale} localFallback={process.env.NODE_ENV === "development"} />
+      <TermsGate enabled={signedIn} locale={locale} />
     </>
   );
 }
