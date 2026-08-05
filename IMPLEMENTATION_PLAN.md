@@ -73,4 +73,5 @@ The final PR will be a single draft PR with small logical commits. It will not b
 - The unused `examples/d1` sample was removed in `a05df5d`; the actual D1 layer remains because terms consent uses it.
 - Release-gate verification passed: `npm ci`, `npm run typecheck`, `npm run lint`, `npm test` (7 unit + 16 integration), `npm run build`, and `npm audit --omit=dev --audit-level=high` (0 production vulnerabilities).
 - A supplementary full `npm audit --audit-level=high` still reports 16 development/toolchain vulnerabilities across Vite, Wrangler/Miniflare, React Server Components, and related transitive packages. Automatic `--force` remediation would introduce out-of-range or breaking upgrades, so it is documented as follow-up debt rather than hidden or applied blindly.
+- `git diff --check` and the tracked-file secret/PII scan are clean. The production build contains provider IDs only in `dist/server`; no provider IDs were found in `dist/client` assets.
 - Secret scan, push, and draft PR creation remain release-gate tasks. No merge is planned.
