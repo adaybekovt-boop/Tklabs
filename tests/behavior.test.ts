@@ -10,8 +10,9 @@ import { ERMA_MODELS } from "../lib/models/server";
 import { parseEmailAllowlist } from "../lib/privileged-access";
 import { getRateLimitIdentity, hmacSha256Hex } from "../lib/rate-limit-identity";
 import { accountObjectName, legacyAccountObjectName } from "../lib/account-id";
-import { HealthSnapshotCache } from "../lib/provider-health";
-import { TTS_DAILY_CHARACTER_QUOTA, TTS_MAX_TEXT_LENGTH, TTS_REQUEST_LIMIT } from "../lib/tts-rate-limit";
+import { TTS_DAILY_CHARACTER_QUOTA, TTS_MAX_TEXT_LENGTH, TTS_PRIVILEGED_DAILY_CHARACTER_QUOTA, TTS_PRIVILEGED_REQUEST_LIMIT, TTS_REQUEST_LIMIT, getTtsPolicy } from "../lib/tts-rate-limit";
+import { getMigrationFiles, parseAppliedMigrationNames, pendingMigrations } from "../scripts/migrate-d1.mjs";
+import { canCommitReservation, isReservationExpired, reservationExpiresAt } from "../lib/reservation-policy";
 
 test("privileged e-mail allowlists normalize, deduplicate, and default to empty", () => {
   assert.deepEqual([...parseEmailAllowlist(" A@EXAMPLE.COM, a@example.com, , B@example.com ")], ["a@example.com", "b@example.com"]);
@@ -72,25 +73,33 @@ test("account object IDs use a separate HMAC secret and retain a legacy migratio
   }
 });
 
-test("health snapshots cache for one minute and serve stale data only during refresh failure", async () => {
-  const cache = new HealthSnapshotCache<string>(60_000, 300_000);
-  let calls = 0;
-  const loader = async () => {
-    calls += 1;
-    if (calls > 1) throw new Error("provider unavailable");
-    return "operational";
-  };
-  assert.deepEqual(await cache.get(loader, 0), { value: "operational", stale: false, cached: false });
-  assert.deepEqual(await cache.get(loader, 30_000), { value: "operational", stale: false, cached: true });
-  assert.deepEqual(await cache.get(loader, 61_000), { value: "operational", stale: true, cached: true });
-  await assert.rejects(() => cache.get(loader, 361_001));
-  assert.equal(calls, 3);
+test("D1 migration runner executes only valid pending files and never treats failed files as applied", () => {
+  assert.deepEqual(getMigrationFiles(["0002_add.sql", "0001_init.sql", "README.md"]), ["0001_init.sql", "0002_add.sql"]);
+  assert.throws(() => getMigrationFiles(["bad name.sql"]), /Invalid D1 migration filename/);
+  const applied = parseAppliedMigrationNames('{"results":[{"name":"0001_init.sql"}]}');
+  assert.deepEqual(pendingMigrations(["0001_init.sql", "0002_add.sql"], applied), ["0002_add.sql"]);
+  assert.throws(() => parseAppliedMigrationNames("wrangler failed"));
 });
 
 test("TTS policy has a bounded request, window and daily character quota", () => {
   assert.equal(TTS_MAX_TEXT_LENGTH, 2_000);
-  assert.equal(TTS_REQUEST_LIMIT, 10);
-  assert.equal(TTS_DAILY_CHARACTER_QUOTA, 20_000);
+  assert.equal(TTS_REQUEST_LIMIT, 5);
+  assert.equal(TTS_DAILY_CHARACTER_QUOTA, 10_000);
+  assert.equal(TTS_PRIVILEGED_REQUEST_LIMIT, 30);
+  assert.equal(TTS_PRIVILEGED_DAILY_CHARACTER_QUOTA, 100_000);
+  assert.deepEqual(getTtsPolicy(false, {}), { requestLimit: 5, requestWindowMs: 900_000, dailyCharacterQuota: 10_000 });
+  assert.deepEqual(getTtsPolicy(true, {}), { requestLimit: 30, requestWindowMs: 900_000, dailyCharacterQuota: 100_000 });
+  assert.deepEqual(getTtsPolicy(false, { TTS_REQUEST_LIMIT: "9", TTS_DAILY_CHARACTER_QUOTA: "900" }), { requestLimit: 9, requestWindowMs: 900_000, dailyCharacterQuota: 900 });
+});
+
+test("reservations expire after two minutes and cannot commit after expiry", () => {
+  const createdAt = 10_000;
+  const expiresAt = reservationExpiresAt(createdAt);
+  assert.equal(expiresAt, createdAt + 120_000);
+  assert.equal(isReservationExpired("reserved", expiresAt, expiresAt), true);
+  assert.equal(canCommitReservation("reserved", expiresAt, expiresAt), false);
+  assert.equal(canCommitReservation("reserved", expiresAt, expiresAt - 1), true);
+  assert.equal(isReservationExpired("committed", expiresAt, expiresAt + 1), false);
 });
 
 test("signed fallback cookie gives anonymous requests a stable bucket", async () => {

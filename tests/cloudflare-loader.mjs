@@ -5,5 +5,17 @@ export async function resolve(specifier, context, nextResolve) {
       url: "data:text/javascript,export%20const%20env%3DglobalThis.__tklabsCloudflareEnv%20%7C%7C%20%7B%7D%3B",
     };
   }
+  if (specifier === "@/auth") {
+    return {
+      shortCircuit: true,
+      url: "data:text/javascript,export%20const%20auth%3Dasync()%3D%3EglobalThis.__tklabsAuth%3Fawait%20globalThis.__tklabsAuth()%3Anull%3B",
+    };
+  }
+  if (specifier.endsWith("/auth.ts")) {
+    return {
+      shortCircuit: true,
+      url: "data:text/javascript,export%20const%20auth%3Dasync()%3D%3EglobalThis.__tklabsAuth%3Fawait%20globalThis.__tklabsAuth()%3Anull%3B",
+    };
+  }
   return nextResolve(specifier, context);
 }

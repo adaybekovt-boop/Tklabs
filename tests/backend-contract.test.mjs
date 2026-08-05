@@ -36,14 +36,17 @@ test("production deployment and browser capabilities match the current app", asy
 
 test("status page uses live health checks", async () => {
   const route = await text("app/api/status/route.ts");
+  const worker = await text("worker/health-status.ts");
   const page = await text("app/status/page.tsx");
   const board = await text("components/status/StatusBoard.tsx");
 
-  assert.match(route, /PROVIDER_TIMEOUT_MS = 2_500/);
-  assert.match(route, /integrate\.api\.nvidia\.com\/v1\/models/);
-  assert.match(route, /clodex\.xyz\/v1\/models/);
-  assert.match(route, /isClodexEnabled/);
-  assert.match(route, /clodexEnabled && Boolean\(clodexKey\),\s+false,/s);
+  assert.match(route, /HEALTH_STATUS/);
+  assert.match(worker, /PROVIDER_TIMEOUT_MS = 2_500/);
+  assert.match(worker, /integrate\.api\.nvidia\.com\/v1\/models/);
+  assert.match(worker, /clodex\.xyz\/v1\/models/);
+  assert.match(worker, /clodexEnabled && Boolean\(clodexKey\), false\)/);
+  assert.match(worker, /LIVE_TTL_MS = 60_000/);
+  assert.match(worker, /STALE_TTL_MS = 5 \* 60_000/);
   assert.match(route, /cache-control/);
   assert.match(page, /StatusBoard/);
   assert.match(board, /fetch\("\/api\/status"/);
@@ -79,6 +82,8 @@ test("production hardening keeps quota, entitlement and migration contracts expl
   const durableObject = await text("worker/clodex-access.ts");
   const migrationRunner = await text("scripts/migrate-d1.mjs");
   const workflow = await text(".github/workflows/deploy-cloudflare.yml");
+  const admin = await text("app/api/admin/clodex/revoke/route.ts");
+  const ttsPolicy = await text("lib/tts-rate-limit.ts");
 
   assert.match(tts, /TTS_MAX_TEXT_LENGTH/);
   assert.match(tts, /reserveTts/);
@@ -93,6 +98,9 @@ test("production hardening keeps quota, entitlement and migration contracts expl
   assert.match(durableObject, /expires_at/);
   assert.match(durableObject, /revoked_at/);
   assert.match(durableObject, /grant_version/);
+  assert.match(durableObject, /hasGrant/);
+  assert.match(durableObject, /TTS_RESERVATION_TTL_MS/);
+  assert.match(durableObject, /state = 'expired'/);
   assert.match(durableObject, /reserveTts/);
   assert.match(durableObject, /reserveDemo/);
   assert.match(migrationRunner, /readdirSync/);
@@ -100,6 +108,13 @@ test("production hardening keeps quota, entitlement and migration contracts expl
   assert.match(workflow, /ACCOUNT_ID_SECRET/);
   assert.match(workflow, /npm run db:migrate/);
   assert.match(workflow, /workflow_run\.conclusion == 'success'/);
+  assert.match(admin, /isPrivilegedAiEmail/);
+  assert.match(admin, /parseJsonBody<RevokeBody>\(request, 8 \* 1024\)/);
+  assert.doesNotMatch(admin, /isClodexEnabled/);
+  assert.match(ttsPolicy, /TTS_REQUEST_LIMIT = 5/);
+  assert.match(ttsPolicy, /TTS_DAILY_CHARACTER_QUOTA = 10_000/);
+  assert.match(ttsPolicy, /TTS_PRIVILEGED_REQUEST_LIMIT = 30/);
+  assert.match(ttsPolicy, /TTS_PRIVILEGED_DAILY_CHARACTER_QUOTA = 100_000/);
 });
 
 test("the public Erma catalog exposes one model per working tier", async () => {

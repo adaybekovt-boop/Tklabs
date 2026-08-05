@@ -9,7 +9,7 @@ TK LAB is a bilingual AI workspace built around a small, explicit Cloudflare Wor
 - Fallbacks are visible. A local fallback is labeled `local-fallback`; it is never presented as NVIDIA, Clodex, or the selected Erma model.
 - Chat sessions are bounded browser-local archives. They are not a server-side conversation backup.
 - Voice input uses the browser Web Speech API when available. Authenticated ElevenLabs speech is optional; its key and voice configuration never reach the client.
-- `/status` performs bounded live configuration/provider checks. It does not claim a historical uptime percentage or fabricate incident history.
+- `/status` reads a shared Durable Object snapshot with a 60-second live TTL and a five-minute stale window. It does not claim a historical uptime percentage or fabricate incident history.
 
 ## Stack and architecture
 
@@ -55,10 +55,11 @@ The Playground page requires a signed-in account. The `/api/demo` endpoint has a
 - `POST /api/demo` — bounded Erma route with same-origin checks, attachment limits, HMAC-derived demo buckets, provider fallback metadata, and JSON responses.
 - `POST /api/clodex` — optional authenticated Clodex route; returns 404 while `CLODEX_ENABLED` is not `true`.
 - `GET|POST /api/profile/access` — feature-gated Clodex status and redemption.
-- `POST /api/clodex/revoke` — authenticated self-revoke for an active Clodex entitlement.
+- `POST /api/admin/clodex/revoke` — privileged admin revoke for a normalized target email; it remains available while Clodex is disabled so emergency revocation cannot be blocked by the feature flag.
+- `POST /api/clodex/revoke` — retired legacy URL; returns 410 and never revokes access.
 - `POST /api/tts` — authenticated ElevenLabs speech proxy; the browser speech API is the fallback.
 - `GET|POST /api/account/terms` — D1-backed, versioned agreement status and acceptance.
-- `GET /api/status` — safe, no-store live checks; it never calls an AI generation endpoint.
+- `GET /api/status` — safe, no-store shared health snapshot; it never calls an AI generation endpoint and probes Clodex only when enabled.
 - `/api/auth/*` — Auth.js Google OAuth endpoints.
 - `/playground` — authenticated AI workspace with browser-local session archive.
 - `/models`, `/access`, `/documentation`, `/developers`, `/patch-notes`, `/truth`, `/status` — product and transparency pages.
@@ -89,7 +90,9 @@ On provider failure, `meta.fallbackReason` is present and the UI tells the user 
 - Privileged attachment: 64 KiB per file and 32,000 Unicode characters of combined context.
 - The final provider prompt is validated before any external provider call. Oversize input returns 400 or 413; it is not silently truncated.
 - Public demo usage uses an idempotent Durable Object reserve/commit/release window; provider failure releases the reservation.
-- ElevenLabs text is limited to 2,000 characters, one in-flight request per account, 10 requests per 15 minutes, and 20,000 characters per day. Failed or aborted audio streams release their reservation.
+- ElevenLabs text is limited to 2,000 Unicode code points, one in-flight request per account, 5 requests per 15 minutes, and 10,000 characters per day for public users. Privileged accounts use 30 requests per 15 minutes and 100,000 characters per day. Failed, expired, or aborted audio streams release their reservation.
+- Demo and TTS reservations expire after two minutes; cleanup refunds expired reservations atomically and retains only a bounded history.
+- Clodex grants use the server-side `CLODEX_GRANT_VERSION` policy (default `v2`). A grant with an old, revoked, or expired version is not resurrected through the legacy object-name lookup.
 - HMAC-SHA-256 uses `RATE_LIMIT_SECRET` for public buckets and the separate `ACCOUNT_ID_SECRET` for account object IDs; raw IP addresses and e-mail addresses are not stored as identifiers or logged.
 - Only `cf-connecting-ip` on a Cloudflare request is considered as an IP signal. Arbitrary `x-forwarded-for` values are ignored. Non-Cloudflare anonymous clients receive a signed HttpOnly fallback cookie.
 - Provider keys, OAuth credentials, access codes, model IDs, and system prompts are server-only.
@@ -114,7 +117,9 @@ Provider and feature configuration:
 - `NVIDIA_API_KEY_PRIMARY`, optional `NVIDIA_API_KEY_SECONDARY`
 - `UNLIMITED_AI_EMAILS`, a comma-separated server-side allowlist; unset means no privileged accounts
 - `CLODEX_ENABLED=true|false`
-- `CLODEX_GRANT_TTL_DAYS` is a bounded non-secret variable (default 30 days) for newly redeemed grants; legacy grants remain valid until explicitly revoked or re-redeemed.
+- `CLODEX_GRANT_TTL_DAYS` is a bounded non-secret variable (default 30 days) for newly redeemed grants.
+- `CLODEX_GRANT_VERSION` is a bounded non-secret policy version (default `v2`); changing it intentionally invalidates grants from older policies.
+- `TTS_REQUEST_LIMIT`, `TTS_DAILY_CHARACTER_QUOTA`, `TTS_PRIVILEGED_REQUEST_LIMIT`, and `TTS_PRIVILEGED_DAILY_CHARACTER_QUOTA` are bounded non-secret quota variables with production defaults of `5`, `10000`, `30`, and `100000`.
 - `CLODEX_API_KEY`, `CLODEX_ACCESS_CODE`, and `CLODEX_PROMO_EMAILS` only when the Clodex experiment is enabled
 - `ELEVENLABS_API_KEY`, `ELEVENLABS_VOICE_ID`, and optional `ELEVENLABS_MODEL_ID`
 - `AUTH_URL` is a public origin variable, not a secret
@@ -145,7 +150,7 @@ The [Validate workflow](.github/workflows/ci.yml) runs on pull requests and bran
 6. applies all ordered D1 migrations through `npm run db:migrate`;
 7. deploys the validated Wrangler configuration.
 
-Public values such as `AUTH_URL` and `CLODEX_ENABLED` are Wrangler vars. API keys, HMAC keys, OAuth secrets, access codes, and allowlists are runtime secrets.
+Public values such as `AUTH_URL`, `CLODEX_ENABLED`, `CLODEX_GRANT_VERSION`, and TTS quota values are Wrangler vars. API keys, HMAC keys, OAuth secrets, access codes, and allowlists are runtime secrets.
 
 ## Terms, privacy, and access
 

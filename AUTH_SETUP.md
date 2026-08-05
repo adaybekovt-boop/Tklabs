@@ -33,6 +33,10 @@ Copy .env.example to .env.local and set:
     ELEVENLABS_API_KEY=... (optional high-quality speech)
     ELEVENLABS_VOICE_ID=... (required with the ElevenLabs key)
     ELEVENLABS_MODEL_ID=eleven_multilingual_v2 (optional)
+    TTS_REQUEST_LIMIT=5
+    TTS_DAILY_CHARACTER_QUOTA=10000
+    TTS_PRIVILEGED_REQUEST_LIMIT=30
+    TTS_PRIVILEGED_DAILY_CHARACTER_QUOTA=100000
 
 Generate AUTH_SECRET with:
 
@@ -63,4 +67,4 @@ The Deploy Cloudflare Worker workflow runs only after the matching `Validate` wo
     ELEVENLABS_VOICE_ID (required with the ElevenLabs key)
     ELEVENLABS_MODEL_ID (optional; defaults to eleven_multilingual_v2)
 
-Set the non-secret Actions variables `CLODEX_ENABLED` and optional `CLODEX_GRANT_TTL_DAYS` only when the Clodex experiment is ready. `AUTH_URL` is a public Wrangler variable and should match the canonical site origin. The production workflow sets it to `https://tklabs.uk`; do not ship a Worker with `AUTH_URL=http://localhost:3000`. If `AUTH_URL` is omitted, Auth.js uses the trusted forwarded request host instead of assuming localhost. The workflow validates the exact commit, downloads its validated Worker artifact, applies every ordered D1 migration, uploads runtime secrets to Cloudflare, and deploys the generated Wrangler configuration. A custom domain can be attached in Cloudflare later; then add its exact callback URL in Google Cloud Console.
+Set the non-secret Actions variables `CLODEX_ENABLED`, `CLODEX_GRANT_TTL_DAYS`, `CLODEX_GRANT_VERSION`, and the four TTS quota variables only when configuring the Worker. Production defaults are grant version `v2`, public `5` requests/15 minutes and `10000` characters/day, and privileged `30` requests/15 minutes and `100000` characters/day. `AUTH_URL` is a public Wrangler variable and should match the canonical site origin. The production workflow sets it to `https://tklabs.uk`; do not ship a Worker with `AUTH_URL=http://localhost:3000`. If `AUTH_URL` is omitted, Auth.js uses the trusted forwarded request host instead of assuming localhost. The workflow validates the exact commit, downloads its validated Worker artifact, applies only pending ordered D1 migrations, uploads runtime secrets to Cloudflare, and deploys the generated Wrangler configuration. A custom domain can be attached in Cloudflare later; then add its exact callback URL in Google Cloud Console.
