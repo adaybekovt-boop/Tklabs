@@ -325,27 +325,32 @@ export const PromptInput = React.forwardRef<HTMLDivElement, PromptInputProps>(fu
         {attachments.length > 0 && (
           <div className="prompt-attachments flex gap-2 overflow-x-auto border-b border-outline-variant px-4 py-3">
             {attachments.map((attachment, index) => (
-              <button
+              <div
                 key={attachment.id}
-                type="button"
                 className="prompt-attachment group relative size-12 shrink-0 overflow-hidden border border-outline-variant bg-surface"
                 style={{ animationDelay: `${index * 45}ms` }}
-                onClick={() => setActiveAttachment(attachment)}
-                aria-label={`${labels.openAttachment} ${attachment.name}`}
               >
-                <span className="grid size-full place-items-center px-1 text-center text-[8px] uppercase leading-tight text-on-surface-variant"><FileText size={16} /><span className="mt-0.5 max-w-full truncate">{attachment.name}</span></span>
-                <span
-                  role="button"
-                  tabIndex={-1}
-                  className="absolute right-0 top-0 grid size-5 place-items-center bg-primary text-on-primary opacity-0 transition-opacity group-hover:opacity-100"
+                <button
+                  type="button"
+                  className="grid size-full place-items-center px-1 text-center text-[8px] uppercase leading-tight text-on-surface-variant"
+                  onClick={() => setActiveAttachment(attachment)}
+                  aria-label={`${labels.openAttachment} ${attachment.name}`}
+                >
+                  <FileText size={16} />
+                  <span className="mt-0.5 max-w-full truncate">{attachment.name}</span>
+                </button>
+                <button
+                  type="button"
+                  className="absolute right-0 top-0 grid size-6 place-items-center bg-primary text-on-primary opacity-100 transition-opacity sm:size-5 sm:opacity-0 sm:group-hover:opacity-100"
                   onClick={(event) => {
                     event.stopPropagation();
                     removeAttachment(attachment.id);
                   }}
+                  aria-label={`${labels.close} ${attachment.name}`}
                 >
                   <X size={11} />
-                </span>
-              </button>
+                </button>
+              </div>
             ))}
           </div>
         )}

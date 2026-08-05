@@ -10,6 +10,7 @@ import {
   type ChatInputSubmitMeta,
 } from "@/components/ui/ai-chat-input";
 import AIThinkingBlock from "@/components/ui/ai-thinking-block";
+import { MobileHistory } from "@/components/playground/MobileHistory";
 import type { ClodexAccessStatus } from "@/lib/clodex-access";
 import { CLODEX_MODELS } from "@/lib/clodex-models";
 import { DEFAULT_ERMA_MODEL_KEY, PRIVILEGED_MAX_PROMPT_LENGTH, PUBLIC_ERMA_MODELS, PUBLIC_MAX_PROMPT_LENGTH, type ErmaTier } from "@/lib/erma-public";
@@ -62,6 +63,7 @@ export function PlaygroundChat({ locale }: { locale: Locale }) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const sessionIdRef = useRef(uid());
   const activeRequestRef = useRef<AbortController | null>(null);
+  const activeConversationRef = useRef<{ prompt: string; model: string; assistantId: string } | null>(null);
 
   const ermaOptions: ChatInputModel[] = PUBLIC_ERMA_MODELS.map((model) => ({
     id: model.key,
@@ -161,13 +163,25 @@ export function PlaygroundChat({ locale }: { locale: Locale }) {
   }
 
   function stopGeneration() {
+    const activeConversation = activeConversationRef.current;
     activeRequestRef.current?.abort();
     activeRequestRef.current = null;
+    activeConversationRef.current = null;
     setMessages((current) => {
       const next = [...current];
-      const last = next[next.length - 1];
-      if (last?.role === "assistant" && last.content && !last.content.endsWith("\n\n" + text.chat.generationStopped)) {
-        next[next.length - 1] = { ...last, content: last.content + "\n\n" + text.chat.generationStopped };
+      const targetIndex = activeConversation ? next.findIndex((message) => message.id === activeConversation.assistantId) : next.length - 1;
+      const last = targetIndex >= 0 ? next[targetIndex] : undefined;
+      if (last?.role === "assistant" && !last.content.endsWith("\n\n" + text.chat.generationStopped)) {
+        next[targetIndex] = { ...last, content: last.content ? last.content + "\n\n" + text.chat.generationStopped : text.chat.generationStopped };
+      }
+      if (activeConversation) {
+        saveSession({
+          id: sessionIdRef.current,
+          title: titleFrom(activeConversation.prompt),
+          model: activeConversation.model,
+          updatedAt: Date.now(),
+          messages: next as ArchivedMessage[],
+        });
       }
       return next;
     });
@@ -240,6 +254,7 @@ export function PlaygroundChat({ locale }: { locale: Locale }) {
     setSuggestionKind(null);
     setIsStreaming(true);
     activeRequestRef.current = controller;
+    activeConversationRef.current = { prompt, model: nextModelKey, assistantId };
 
     try {
       const endpoint = nextModelKey.startsWith("clodex:") ? "/api/clodex" : "/api/demo";
@@ -269,50 +284,62 @@ export function PlaygroundChat({ locale }: { locale: Locale }) {
       const reader = response.body.getReader();
       const decoder = new TextDecoder();
       let buffer = "";
+      let assistantContent = "";
+
+      const processEvent = (event: string) => {
+        const line = event.split(/\r?\n/).find((entry) => entry.startsWith("data:"));
+        if (!line) return;
+        const data = line.slice(5).trim();
+        if (!data) return;
+
+        let payload: { token?: unknown };
+        try {
+          payload = JSON.parse(data) as { token?: unknown };
+        } catch {
+          return;
+        }
+
+        if (typeof payload.token === "string") {
+          assistantContent += payload.token;
+          appendAssistant(assistantId, (message) => ({ ...message, content: assistantContent }));
+        }
+      };
 
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
         buffer += decoder.decode(value, { stream: true });
-        const events = buffer.split("\n\n");
+        const events = buffer.split(/\r?\n\r?\n/);
         buffer = events.pop() ?? "";
 
-        for (const event of events) {
-          const line = event.split(/\r?\n/).find((entry) => entry.startsWith("data:"));
-          if (!line) continue;
-          const data = line.slice(5).trim();
-          if (!data) continue;
-
-          let payload: { token?: string; done?: boolean };
-          try {
-            payload = JSON.parse(data) as { token?: string; done?: boolean };
-          } catch {
-            continue;
-          }
-
-          if (typeof payload.token === "string") {
-            appendAssistant(assistantId, (message) => ({ ...message, content: message.content + payload.token }));
-          }
-          if (payload.done) {
-            setMessages((current) => {
-              const next = current;
-              saveSession({
-                id: sessionIdRef.current,
-                title: titleFrom(prompt),
-                model: nextModelKey,
-                updatedAt: Date.now(),
-                messages: next as ArchivedMessage[],
-              });
-              return next;
-            });
-          }
-        }
+        for (const event of events) processEvent(event);
       }
+
+      buffer += decoder.decode();
+      if (buffer.trim()) processEvent(buffer);
+
+      setMessages((current) => {
+        const next = current.map((message) => message.id === assistantId
+          ? { ...message, content: assistantContent }
+          : message,
+        );
+        saveSession({
+          id: sessionIdRef.current,
+          title: titleFrom(prompt),
+          model: nextModelKey,
+          updatedAt: Date.now(),
+          messages: next as ArchivedMessage[],
+        });
+        return next;
+      });
     } catch (error) {
       if (error instanceof DOMException && error.name === "AbortError") return;
       appendAssistant(assistantId, (message) => ({ ...message, content: text.chat.networkError, error: true }));
     } finally {
-      if (activeRequestRef.current === controller) activeRequestRef.current = null;
+      if (activeRequestRef.current === controller) {
+        activeRequestRef.current = null;
+        activeConversationRef.current = null;
+      }
       setIsStreaming(false);
     }
   }
@@ -321,18 +348,19 @@ export function PlaygroundChat({ locale }: { locale: Locale }) {
 
   return (
     <>
-      <header className="hairline-b flex h-16 flex-shrink-0 items-center justify-between bg-white px-margin-mobile md:px-margin-desktop">
-        <div className="flex items-center gap-3">
+      <header className="hairline-b flex h-16 flex-shrink-0 items-center justify-between gap-3 bg-white px-margin-mobile md:px-margin-desktop">
+        <div className="flex min-w-0 items-center gap-2">
+          <MobileHistory locale={locale} />
           <span className={cn("size-2 bg-primary transition-transform duration-500", isStreaming && "scale-150 animate-pulse")} />
-          <span className="text-[13px] leading-[1.4] text-on-secondary-container">
+          <span className="min-w-0 truncate text-[13px] leading-[1.4] text-on-secondary-container">
             {isStreaming ? text.chat.streaming : clodexAccess?.active ? text.chat.clodexReady : text.chat.ready}
           </span>
         </div>
-        <div className="flex items-center gap-4">
+        <div className="flex shrink-0 items-center gap-3 sm:gap-4">
           {isStreaming && (
-            <button type="button" onClick={stopGeneration} className="label-caps flex items-center gap-2 text-error transition-colors hover:text-primary">
+            <button type="button" onClick={stopGeneration} aria-label={text.chat.generationStopped} className="label-caps flex shrink-0 items-center gap-2 text-error transition-colors hover:text-primary">
               <Square size={12} />
-              {text.chat.generationStopped}
+              <span className="max-[420px]:hidden">{text.chat.generationStopped}</span>
             </button>
           )}
           <button
@@ -367,7 +395,7 @@ export function PlaygroundChat({ locale }: { locale: Locale }) {
                   <div className={cn("max-w-[92%] border-l-2 py-2 pl-6", message.error ? "border-error" : "border-primary")}>
                     <div className={cn("whitespace-pre-wrap text-[15px] leading-[1.75]", message.error ? "text-error" : "text-primary")}>
                       {message.content || (isStreaming ? <AIThinkingBlock label={text.chat.thinking} /> : null)}
-                      {isStreaming && message.content && <span className="streaming-caret ml-1 inline-block h-4 w-px bg-primary align-middle" />}
+                      {isStreaming && message.id === lastMessage?.id && message.content && <span className="streaming-caret ml-1 inline-block h-4 w-px bg-primary align-middle" />}
                     </div>
                     {message.content && !message.error && (message.id !== lastMessage?.id || !isStreaming) && (
                       <div className="mt-5 flex flex-wrap items-center gap-3 border-t border-outline-variant pt-3 text-[11px] text-on-secondary-container">
@@ -390,7 +418,7 @@ export function PlaygroundChat({ locale }: { locale: Locale }) {
         )}
       </div>
 
-      <div className="hairline-t w-full flex-shrink-0 bg-surface/95 px-margin-mobile py-5 backdrop-blur-md md:px-margin-desktop">
+      <div className="hairline-t safe-area-bottom w-full flex-shrink-0 bg-surface/95 px-margin-mobile pt-5 backdrop-blur-md md:px-margin-desktop">
         <div className="mx-auto mb-3 flex max-w-[780px] flex-wrap items-center gap-2">
           <button type="button" onClick={() => setSuggestionKind((current) => current === "learn" ? null : "learn")} className={cn("label-caps flex items-center gap-2 border border-outline-variant px-3 py-2 transition-colors hover:border-primary", suggestionKind === "learn" && "border-primary bg-surface-container-low")}>
             <BookOpen size={13} /> {text.chat.learn}

@@ -86,6 +86,7 @@ test("terms consent is database-backed, versioned, and admin-reviewable", async 
 test("local archive is bounded, sanitized, and observable by the archive UI", async () => {
   const archive = await text("lib/local-archive.ts");
   const archiveUi = await text("components/playground/ConversationArchive.tsx");
+  const mobileHistory = await text("components/playground/MobileHistory.tsx");
   const playground = await text("app/playground/page.tsx");
 
   assert.match(archive, /MAX_ARCHIVE_JSON_LENGTH/);
@@ -94,6 +95,9 @@ test("local archive is bounded, sanitized, and observable by the archive UI", as
   assert.match(archive, /catch/);
   assert.match(archiveUi, /loadArchive/);
   assert.match(archiveUi, /playground\?session=/);
+  assert.match(archiveUi, /onNavigate/);
+  assert.match(mobileHistory, /ConversationArchive/);
+  assert.match(mobileHistory, /md:hidden/);
   assert.match(playground, /ConversationArchive/);
 });
 
@@ -127,6 +131,7 @@ test("patch notes are linked and written as an English release log", async () =>
   assert.match(nav, /href: "\/patch-notes"/);
   assert.match(footer, /href="\/patch-notes"/);
   assert.match(translations, /patchNotes: "Patch Notes"/);
+  assert.match(translations, /version: "v0\.6\.2"/);
   assert.match(translations, /version: "v0\.5\.3"/);
   assert.match(translations, /version: "v0\.5\.2"/);
   assert.match(translations, /version: "v0\.5\.1"/);
@@ -215,5 +220,8 @@ test("chat keeps response metadata out of the answer footer and keeps model sele
   assert.match(input, /max-\[420px\]:fixed/);
   assert.match(input, /aria-haspopup="listbox"/);
   assert.match(input, /min-w-0 flex-1/);
+  assert.doesNotMatch(input, /role="button"/, "attachment controls must use real buttons, not nested button-like spans");
+  assert.match(playground, /let assistantContent = ""/);
+  assert.match(playground, /message\.id === lastMessage\?\.id && message\.content/);
   assert.doesNotMatch(css, /response-meta-enter/);
 });
