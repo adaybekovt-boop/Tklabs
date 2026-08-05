@@ -68,8 +68,8 @@ export function buildNvidiaBody(prompt: string, language: Language, model: ErmaM
       { role: "system", content: systemPrompt(language, model, allowCode, tone) },
       { role: "user", content: prompt },
     ],
-    temperature: tone === "character" ? (reasoningEnabled ? 0.58 : 0.65) : (reasoningEnabled ? 0.42 : 0.32),
-    top_p: tone === "character" ? 0.93 : 0.88,
+    temperature: tone === "erma" ? (reasoningEnabled ? 0.62 : 0.7) : tone === "character" ? (reasoningEnabled ? 0.58 : 0.65) : (reasoningEnabled ? 0.42 : 0.32),
+    top_p: tone === "erma" ? 0.95 : tone === "character" ? 0.93 : 0.88,
     max_tokens: maxTokensFor(model, effort),
     stream: false,
   };

@@ -28,7 +28,13 @@ const TIER_LABEL: Record<ErmaTier, string> = {
 const MAX_PROVIDER_TTS_LENGTH = 10_000;
 
 type SuggestionKind = "learn" | "write";
-type Tone = "professional" | "character";
+type Tone = "professional" | "character" | "erma";
+
+const NEXT_TONE: Record<Tone, Tone> = {
+  professional: "character",
+  character: "erma",
+  erma: "professional",
+};
 
 type Message = ChatMessage;
 
@@ -142,7 +148,7 @@ export function PlaygroundChat({ locale }: { locale: Locale }) {
 
   useEffect(() => {
     const savedTone = window.localStorage.getItem("tklabs.erma-tone");
-    if (savedTone === "professional" || savedTone === "character") {
+    if (savedTone === "professional" || savedTone === "character" || savedTone === "erma") {
       // eslint-disable-next-line react-hooks/set-state-in-effect
       setTone(savedTone);
     }
@@ -501,8 +507,8 @@ export function PlaygroundChat({ locale }: { locale: Locale }) {
           <button type="button" onClick={() => setReasonEnabled((enabled) => !enabled)} className={cn("label-caps shrink-0 border border-outline-variant px-3 py-2.5 transition-colors hover:border-primary", reasonEnabled && "border-primary bg-surface-container-low")} aria-pressed={reasonEnabled}>
             {reasonEnabled ? text.chat.reasoningOn : text.chat.reasoningOff}
           </button>
-          <button type="button" onClick={() => setTone((current) => current === "professional" ? "character" : "professional")} className={cn("label-caps shrink-0 border border-outline-variant px-3 py-2.5 transition-colors hover:border-primary", tone === "character" && "border-primary bg-surface-container-low")} aria-pressed={tone === "character"}>
-            {tone === "professional" ? text.chat.toneProfessional : text.chat.toneCharacter}
+          <button type="button" onClick={() => setTone((current) => NEXT_TONE[current])} className={cn("label-caps shrink-0 border border-outline-variant px-3 py-2.5 transition-colors hover:border-primary", tone !== "professional" && "border-primary bg-surface-container-low")} aria-pressed={tone !== "professional"}>
+            {tone === "professional" ? text.chat.toneProfessional : tone === "character" ? text.chat.toneCharacter : text.chat.toneErma}
           </button>
         </div>
         {suggestionKind && (

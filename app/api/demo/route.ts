@@ -28,7 +28,9 @@ function normalizeEffort(value: unknown): ReasoningEffort {
 }
 
 function normalizeTone(value: unknown): ErmaTone {
-  return value === "character" ? "character" : "professional";
+  if (value === "character") return "character";
+  if (value === "erma") return "erma";
+  return "professional";
 }
 
 function responseHeaders(requestId: string, setCookie?: string | null) {
