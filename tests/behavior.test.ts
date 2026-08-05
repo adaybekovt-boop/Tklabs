@@ -12,7 +12,7 @@ import { getRateLimitIdentity, hmacSha256Hex } from "../lib/rate-limit-identity"
 import { accountObjectName, legacyAccountObjectName } from "../lib/account-id";
 import { TTS_DAILY_CHARACTER_QUOTA, TTS_MAX_TEXT_LENGTH, TTS_PRIVILEGED_DAILY_CHARACTER_QUOTA, TTS_PRIVILEGED_REQUEST_LIMIT, TTS_REQUEST_LIMIT, getTtsPolicy } from "../lib/tts-rate-limit";
 import { buildD1MigrationsArgs, getMigrationFiles, runD1Migrations, validateMigrationSql } from "../scripts/migrate-d1.mjs";
-import { buildSecretListArgs, missingSecretNames, parseSecretNames, readCloudflareSecretNames, validateCloudflareSecretNames } from "../scripts/check-cloudflare-secrets.mjs";
+import { buildSecretListArgs, missingSecretNames, parseSecretNames, readCloudflareSecretNames, safePreflightError, validateCloudflareSecretNames } from "../scripts/check-cloudflare-secrets.mjs";
 import { canCommitReservation, isReservationExpired, reservationExpiresAt } from "../lib/reservation-policy";
 
 test("privileged e-mail allowlists normalize, deduplicate, and default to empty", () => {
@@ -77,6 +77,17 @@ test("Cloudflare secret preflight validates names without returning secret value
     run: () => JSON.stringify([{ name: "AUTH_SECRET", type: "secret_text", value: "do-not-return" }]),
   });
   assert.deepEqual([...mockedNames], ["AUTH_SECRET"]);
+});
+
+test("Cloudflare preflight diagnostics redact token-like values", () => {
+  const error = Object.assign(new Error("request failed: Authorization: Bearer super-secret-token-value"), {
+    code: "ERR_CLOUDFLARE_API",
+    stderr: 'response {"token":"another-secret-value"}',
+  });
+  const message = safePreflightError(error);
+  assert.match(message, /ERR_CLOUDFLARE_API/);
+  assert.doesNotMatch(message, /super-secret-token-value|another-secret-value/);
+  assert.match(message, /\[redacted\]/);
 });
 
 test("attachment validation applies the final provider-context policy", () => {

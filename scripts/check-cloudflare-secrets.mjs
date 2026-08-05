@@ -64,6 +64,22 @@ export function validateCloudflareSecretNames(names, env = process.env) {
   if (missing.length) throw new Error(`Missing Cloudflare runtime secret names: ${missing.join(", ")}`);
 }
 
+export function safePreflightError(error) {
+  const code = error && typeof error === "object" && "code" in error && typeof error.code === "string" ? error.code : "unknown";
+  const status = error && typeof error === "object" && "status" in error && Number.isInteger(error.status) ? ` status=${error.status}` : "";
+  const stderr = error && typeof error === "object" && "stderr" in error && typeof error.stderr === "string" ? error.stderr : "";
+  const message = error instanceof Error ? error.message : "";
+  const detail = `${stderr} ${message}`
+    .replace(/(authorization\s*[:=]\s*(?:bearer\s+)?|api[_ -]?token\s*[:=]\s*)\S+/gi, "$1[redacted]")
+    .replace(/("?(?:value|secret|token|api[_ -]?key)"?\s*[:=]\s*"?)[^,}\s"]+("?)/gi, "$1[redacted]$2")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 360);
+  return detail
+    ? `Cloudflare runtime secret preflight failed (${code}${status}): ${detail}`
+    : `Cloudflare runtime secret preflight failed (${code}${status}).`;
+}
+
 function main() {
   const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
   const config = process.env.WRANGLER_CONFIG?.trim() || join(root, "dist/server/wrangler.json");
@@ -73,7 +89,7 @@ function main() {
     console.log("Cloudflare runtime secret names validated.");
   } catch (error) {
     const message = error instanceof Error ? error.message : "";
-    console.error(message.startsWith("Missing Cloudflare runtime secret names:") ? message : "Cloudflare runtime secret preflight failed.");
+    console.error(message.startsWith("Missing Cloudflare runtime secret names:") ? message : safePreflightError(error));
     process.exitCode = 1;
   }
 }
