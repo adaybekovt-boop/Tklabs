@@ -12,6 +12,7 @@ const clodexEnabled = process.env.CLODEX_ENABLED?.trim().toLowerCase() === "true
 const clodexGrantTtlDays = process.env.CLODEX_GRANT_TTL_DAYS?.trim() || "30";
 const clodexGrantVersion = process.env.CLODEX_GRANT_VERSION?.trim() || "v2";
 const configuredAuthUrl = process.env.AUTH_URL?.trim();
+const authTrustHost = process.env.AUTH_TRUST_HOST?.trim() || "true";
 
 const localWorkerConfig = {
   main: "./worker/index.ts",
@@ -32,6 +33,7 @@ const localWorkerConfig = {
     // Auth.js derives the origin from the forwarded request host, which keeps
     // local development on localhost without baking localhost into production.
     ...(configuredAuthUrl ? { AUTH_URL: configuredAuthUrl } : {}),
+    AUTH_TRUST_HOST: authTrustHost,
     CLODEX_ENABLED: clodexEnabled ? "true" : "false",
     CLODEX_GRANT_TTL_DAYS: clodexGrantTtlDays,
     CLODEX_GRANT_VERSION: clodexGrantVersion,

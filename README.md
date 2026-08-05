@@ -111,14 +111,15 @@ Required for production:
 Provider and feature configuration:
 
 - `NVIDIA_API_KEY_PRIMARY`, optional `NVIDIA_API_KEY_SECONDARY`
-- `UNLIMITED_AI_EMAILS`, a comma-separated server-side allowlist; unset means no privileged accounts
+- `UNLIMITED_AI_EMAILS`, an optional comma-separated server-side allowlist of complete email addresses; entries are trimmed/lowercased, malformed lists fail closed, and unset means no privileged accounts
 - `CLODEX_ENABLED=true|false`
 - `CLODEX_GRANT_TTL_DAYS` is a bounded non-secret variable (default 30 days) for newly redeemed grants.
 - `CLODEX_GRANT_VERSION` is a bounded non-secret policy version (default `v2`); changing it intentionally invalidates grants from older policies.
 - `TTS_REQUEST_LIMIT`, `TTS_DAILY_CHARACTER_QUOTA`, `TTS_PRIVILEGED_REQUEST_LIMIT`, and `TTS_PRIVILEGED_DAILY_CHARACTER_QUOTA` are bounded non-secret quota variables with production defaults of `5`, `10000`, `30`, and `100000`.
 - `CLODEX_API_KEY`, `CLODEX_ACCESS_CODE`, and `CLODEX_PROMO_EMAILS` only when the Clodex experiment is enabled
 - `ELEVENLABS_API_KEY`, `ELEVENLABS_VOICE_ID`, and optional `ELEVENLABS_MODEL_ID`
-- `AUTH_URL` is a public origin variable, not a secret
+- `AUTH_URL` is a public origin variable, not a secret; production is `https://tklabs.uk`
+- `AUTH_TRUST_HOST=true` is a public Auth.js/Cloudflare variable emitted into the Worker configuration and passed explicitly by production deployment
 - `D1_DATABASE_ID` is an optional routing-ID override, not a credential
 
 ## Commands

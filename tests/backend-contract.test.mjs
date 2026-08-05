@@ -23,7 +23,12 @@ test("production deployment and browser capabilities match the current app", asy
   assert.match(workflow, /Download validated Worker build/);
   assert.match(workflow, /concurrency:/);
   assert.match(workflow, /AUTH_URL: https:\/\/tklabs\.uk/);
+  assert.match(workflow, /AUTH_TRUST_HOST: "true"/);
+  assert.match(workflow, /--var "AUTH_URL:\$AUTH_URL" --var "AUTH_TRUST_HOST:\$AUTH_TRUST_HOST"/);
+  assert.doesNotMatch(workflow, /--keep-vars/);
   assert.match(viteConfig, /const configuredAuthUrl = process\.env\.AUTH_URL\?\.trim\(\);/);
+  assert.match(viteConfig, /const authTrustHost = process\.env\.AUTH_TRUST_HOST\?\.trim\(\) \|\| "true";/);
+  assert.match(viteConfig, /AUTH_TRUST_HOST: authTrustHost/);
   assert.match(viteConfig, /\.\.\.\(configuredAuthUrl \? \{ AUTH_URL: configuredAuthUrl \} : \{\}\)/);
   assert.doesNotMatch(viteConfig, /AUTH_URL: process\.env\.AUTH_URL\?\.trim\(\) \|\| "http:\/\/localhost:3000"/);
   assert.equal(securityHeaders.SECURITY_HEADERS.find((header) => header.key === "Permissions-Policy")?.value, "camera=(), microphone=(self), geolocation=(), payment=()");
@@ -314,6 +319,20 @@ test("privileged workspace access is reflected in the client and profile", async
   assert.match(input, /try \{\n      recognition\.start\(\);/);
   assert.match(accessRoute, /if \(isPrivilegedAiEmail\(email\)\) return Response\.json\(privilegedAccessStatus\(\)/);
   assert.match(accessRoute, /privilegedAccessStatus\(\)[\s\S]*if \(!isClodexEnabled\(\)\) return disabledResponse\(\)/);
+});
+
+test("unlimited access stays in server-only paths", async () => {
+  const privileged = await text("lib/privileged-access.ts");
+  const chat = await text("components/playground/PlaygroundChat.tsx");
+  const toolbar = await text("components/playground/ChatToolbar.tsx");
+  const input = await text("components/ui/ai-chat-input.tsx");
+
+  assert.match(privileged, /export function parseUnlimitedEmails/);
+  assert.match(privileged, /export function hasUnlimitedAccess/);
+  assert.match(privileged, /process\.env\.UNLIMITED_AI_EMAILS/);
+  for (const clientSource of [chat, toolbar, input]) {
+    assert.doesNotMatch(clientSource, /UNLIMITED_AI_EMAILS|parseUnlimitedEmails|hasUnlimitedAccess/);
+  }
 });
 
 test("new Playground does not show the duplicated empty-state heading", async () => {

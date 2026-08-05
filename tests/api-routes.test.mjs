@@ -91,6 +91,41 @@ test("POST /api/demo commits a reservation only after a mocked provider succeeds
   assert.equal(stub.released, 0);
 });
 
+test("allowlisted authenticated owner bypasses product demo quota without leaking the allowlist", async () => {
+  const stub = makeDemoStub();
+  process.env.RATE_LIMIT_SECRET = "api-test-rate-limit-secret";
+  process.env.NVIDIA_API_KEY_PRIMARY = "test-provider-key";
+  process.env.UNLIMITED_AI_EMAILS = " OWNER@EXAMPLE.TEST, other@example.test ";
+  globalThis.__tklabsAuth = async () => ({ user: { email: " owner@example.test " } });
+  globalThis.fetch = async (input) => String(input).includes("integrate.api.nvidia.com")
+    ? new Response(JSON.stringify({ choices: [{ message: { content: "A privileged answer." } }] }), { status: 200 })
+    : new Response("not found", { status: 404 });
+  const { POST } = await loadDemo(stub);
+  const response = await POST(request({ prompt: "Use the privileged workspace", locale: "en" }));
+  const payload = await response.json();
+  assert.equal(response.status, 200);
+  assert.equal(stub.reserved, 0);
+  assert.equal(stub.committed, 0);
+  assert.equal(payload.meta.actualProvider, "nvidia");
+  assert.doesNotMatch(JSON.stringify(payload), /UNLIMITED_AI_EMAILS|owner@example\.test|other@example\.test/);
+});
+
+test("an allowlist never grants unlimited access without an authenticated session", async () => {
+  const stub = makeDemoStub();
+  process.env.RATE_LIMIT_SECRET = "api-test-rate-limit-secret";
+  process.env.NVIDIA_API_KEY_PRIMARY = "test-provider-key";
+  process.env.UNLIMITED_AI_EMAILS = "owner@example.test";
+  globalThis.__tklabsAuth = async () => null;
+  globalThis.fetch = async (input) => String(input).includes("integrate.api.nvidia.com")
+    ? new Response(JSON.stringify({ choices: [{ message: { content: "A guest answer." } }] }), { status: 200 })
+    : new Response("not found", { status: 404 });
+  const { POST } = await loadDemo(stub);
+  const response = await POST(request({ prompt: "Use the public demo", locale: "en" }));
+  assert.equal(response.status, 200);
+  assert.equal(stub.reserved, 1);
+  assert.equal(stub.committed, 1);
+});
+
 test("POST /api/demo makes an explicit safety decision after NVIDIA returns an unsafe answer", async () => {
   const stub = makeDemoStub();
   process.env.RATE_LIMIT_SECRET = "api-test-rate-limit-secret";

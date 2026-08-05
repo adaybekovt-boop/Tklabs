@@ -7,7 +7,7 @@ import { validateAndBuildProviderPrompt, PromptValidationError } from "../lib/ch
 import { getClodexModel } from "../lib/models/clodex-server";
 import { PUBLIC_ERMA_MODELS } from "../lib/models/public";
 import { ERMA_MODELS } from "../lib/models/server";
-import { parseEmailAllowlist } from "../lib/privileged-access";
+import { hasUnlimitedAccess, parseEmailAllowlist, parseUnlimitedEmails } from "../lib/privileged-access";
 import { getRateLimitIdentity, hmacSha256Hex } from "../lib/rate-limit-identity";
 import { accountObjectName, legacyAccountObjectName } from "../lib/account-id";
 import { TTS_DAILY_CHARACTER_QUOTA, TTS_MAX_TEXT_LENGTH, TTS_PRIVILEGED_DAILY_CHARACTER_QUOTA, TTS_PRIVILEGED_REQUEST_LIMIT, TTS_REQUEST_LIMIT, getTtsPolicy } from "../lib/tts-rate-limit";
@@ -18,6 +18,14 @@ import { canCommitReservation, isReservationExpired, reservationExpiresAt } from
 test("privileged e-mail allowlists normalize, deduplicate, and default to empty", () => {
   assert.deepEqual([...parseEmailAllowlist(" A@EXAMPLE.COM, a@example.com, , B@example.com ")], ["a@example.com", "b@example.com"]);
   assert.equal(parseEmailAllowlist(undefined).size, 0);
+  assert.deepEqual([...parseUnlimitedEmails(" Owner@Example.test, owner@example.test, other@example.test ")], ["owner@example.test", "other@example.test"]);
+  assert.equal(hasUnlimitedAccess(" OWNER@EXAMPLE.TEST ", "owner@example.test"), true);
+  assert.equal(hasUnlimitedAccess(null, "owner@example.test"), false);
+  assert.equal(hasUnlimitedAccess(undefined, "owner@example.test"), false);
+  assert.equal(hasUnlimitedAccess("other@example.test", "owner@example.test"), false);
+  assert.equal(hasUnlimitedAccess("owner@example.test", "@example.test"), false);
+  assert.equal(hasUnlimitedAccess("owner@example.test", "owner@example.test, malformed"), false);
+  assert.equal(parseUnlimitedEmails("owner@example.test, OWNER@example.test").size, 1);
 });
 
 test("Cloudflare secret preflight validates names without returning secret values", () => {
