@@ -319,6 +319,7 @@ export const dictionaries = {
     chat: {
       ready: "Система готова",
       streaming: "Получаем ответ",
+      thinking: "Думает...",
       clodexReady: "Erma + Clodex доступны",
       newDialog: "Новый диалог",
       history: "История",
@@ -694,6 +695,7 @@ export const dictionaries = {
     chat: {
       ready: "System ready",
       streaming: "Receiving response",
+      thinking: "Thinking...",
       clodexReady: "Erma + Clodex available",
       newDialog: "New conversation",
       history: "History",

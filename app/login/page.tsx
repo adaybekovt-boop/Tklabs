@@ -3,6 +3,8 @@ import { redirect } from "next/navigation";
 
 import { auth, signIn } from "@/auth";
 import { LanguageToggle } from "@/components/site/LanguageToggle";
+import { FlowButton } from "@/components/ui/flow-button";
+import { ScrollReveal } from "@/components/ui/scroll-reveal";
 import { getDictionary } from "@/lib/i18n";
 import { getLocale } from "@/lib/locale";
 
@@ -25,17 +27,17 @@ export default async function LoginPage() {
         </div>
       </header>
       <main className="stitch-container grid flex-1 md:grid-cols-2">
-        <section className="editorial-enter flex flex-col justify-center border-primary py-20 md:border-r-[0.5px] md:pr-20">
+        <ScrollReveal className="flex flex-col justify-center border-primary py-20 md:border-r-[0.5px] md:pr-20">
           <p className="label-caps mb-8 text-secondary">{text.login.account}</p>
           <h1 className="display-title mb-6">{text.login.title}</h1>
           <p className="max-w-md text-[18px] leading-[1.7] text-on-surface-variant">{text.login.description}</p>
-          <div className="mt-16 grid grid-cols-1 gap-px border border-primary bg-primary text-[12px] uppercase tracking-[0.1em] sm:grid-cols-2">
+          <div className="mt-16 grid grid-cols-1 gap-px overflow-hidden rounded-2xl border border-primary bg-primary text-[12px] uppercase tracking-[0.1em] sm:grid-cols-2">
             <span className="bg-surface p-5">{text.login.identity}</span>
             <span className="bg-surface p-5">{text.login.session}</span>
           </div>
-        </section>
-        <section className="editorial-enter-delay flex items-center py-20 md:pl-20">
-          <div className="w-full border border-primary bg-white p-8 md:p-12">
+        </ScrollReveal>
+        <ScrollReveal delay={0.15} className="flex items-center py-20 md:pl-20">
+          <div className="w-full overflow-hidden rounded-3xl border border-primary bg-white p-8 md:p-12">
             <p className="label-caps mb-10 text-secondary">{text.login.method}</p>
             <form action={async () => { "use server"; await signIn("google", { redirectTo: "/playground" }); }}>
               <button type="submit" className="quiet-button quiet-button--dark w-full">{text.login.google}</button>
@@ -43,10 +45,10 @@ export default async function LoginPage() {
             <div className="my-10 flex items-center gap-4 text-[11px] uppercase tracking-[0.12em] text-secondary">
               <span className="h-px flex-1 bg-outline-variant" /><span>{text.login.or}</span><span className="h-px flex-1 bg-outline-variant" />
             </div>
-            <Link href="/" className="quiet-button w-full">{text.login.back}</Link>
+            <FlowButton href="/" text={text.login.back} className="w-full" />
             <p className="mt-10 text-[12px] leading-[1.6] text-secondary">{text.login.note}</p>
           </div>
-        </section>
+        </ScrollReveal>
       </main>
     </div>
   );

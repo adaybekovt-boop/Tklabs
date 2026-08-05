@@ -9,6 +9,7 @@ import {
   type ChatInputModel,
   type ChatInputSubmitMeta,
 } from "@/components/ui/ai-chat-input";
+import AIThinkingBlock from "@/components/ui/ai-thinking-block";
 import type { ClodexAccessStatus } from "@/lib/clodex-access";
 import { CLODEX_MODELS } from "@/lib/clodex-models";
 import { DEFAULT_ERMA_MODEL_KEY, PRIVILEGED_MAX_PROMPT_LENGTH, PUBLIC_ERMA_MODELS, PUBLIC_MAX_PROMPT_LENGTH, type ErmaTier } from "@/lib/erma-public";
@@ -374,7 +375,7 @@ export function PlaygroundChat({ locale }: { locale: Locale }) {
                 <article key={message.id} className="chat-message-enter flex justify-start">
                   <div className={cn("max-w-[92%] border-l-2 py-2 pl-6", message.error ? "border-error" : "border-primary")}>
                     <div className={cn("whitespace-pre-wrap text-[15px] leading-[1.75]", message.error ? "text-error" : "text-primary")}>
-                      {message.content || (isStreaming ? <span className="streaming-dots" aria-label={text.chat.streaming}><i /><i /><i /></span> : null)}
+                      {message.content || (isStreaming ? <AIThinkingBlock label={text.chat.thinking} /> : null)}
                       {isStreaming && message.content && <span className="streaming-caret ml-1 inline-block h-4 w-px bg-primary align-middle" />}
                     </div>
                     {message.content && !message.error && (message.id !== lastMessage?.id || !isStreaming) && (
