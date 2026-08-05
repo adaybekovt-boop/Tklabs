@@ -11,6 +11,7 @@ async function text(path) {
 test("production deployment and browser capabilities match the current app", async () => {
   const workflow = await text(".github/workflows/deploy-cloudflare.yml");
   const nextConfig = await text("next.config.ts");
+  const viteConfig = await text("vite.config.ts");
   const packageJson = JSON.parse(await text("package.json"));
   const tsconfig = await text("tsconfig.json");
   const workerTypes = await text("types/cloudflare-workers-runtime.d.ts");
@@ -18,6 +19,10 @@ test("production deployment and browser capabilities match the current app", asy
 
   assert.match(workflow, /push:[\s\S]*branches:[\s\S]*- main/);
   assert.match(workflow, /concurrency:/);
+  assert.match(workflow, /AUTH_URL: https:\/\/tklabs\.uk/);
+  assert.match(viteConfig, /const configuredAuthUrl = process\.env\.AUTH_URL\?\.trim\(\);/);
+  assert.match(viteConfig, /\.\.\.\(configuredAuthUrl \? \{ AUTH_URL: configuredAuthUrl \} : \{\}\)/);
+  assert.doesNotMatch(viteConfig, /AUTH_URL: process\.env\.AUTH_URL\?\.trim\(\) \|\| "http:\/\/localhost:3000"/);
   assert.equal(securityHeaders.SECURITY_HEADERS.find((header) => header.key === "Permissions-Policy")?.value, "camera=(), microphone=(self), geolocation=(), payment=()");
   assert.doesNotMatch(nextConfig, /microphone=\(\)/);
   assert.match(packageJson.scripts.test, /test:unit/);

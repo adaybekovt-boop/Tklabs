@@ -9,6 +9,7 @@ const isCodexSeatbeltSandbox = process.env.CODEX_SANDBOX === "seatbelt";
 const DEFAULT_D1_DATABASE_ID = "c4085a86-0fec-49f2-b2ed-5999190fcc30";
 const d1DatabaseId = process.env.D1_DATABASE_ID?.trim() || DEFAULT_D1_DATABASE_ID;
 const clodexEnabled = process.env.CLODEX_ENABLED?.trim().toLowerCase() === "true";
+const configuredAuthUrl = process.env.AUTH_URL?.trim();
 
 const localWorkerConfig = {
   main: "./worker/index.ts",
@@ -19,7 +20,10 @@ const localWorkerConfig = {
   migrations: [{ tag: "v1", new_sqlite_classes: ["ClodexAccess"] }],
   workers_dev: true,
   vars: {
-    AUTH_URL: process.env.AUTH_URL?.trim() || "http://localhost:3000",
+    // Only inject AUTH_URL when it was explicitly configured. If it is absent,
+    // Auth.js derives the origin from the forwarded request host, which keeps
+    // local development on localhost without baking localhost into production.
+    ...(configuredAuthUrl ? { AUTH_URL: configuredAuthUrl } : {}),
     CLODEX_ENABLED: clodexEnabled ? "true" : "false",
   },
   ...(d1DatabaseId ? {
