@@ -21,6 +21,8 @@ test("production deployment and browser capabilities match the current app", asy
   assert.match(workflow, /- main/);
   assert.doesNotMatch(workflow, /workflow_run/);
   assert.doesNotMatch(workflow, /Download validated Worker build/);
+  assert.match(workflow, /Normalize Cloudflare deployment credentials/);
+  assert.match(workflow, /GITHUB_ENV/);
   assert.match(workflow, /npm run check/);
   assert.match(workflow, /npm audit --omit=dev --audit-level=high/);
   assert.match(workflow, /concurrency:/);
