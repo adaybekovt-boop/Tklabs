@@ -327,7 +327,7 @@ test("privileged workspace access is reflected in the client and profile", async
   assert.match(playground, /maxLength=\{promptLimit\}/);
   assert.match(profile, /isPrivilegedAiEmail/);
   assert.match(profile, /unlimitedDailyValue/);
-  assert.match(input, /try \{\n      recognition\.start\(\);/);
+  assert.match(input, /try \{\r?\n\s+recognition\.start\(\);/);
   assert.match(accessRoute, /if \(isPrivilegedAiEmail\(email\)\) return Response\.json\(privilegedAccessStatus\(\)/);
   assert.match(accessRoute, /privilegedAccessStatus\(\)[\s\S]*if \(!isClodexEnabled\(\)\) return disabledResponse\(\)/);
 });
