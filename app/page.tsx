@@ -28,7 +28,7 @@ export default async function HomePage() {
               <FlowButton href="/truth" text={text.home.howItWorks} />
             </div>
           </ScrollReveal>
-          <ScrollReveal delay={0.15} className="relative aspect-[4/5] overflow-hidden rounded-3xl lg:aspect-auto lg:min-h-[500px]">
+          <ScrollReveal delay={0.15} className="relative overflow-hidden rounded-3xl aspect-[4/5] lg:aspect-auto lg:min-h-[500px]">
             <Image src={HERO_IMAGE} alt={text.home.heroAlt} fill sizes="(min-width: 1024px) 50vw, 100vw" unoptimized className="object-cover grayscale" />
           </ScrollReveal>
         </section>

@@ -59,7 +59,7 @@ test("local archive is bounded, sanitized, and observable by the archive UI", as
 
 test("developers section is available in both navigation surfaces", async () => {
   const page = await text("app/developers/page.tsx");
-  const header = await text("components/site/StitchHeader.tsx");
+  const nav = await text("components/site/GlowNav.tsx");
   const footer = await text("components/site/StitchFooter.tsx");
   const translations = await text("lib/i18n.ts");
 
@@ -70,7 +70,7 @@ test("developers section is available in both navigation surfaces", async () => 
   assert.match(translations, /tk\.jpg/);
   await access(new URL("public/images/developers/thomas-tm.jpg", root));
   await access(new URL("public/images/developers/tk.jpg", root));
-  assert.match(header, /href: "\/developers"/);
+  assert.match(nav, /href: "\/developers"/);
   assert.match(footer, /href="\/developers"/);
   assert.match(translations, /developers: "Разработчики"/);
   assert.match(translations, /developers: "Developers"/);
@@ -78,13 +78,13 @@ test("developers section is available in both navigation surfaces", async () => 
 
 test("patch notes are linked and written as an English release log", async () => {
   const page = await text("app/patch-notes/page.tsx");
-  const header = await text("components/site/StitchHeader.tsx");
+  const nav = await text("components/site/GlowNav.tsx");
   const footer = await text("components/site/StitchFooter.tsx");
   const translations = await text("lib/i18n.ts");
 
   assert.match(page, /text\.patchNotes\.entries/);
   assert.match(page, /Release history/);
-  assert.match(header, /href: "\/patch-notes"/);
+  assert.match(nav, /href: "\/patch-notes"/);
   assert.match(footer, /href="\/patch-notes"/);
   assert.match(translations, /patchNotes: "Patch Notes"/);
   assert.match(translations, /version: "v0\.5\.3"/);
