@@ -21,7 +21,7 @@ export const PUBLIC_ERMA_MODELS: readonly PublicErmaModel[] = [
 ] as const;
 
 export const DEFAULT_ERMA_MODEL_KEY = "erma-spark-lite";
-export const PUBLIC_MAX_PROMPT_LENGTH = 180;
+export const PUBLIC_MAX_PROMPT_LENGTH = 2_000;
 export const PRIVILEGED_MAX_PROMPT_LENGTH = 16_000;
 export const DEMO_MAX_PROMPT_LENGTH = PUBLIC_MAX_PROMPT_LENGTH;
 export const DEMO_DAILY_REQUEST_LIMIT = 3;

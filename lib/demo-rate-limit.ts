@@ -10,4 +10,12 @@ export type DemoRateLimitStatus = {
 
 export type DemoConsumeResult = DemoRateLimitStatus & {
   allowed: boolean;
+  reservationId?: string;
+};
+
+export type DemoReservationResult = DemoConsumeResult;
+
+export type DemoReleaseResult = DemoRateLimitStatus & {
+  released: boolean;
+  reservationId: string;
 };

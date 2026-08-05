@@ -1,6 +1,7 @@
 import { env } from "cloudflare:workers";
 
 import { isClodexEnabled } from "@/lib/feature-flags";
+import { HealthSnapshotCache } from "@/lib/provider-health";
 
 export const runtime = "edge";
 
@@ -14,6 +15,14 @@ type HealthCheck = {
 };
 
 const PROVIDER_TIMEOUT_MS = 2_500;
+const healthCache = new HealthSnapshotCache<HealthPayload>(60_000, 5 * 60_000);
+
+type HealthPayload = {
+  checkedAt: string;
+  source: "live" | "cache" | "stale";
+  ok: boolean;
+  services: HealthCheck[];
+};
 
 function firstEnv(...names: string[]) {
   for (const name of names) {
@@ -52,12 +61,16 @@ async function providerCheck(
   return { id, required, ...(await probe(url, headers)) };
 }
 
-export async function GET() {
+async function buildHealth(): Promise<HealthPayload> {
   const nvidiaKey = firstEnv("NVIDIA_API_KEY_PRIMARY", "NVIDIA_API_KEY_1", "NVIDIA_API_KEY");
   const clodexKey = firstEnv("CLODEX_API_KEY");
   const clodexEnabled = isClodexEnabled();
   const authConfigured = Boolean(firstEnv("AUTH_SECRET") && firstEnv("AUTH_GOOGLE_ID") && firstEnv("AUTH_GOOGLE_SECRET"));
-  const rateLimitConfigured = Boolean((env as unknown as { CLODEX_ACCESS?: unknown }).CLODEX_ACCESS && process.env.RATE_LIMIT_SECRET?.trim());
+  const rateLimitConfigured = Boolean(
+    (env as unknown as { CLODEX_ACCESS?: unknown }).CLODEX_ACCESS
+      && process.env.RATE_LIMIT_SECRET?.trim()
+      && process.env.ACCOUNT_ID_SECRET?.trim(),
+  );
 
   const checks = await Promise.all([
     providerCheck(
@@ -80,8 +93,20 @@ export async function GET() {
   const checkedAt = new Date().toISOString();
   const allOperational = checks.filter((check) => check.required !== false).every((check) => check.status === "operational");
 
-  return Response.json(
-    { checkedAt, source: "live", ok: allOperational, services: checks },
-    { headers: { "cache-control": "no-store" } },
-  );
+  return { checkedAt, source: "live", ok: allOperational, services: checks };
+}
+
+export async function GET() {
+  try {
+    const snapshot = await healthCache.get(buildHealth);
+    return Response.json(
+      { ...snapshot.value, source: snapshot.stale ? "stale" : snapshot.cached ? "cache" : "live" },
+      { headers: { "cache-control": "no-store", "x-health-cache": snapshot.stale ? "stale" : snapshot.cached ? "hit" : "miss" } },
+    );
+  } catch {
+    return Response.json(
+      { checkedAt: new Date().toISOString(), source: "stale", ok: false, services: [] },
+      { status: 503, headers: { "cache-control": "no-store", "x-health-cache": "empty" } },
+    );
+  }
 }

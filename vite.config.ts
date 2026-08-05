@@ -9,6 +9,7 @@ const isCodexSeatbeltSandbox = process.env.CODEX_SANDBOX === "seatbelt";
 const DEFAULT_D1_DATABASE_ID = "7b481442-f635-41f2-ba5d-a62f106c518c";
 const d1DatabaseId = process.env.D1_DATABASE_ID?.trim() || DEFAULT_D1_DATABASE_ID;
 const clodexEnabled = process.env.CLODEX_ENABLED?.trim().toLowerCase() === "true";
+const clodexGrantTtlDays = process.env.CLODEX_GRANT_TTL_DAYS?.trim() || "30";
 const configuredAuthUrl = process.env.AUTH_URL?.trim();
 
 const localWorkerConfig = {
@@ -25,6 +26,7 @@ const localWorkerConfig = {
     // local development on localhost without baking localhost into production.
     ...(configuredAuthUrl ? { AUTH_URL: configuredAuthUrl } : {}),
     CLODEX_ENABLED: clodexEnabled ? "true" : "false",
+    CLODEX_GRANT_TTL_DAYS: clodexGrantTtlDays,
   },
   ...(d1DatabaseId ? {
     d1_databases: [{ binding: "DB", database_name: "tklabs", database_id: d1DatabaseId }],

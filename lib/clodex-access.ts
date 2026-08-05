@@ -8,6 +8,10 @@ export type ClodexAccessStatus = {
   windowMs: number;
   remaining: number;
   resetAt: number | null;
+  activatedAt?: number | null;
+  expiresAt?: number | null;
+  revokedAt?: number | null;
+  grantVersion?: string | null;
 };
 
 export type ClodexRedeemResult = ClodexAccessStatus & {
@@ -26,4 +30,8 @@ export type ClodexConsumeResult = ClodexAccessStatus & {
 export type ClodexReleaseResult = ClodexAccessStatus & {
   released: boolean;
   reservationId?: string;
+};
+
+export type ClodexRevokeResult = ClodexAccessStatus & {
+  revoked: boolean;
 };
