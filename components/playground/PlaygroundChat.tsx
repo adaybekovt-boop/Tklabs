@@ -24,6 +24,8 @@ const TIER_LABEL: Record<ErmaTier, string> = {
   heavy: "Heavy",
 };
 
+const MAX_PROVIDER_TTS_LENGTH = 10_000;
+
 type SuggestionKind = "learn" | "write";
 type Tone = "professional" | "character";
 
@@ -44,6 +46,21 @@ function titleFrom(prompt: string) {
   return prompt.length > 48 ? prompt.slice(0, 48) + "…" : prompt;
 }
 
+function preferredBrowserVoice(locale: Locale) {
+  const language = locale === "ru" ? "ru" : "en";
+  return window.speechSynthesis.getVoices()
+    .filter((voice) => voice.lang.toLowerCase().startsWith(language))
+    .sort((left, right) => {
+      const score = (voice: SpeechSynthesisVoice) => {
+        const name = voice.name.toLowerCase();
+        return (voice.lang.toLowerCase() === `${language}-${language === "ru" ? "ru" : "us"}` ? 4 : 0)
+          + (/natural|neural|premium|enhanced|google|microsoft/.test(name) ? 3 : 0)
+          + (voice.localService ? 1 : 0);
+      };
+      return score(right) - score(left);
+    })[0];
+}
+
 export function PlaygroundChat({ locale }: { locale: Locale }) {
   const text = getDictionary(locale);
   const router = useRouter();
@@ -54,6 +71,7 @@ export function PlaygroundChat({ locale }: { locale: Locale }) {
   const [modelKey, setModelKey] = useState(DEFAULT_ERMA_MODEL_KEY);
   const [isStreaming, setIsStreaming] = useState(false);
   const [clodexAccess, setClodexAccess] = useState<ClodexAccessStatus | null>(null);
+  const [ttsAvailable, setTtsAvailable] = useState(false);
   const [tone, setTone] = useState<Tone>("professional");
   const [reasonEnabled, setReasonEnabled] = useState(false);
   const [suggestionKind, setSuggestionKind] = useState<SuggestionKind | null>(null);
@@ -64,6 +82,9 @@ export function PlaygroundChat({ locale }: { locale: Locale }) {
   const sessionIdRef = useRef(uid());
   const activeRequestRef = useRef<AbortController | null>(null);
   const activeConversationRef = useRef<{ prompt: string; model: string; assistantId: string } | null>(null);
+  const ttsRequestRef = useRef<AbortController | null>(null);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const audioUrlRef = useRef<string | null>(null);
 
   const ermaOptions: ChatInputModel[] = PUBLIC_ERMA_MODELS.map((model) => ({
     id: model.key,
@@ -99,6 +120,20 @@ export function PlaygroundChat({ locale }: { locale: Locale }) {
   }, []);
 
   useEffect(() => {
+    let cancelled = false;
+    fetch("/api/tts", { cache: "no-store" })
+      .then(async (response) => {
+        if (!response.ok) return;
+        const payload = (await response.json()) as { available?: unknown };
+        if (!cancelled) setTtsAvailable(payload.available === true);
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
     const savedTone = window.localStorage.getItem("tklabs.erma-tone");
     if (savedTone === "professional" || savedTone === "character") {
       // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -113,6 +148,8 @@ export function PlaygroundChat({ locale }: { locale: Locale }) {
   useEffect(() => {
     return () => {
       activeRequestRef.current?.abort();
+      ttsRequestRef.current?.abort();
+      releaseAudio();
       window.speechSynthesis?.cancel();
     };
   }, []);
@@ -153,8 +190,7 @@ export function PlaygroundChat({ locale }: { locale: Locale }) {
     setSuggestionKind(null);
     setCopiedMessageId(null);
     setSpeechNotice("");
-    window.speechSynthesis?.cancel();
-    setSpeechMessageId(null);
+    stopSpeech();
     router.replace("/playground");
   }
 
@@ -188,6 +224,50 @@ export function PlaygroundChat({ locale }: { locale: Locale }) {
     setIsStreaming(false);
   }
 
+  function releaseAudio() {
+    const audio = audioRef.current;
+    if (audio) {
+      audio.onended = null;
+      audio.onerror = null;
+      audio.pause();
+      audio.removeAttribute("src");
+      audio.load();
+    }
+    audioRef.current = null;
+    if (audioUrlRef.current) URL.revokeObjectURL(audioUrlRef.current);
+    audioUrlRef.current = null;
+  }
+
+  function stopSpeech() {
+    ttsRequestRef.current?.abort();
+    ttsRequestRef.current = null;
+    releaseAudio();
+    window.speechSynthesis?.cancel();
+    setSpeechMessageId(null);
+  }
+
+  function speakWithBrowser(message: Message) {
+    if (typeof window === "undefined" || !("speechSynthesis" in window) || typeof SpeechSynthesisUtterance === "undefined") {
+      setSpeechMessageId(null);
+      setSpeechNotice(text.chat.voiceUnsupported);
+      return;
+    }
+
+    const utterance = new SpeechSynthesisUtterance(message.content);
+    const voice = preferredBrowserVoice(locale);
+    if (voice) utterance.voice = voice;
+    utterance.lang = locale === "ru" ? "ru-RU" : "en-US";
+    utterance.rate = 0.98;
+    utterance.pitch = 1;
+    utterance.onend = () => setSpeechMessageId((current) => current === message.id ? null : current);
+    utterance.onerror = () => {
+      setSpeechMessageId((current) => current === message.id ? null : current);
+      setSpeechNotice(text.chat.speechFailed);
+    };
+    setSpeechMessageId(message.id);
+    window.speechSynthesis.speak(utterance);
+  }
+
   async function copyMessage(message: Message) {
     try {
       if (navigator.clipboard?.writeText) {
@@ -209,31 +289,72 @@ export function PlaygroundChat({ locale }: { locale: Locale }) {
     }
   }
 
-  function speakMessage(message: Message) {
+  async function speakMessage(message: Message) {
     setSpeechNotice("");
     if (!message.content.trim()) return;
-    if (typeof window === "undefined" || !("speechSynthesis" in window) || typeof SpeechSynthesisUtterance === "undefined") {
-      setSpeechNotice(text.chat.voiceUnsupported);
-      return;
-    }
     if (speechMessageId === message.id) {
-      window.speechSynthesis.cancel();
-      setSpeechMessageId(null);
+      stopSpeech();
       return;
     }
 
-    window.speechSynthesis.cancel();
-    const utterance = new SpeechSynthesisUtterance(message.content);
-    utterance.lang = locale === "ru" ? "ru-RU" : "en-US";
-    utterance.rate = 0.92;
-    utterance.pitch = 0.85;
-    utterance.onend = () => setSpeechMessageId((current) => current === message.id ? null : current);
-    utterance.onerror = () => {
-      setSpeechMessageId((current) => current === message.id ? null : current);
-      setSpeechNotice(text.chat.speechFailed);
-    };
+    stopSpeech();
+    if (!ttsAvailable || message.content.length > MAX_PROVIDER_TTS_LENGTH) {
+      speakWithBrowser(message);
+      return;
+    }
     setSpeechMessageId(message.id);
-    window.speechSynthesis.speak(utterance);
+    const controller = new AbortController();
+    ttsRequestRef.current = controller;
+
+    try {
+      if (message.content.length <= MAX_PROVIDER_TTS_LENGTH) {
+        const response = await fetch("/api/tts", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          credentials: "same-origin",
+          signal: controller.signal,
+          body: JSON.stringify({ text: message.content, locale }),
+        });
+        const contentType = response.headers.get("content-type") ?? "";
+        if (response.ok && response.body && contentType.includes("audio/")) {
+          const audioUrl = URL.createObjectURL(await response.blob());
+          if (controller.signal.aborted) {
+            URL.revokeObjectURL(audioUrl);
+            return;
+          }
+          const audio = new Audio(audioUrl);
+          audio.preload = "auto";
+          audioRef.current = audio;
+          audioUrlRef.current = audioUrl;
+          audio.onended = () => {
+            if (audioRef.current !== audio) return;
+            releaseAudio();
+            setSpeechMessageId((current) => current === message.id ? null : current);
+          };
+          audio.onerror = () => {
+            if (audioRef.current !== audio) return;
+            releaseAudio();
+            speakWithBrowser(message);
+          };
+          try {
+            await audio.play();
+            return;
+          } catch {
+            if (audioRef.current === audio) releaseAudio();
+            if (controller.signal.aborted) return;
+          }
+        } else if (response.body) {
+          await response.body.cancel().catch(() => undefined);
+        }
+      }
+
+      if (!controller.signal.aborted) speakWithBrowser(message);
+    } catch (error) {
+      if (error instanceof DOMException && error.name === "AbortError") return;
+      if (!controller.signal.aborted) speakWithBrowser(message);
+    } finally {
+      if (ttsRequestRef.current === controller) ttsRequestRef.current = null;
+    }
   }
 
   function chooseSuggestion(suggestion: string) {
@@ -374,7 +495,7 @@ export function PlaygroundChat({ locale }: { locale: Locale }) {
         </div>
       </header>
 
-      <div ref={scrollRef} className="relative flex-grow overflow-y-auto bg-white px-margin-mobile py-8 md:px-margin-desktop">
+      <div ref={scrollRef} className="relative flex-grow overflow-y-auto bg-white px-4 py-10 sm:px-margin-mobile sm:py-8 md:px-margin-desktop">
         {messages.length === 0 ? (
           <div className="chat-empty-enter mx-auto flex h-full min-h-[320px] w-full max-w-3xl flex-col justify-center pb-16">
             <p className="label-caps mb-5 text-on-secondary-container">{text.chat.emptyKicker}</p>
@@ -382,17 +503,17 @@ export function PlaygroundChat({ locale }: { locale: Locale }) {
             <p className="max-w-xl text-[16px] leading-[1.6] text-on-secondary-container">{text.chat.emptyDescription}</p>
           </div>
         ) : (
-          <div className="mx-auto flex w-full max-w-3xl flex-col gap-10 pb-8" aria-live="polite">
+          <div className="mx-auto flex w-full max-w-3xl flex-col gap-12 pb-10 md:gap-10 md:pb-8" aria-live="polite">
             {messages.map((message) =>
               message.role === "user" ? (
                 <article key={message.id} className="chat-message-enter flex justify-end">
-                  <div className="max-w-[82%] border border-outline-variant bg-surface-container-low px-6 py-4">
+                  <div className="max-w-[92%] border border-outline-variant bg-surface-container-low px-5 py-4 sm:max-w-[82%] sm:px-6">
                     <p className="whitespace-pre-wrap text-[15px] leading-[1.7] text-primary">{message.content}</p>
                   </div>
                 </article>
               ) : (
                 <article key={message.id} className="chat-message-enter flex justify-start">
-                  <div className={cn("max-w-[92%] border-l-2 py-2 pl-6", message.error ? "border-error" : "border-primary")}>
+                  <div className={cn("max-w-[96%] border-l-2 py-3 pl-5 sm:max-w-[92%] sm:pl-6", message.error ? "border-error" : "border-primary")}>
                     <div className={cn("whitespace-pre-wrap text-[15px] leading-[1.75]", message.error ? "text-error" : "text-primary")}>
                       {message.content || (isStreaming ? <AIThinkingBlock label={text.chat.thinking} /> : null)}
                       {isStreaming && message.id === lastMessage?.id && message.content && <span className="streaming-caret ml-1 inline-block h-4 w-px bg-primary align-middle" />}
@@ -403,7 +524,7 @@ export function PlaygroundChat({ locale }: { locale: Locale }) {
                           {copiedMessageId === message.id ? <Check size={13} /> : <Copy size={13} />}
                           {copiedMessageId === message.id ? text.chat.copied : text.chat.copy}
                         </button>
-                        <button type="button" onClick={() => speakMessage(message)} className="flex items-center gap-1.5 transition-colors hover:text-primary">
+                        <button type="button" onClick={() => void speakMessage(message)} aria-pressed={speechMessageId === message.id} className="flex items-center gap-1.5 transition-colors hover:text-primary">
                           <Volume2 size={13} />
                           {speechMessageId === message.id ? text.chat.stopSpeaking : text.chat.speak}
                         </button>
@@ -418,23 +539,23 @@ export function PlaygroundChat({ locale }: { locale: Locale }) {
         )}
       </div>
 
-      <div className="hairline-t safe-area-bottom w-full flex-shrink-0 bg-surface/95 px-margin-mobile pt-5 backdrop-blur-md md:px-margin-desktop">
-        <div className="mx-auto mb-3 flex max-w-[780px] flex-wrap items-center gap-2">
-          <button type="button" onClick={() => setSuggestionKind((current) => current === "learn" ? null : "learn")} className={cn("label-caps flex items-center gap-2 border border-outline-variant px-3 py-2 transition-colors hover:border-primary", suggestionKind === "learn" && "border-primary bg-surface-container-low")}>
+      <div className="hairline-t safe-area-bottom w-full flex-shrink-0 bg-surface/95 px-4 pt-7 backdrop-blur-md sm:px-margin-mobile md:px-margin-desktop">
+        <div className="mx-auto mb-4 flex max-w-[780px] gap-3 overflow-x-auto px-1 pb-1 md:flex-wrap md:overflow-visible md:px-0 md:pb-0">
+          <button type="button" onClick={() => setSuggestionKind((current) => current === "learn" ? null : "learn")} className={cn("label-caps flex shrink-0 items-center gap-2 border border-outline-variant px-3 py-2.5 transition-colors hover:border-primary", suggestionKind === "learn" && "border-primary bg-surface-container-low")}>
             <BookOpen size={13} /> {text.chat.learn}
           </button>
-          <button type="button" onClick={() => setSuggestionKind((current) => current === "write" ? null : "write")} className={cn("label-caps flex items-center gap-2 border border-outline-variant px-3 py-2 transition-colors hover:border-primary", suggestionKind === "write" && "border-primary bg-surface-container-low")}>
+          <button type="button" onClick={() => setSuggestionKind((current) => current === "write" ? null : "write")} className={cn("label-caps flex shrink-0 items-center gap-2 border border-outline-variant px-3 py-2.5 transition-colors hover:border-primary", suggestionKind === "write" && "border-primary bg-surface-container-low")}>
             <PenLine size={13} /> {text.chat.write}
           </button>
-          <button type="button" onClick={() => setReasonEnabled((enabled) => !enabled)} className={cn("label-caps border border-outline-variant px-3 py-2 transition-colors hover:border-primary", reasonEnabled && "border-primary bg-surface-container-low")} aria-pressed={reasonEnabled}>
+          <button type="button" onClick={() => setReasonEnabled((enabled) => !enabled)} className={cn("label-caps shrink-0 border border-outline-variant px-3 py-2.5 transition-colors hover:border-primary", reasonEnabled && "border-primary bg-surface-container-low")} aria-pressed={reasonEnabled}>
             {reasonEnabled ? text.chat.reasoningOn : text.chat.reasoningOff}
           </button>
-          <button type="button" onClick={() => setTone((current) => current === "professional" ? "character" : "professional")} className={cn("label-caps border border-outline-variant px-3 py-2 transition-colors hover:border-primary", tone === "character" && "border-primary bg-surface-container-low")} aria-pressed={tone === "character"}>
+          <button type="button" onClick={() => setTone((current) => current === "professional" ? "character" : "professional")} className={cn("label-caps shrink-0 border border-outline-variant px-3 py-2.5 transition-colors hover:border-primary", tone === "character" && "border-primary bg-surface-container-low")} aria-pressed={tone === "character"}>
             {tone === "professional" ? text.chat.toneProfessional : text.chat.toneCharacter}
           </button>
         </div>
         {suggestionKind && (
-          <div className="mx-auto mb-3 max-w-[780px] border border-outline-variant bg-surface-container-low p-3">
+          <div className="mx-auto mb-4 max-w-[780px] border border-outline-variant bg-surface-container-low p-4">
             <div className="mb-2 flex items-center justify-between">
               <span className="label-caps text-on-secondary-container">{suggestionKind === "learn" ? text.chat.suggestionLearn : text.chat.suggestionWrite}</span>
               <button type="button" onClick={() => setSuggestionKind(null)} className="text-[11px] text-on-secondary-container hover:text-primary">{text.chat.close}</button>

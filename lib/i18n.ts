@@ -136,6 +136,18 @@ export const dictionaries = {
       entries: [
         {
           date: "05 Aug 2026",
+          version: "v0.6.3",
+          title: "Three clear Erma tiers & studio voice fallback",
+          summary: "The model picker is now focused, while replies can use a higher-quality server voice without losing browser compatibility.",
+          changes: [
+            "Reduced the public Erma catalog to one clear model per tier: Erma Lite, Erma Core, and Erma Pro.",
+            "Added an optional authenticated ElevenLabs streaming route using the stable multilingual voice model by default; the browser voice remains a safe fallback when it is not configured.",
+            "Improved browser speech voice selection and removed the overly robotic pitch adjustment from the fallback voice.",
+            "Added more vertical breathing room, wider message surfaces, a scrollable action row, and a roomier mobile model picker.",
+          ],
+        },
+        {
+          date: "05 Aug 2026",
           version: "v0.6.2",
           title: "Mobile history & resilient chat streaming",
           summary: "The workspace keeps conversations reachable on phones and saves streamed answers without losing the final tokens.",
@@ -295,8 +307,8 @@ export const dictionaries = {
       parameters: "Параметры доступа",
       description: "Профиль определяет доступные модели, лимиты запросов и возможности сохранения рабочего контекста.",
       availableModels: "Доступные модели",
-      modelsValue: "8 моделей Erma",
-      unlimitedModelsValue: "Все модели Erma",
+      modelsValue: "3 модели Erma",
+      unlimitedModelsValue: "Все 3 уровня Erma",
       dailyLimit: "Дневной лимит",
       dailyValue: "3 демонстрационных запроса",
       unlimitedDailyValue: "Без ограничений",
@@ -562,6 +574,18 @@ export const dictionaries = {
       entries: [
         {
           date: "05 Aug 2026",
+          version: "v0.6.3",
+          title: "Three clear Erma tiers & studio voice fallback",
+          summary: "The model picker is now focused, while replies can use a higher-quality server voice without losing browser compatibility.",
+          changes: [
+            "Reduced the public Erma catalog to one clear model per tier: Erma Lite, Erma Core, and Erma Pro.",
+            "Added an optional authenticated ElevenLabs streaming route using the stable multilingual voice model by default; the browser voice remains a safe fallback when it is not configured.",
+            "Improved browser speech voice selection and removed the overly robotic pitch adjustment from the fallback voice.",
+            "Added more vertical breathing room, wider message surfaces, a scrollable action row, and a roomier mobile model picker.",
+          ],
+        },
+        {
+          date: "05 Aug 2026",
           version: "v0.6.2",
           title: "Mobile history & resilient chat streaming",
           summary: "The workspace keeps conversations reachable on phones and saves streamed answers without losing the final tokens.",
@@ -721,8 +745,8 @@ export const dictionaries = {
       parameters: "Access parameters",
       description: "The profile determines available models, request limits, and working-context options.",
       availableModels: "Available models",
-      modelsValue: "8 Erma models",
-      unlimitedModelsValue: "All Erma models",
+      modelsValue: "3 Erma models",
+      unlimitedModelsValue: "All 3 Erma tiers",
       dailyLimit: "Daily limit",
       dailyValue: "3 demonstration requests",
       unlimitedDailyValue: "Unlimited",

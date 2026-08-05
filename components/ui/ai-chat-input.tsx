@@ -319,11 +319,11 @@ export const PromptInput = React.forwardRef<HTMLDivElement, PromptInputProps>(fu
       <div
         className={cn(
           "relative overflow-visible border bg-surface-container-lowest transition-[min-height,border-color] duration-400 ease-[cubic-bezier(.2,.8,.2,1)]",
-          expanded ? "min-h-[148px] border-primary" : "min-h-14 border-outline-variant",
+          expanded ? "min-h-[164px] border-primary md:min-h-[148px]" : "min-h-14 border-outline-variant",
         )}
       >
         {attachments.length > 0 && (
-          <div className="prompt-attachments flex gap-2 overflow-x-auto border-b border-outline-variant px-4 py-3">
+          <div className="prompt-attachments flex gap-3 overflow-x-auto border-b border-outline-variant px-4 py-4">
             {attachments.map((attachment, index) => (
               <div
                 key={attachment.id}
@@ -381,7 +381,7 @@ export const PromptInput = React.forwardRef<HTMLDivElement, PromptInputProps>(fu
         />
 
         {expanded && !isRecording && (
-          <div className="prompt-controls absolute bottom-3 left-3 right-14 flex min-w-0 items-center gap-1">
+          <div className="prompt-controls absolute bottom-3 left-3 right-14 flex min-w-0 items-center gap-2">
             <div className="relative min-w-0 flex-1">
               <button
                 type="button"
@@ -398,7 +398,7 @@ export const PromptInput = React.forwardRef<HTMLDivElement, PromptInputProps>(fu
 
               <div
                 className={cn(
-                  "absolute bottom-full left-0 z-40 mb-3 max-h-[min(360px,70vh)] w-[min(320px,calc(100vw-2rem))] origin-bottom-left overflow-y-auto border border-outline-variant bg-surface-container-lowest p-2 shadow-xl transition-[opacity,transform] duration-250 max-[420px]:fixed max-[420px]:inset-x-4 max-[420px]:bottom-24 max-[420px]:left-auto max-[420px]:top-auto max-[420px]:mb-0 max-[420px]:w-auto max-[420px]:origin-bottom",
+                  "absolute bottom-full left-0 z-40 mb-3 max-h-[min(380px,72vh)] w-[min(340px,calc(100vw-2rem))] origin-bottom-left overflow-y-auto border border-outline-variant bg-surface-container-lowest p-3 shadow-xl transition-[opacity,transform] duration-250 max-[420px]:fixed max-[420px]:inset-x-4 max-[420px]:bottom-28 max-[420px]:left-auto max-[420px]:top-auto max-[420px]:mb-0 max-[420px]:w-auto max-[420px]:origin-bottom",
                   modelMenuOpen ? "pointer-events-auto translate-y-0 scale-100 opacity-100" : "pointer-events-none translate-y-2 scale-[0.98] opacity-0",
                 )}
                 role="listbox"
@@ -413,7 +413,7 @@ export const PromptInput = React.forwardRef<HTMLDivElement, PromptInputProps>(fu
                         type="button"
                         disabled={!model.available}
                         className={cn(
-                          "flex min-h-11 w-full items-center gap-3 px-2 py-2 text-left text-[13px] transition-colors hover:bg-surface-container-low disabled:opacity-35",
+                          "flex min-h-12 w-full items-center gap-3 px-3 py-2.5 text-left text-[13px] transition-colors hover:bg-surface-container-low disabled:opacity-35",
                           selectedModelId === model.id && "bg-surface-container-low text-primary",
                         )}
                         role="option"

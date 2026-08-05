@@ -28,6 +28,9 @@ Copy .env.example to .env.local and set:
     AUTH_GOOGLE_SECRET=...
     NVIDIA_API_KEY_PRIMARY=...
     NVIDIA_API_KEY_SECONDARY=...
+    ELEVENLABS_API_KEY=... (optional high-quality speech)
+    ELEVENLABS_VOICE_ID=... (required with the ElevenLabs key)
+    ELEVENLABS_MODEL_ID=eleven_multilingual_v2 (optional)
 
 Generate AUTH_SECRET with:
 
@@ -50,5 +53,8 @@ The Deploy Cloudflare Worker workflow is manual. Add these repository secrets be
     CLODEX_ACCESS_CODE (required for account-gated Clodex models; keep the actual code private)
     NVIDIA_API_KEY_PRIMARY (recommended)
     NVIDIA_API_KEY_SECONDARY (recommended)
+    ELEVENLABS_API_KEY (optional high-quality speech)
+    ELEVENLABS_VOICE_ID (required with the ElevenLabs key)
+    ELEVENLABS_MODEL_ID (optional; defaults to eleven_multilingual_v2)
 
 The workflow builds the Vinext Worker, uploads runtime secrets to Cloudflare, and deploys the generated Worker configuration. A custom domain can be attached in Cloudflare later; then add its exact callback URL in Google Cloud Console.
