@@ -92,14 +92,15 @@ export function useChatRequest(options: {
         return;
       }
 
-      const payload = await response.json().catch(() => null) as { answer?: unknown; meta?: unknown } | null;
+      const payload = await response.json().catch(() => null) as { answer?: unknown; thinking?: unknown; meta?: unknown } | null;
       const assistantContent = typeof payload?.answer === "string" ? payload.answer.trim() : "";
       if (!assistantContent) throw new Error("The AI response was empty.");
+      const assistantThinking = typeof payload?.thinking === "string" ? payload.thinking.trim() : "";
       const responseMeta = isResponseMeta(payload?.meta) ? payload.meta : undefined;
 
       setMessages((current) => {
         const next = current.map((message) => message.id === assistantId
-          ? { ...message, content: assistantContent, ...(responseMeta ? { meta: responseMeta } : {}) }
+          ? { ...message, content: assistantContent, ...(assistantThinking ? { thinking: assistantThinking } : {}), ...(responseMeta ? { meta: responseMeta } : {}) }
           : message,
         );
         options.saveConversation(prompt, nextModelKey, next as ArchivedMessage[]);

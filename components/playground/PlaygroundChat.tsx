@@ -109,7 +109,7 @@ export function PlaygroundChat({ locale }: { locale: Locale }) {
     const defaultModel = loadSettings().defaultModel;
     if (defaultModel && ermaOptions.some((model) => model.id === defaultModel)) setModelKey(defaultModel);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [searchParams]);
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });

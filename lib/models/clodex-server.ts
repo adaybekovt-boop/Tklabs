@@ -7,9 +7,9 @@ export type ClodexServerModel = {
 };
 
 const CLODEX_SERVER_MODELS: readonly ClodexServerModel[] = [
-  { key: "clodex:fast", name: "Clodex Fast", providerModel: "deepseek-v4-flash" },
-  { key: "clodex:reasoning", name: "Clodex Reasoning", providerModel: "Kimi-K2-Thinking" },
-  { key: "clodex:pro", name: "Clodex Pro", providerModel: "deepseek-v4-pro" },
+  { key: "clodex:fast", name: "Clodex Fast", providerModel: "gemini-3.6-flash" },
+  { key: "clodex:reasoning", name: "Clodex Reasoning", providerModel: "glm-5.2" },
+  { key: "clodex:pro", name: "Clodex Pro", providerModel: "gpt-5.6-sol" },
 ];
 
 export function getClodexModel(key: string | undefined) {

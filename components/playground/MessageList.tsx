@@ -3,6 +3,7 @@
 import { Check, Copy, Volume2 } from "lucide-react";
 
 import AIThinkingBlock from "@/components/ui/ai-thinking-block";
+import { ReasoningTrace } from "@/components/ui/reasoning-trace";
 import type { AiResponseMeta } from "@/lib/ai/types";
 import { getDictionary, type Locale } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
@@ -11,19 +12,12 @@ export type ChatMessage = {
   id: string;
   role: "user" | "assistant";
   content: string;
+  thinking?: string;
   error?: boolean;
   meta?: AiResponseMeta;
 };
 
 type ChatDictionary = ReturnType<typeof getDictionary>;
-
-function providerLabel(meta: AiResponseMeta, text: ChatDictionary) {
-  return meta.actualProvider === "nvidia"
-    ? text.chat.providerNvidia
-    : meta.actualProvider === "clodex"
-      ? text.chat.providerClodex
-      : text.chat.providerFallback;
-}
 
 export function MessageList({
   messages,
@@ -59,6 +53,9 @@ export function MessageList({
         ) : (
           <article key={message.id} className="chat-message-enter flex justify-start">
             <div className={cn("max-w-[96%] border-l-2 py-3 pl-5 sm:max-w-[92%] sm:pl-6", message.error ? "border-error" : "border-primary")}>
+              {message.thinking && (
+                <ReasoningTrace thinking={message.thinking} label={text.chat.reasoningLabel} showLabel={text.chat.reasoningShow} hideLabel={text.chat.reasoningHide} />
+              )}
               <div className={cn("whitespace-pre-wrap text-[15px] leading-[1.75]", message.error ? "text-error" : "text-primary")}>
                 {message.content || (isPending && message.id === lastMessage?.id ? <AIThinkingBlock label={text.chat.thinking} /> : null)}
               </div>
@@ -72,13 +69,6 @@ export function MessageList({
                     <Volume2 size={13} />
                     {speakingMessageId === message.id ? text.chat.stopSpeaking : text.chat.speak}
                   </button>
-                  {message.meta && (
-                    <span className="min-w-0 max-w-full break-words text-on-secondary-container">
-                      {providerLabel(message.meta, text)}
-                      {message.meta.actualProvider !== "edge-fallback" && ` · ${message.meta.actualModel}`}
-                      {` · ${message.meta.latencyMs} ms`}
-                    </span>
-                  )}
                   {message.meta?.fallbackReason && <span className="basis-full text-error">{text.chat.fallbackNotice}</span>}
                   {speechNotice && message.id === lastMessage?.id && <span className="text-error">{speechNotice}</span>}
                 </div>

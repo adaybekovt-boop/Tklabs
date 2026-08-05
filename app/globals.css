@@ -148,6 +148,7 @@ html[data-theme="dark"] .bg-white { background-color: var(--color-surface-contai
 .chat-empty-enter, .chat-message-enter { animation: quiet-rise 420ms cubic-bezier(.2,.8,.2,1) both; }
 .prompt-action-icon, .prompt-morph-text { animation: quiet-fade 220ms ease both; }
 .prompt-preview { animation: quiet-fade 180ms ease both; }
+.reasoning-trace-enter { animation: quiet-fade 200ms ease both; }
 .voice-bar { height: 6px; animation: voice-wave 650ms ease-in-out infinite alternate; }
 .streaming-caret { animation: caret-pulse 850ms step-end infinite; }
 .streaming-dots { display: inline-flex; align-items: center; gap: 5px; min-height: 20px; }

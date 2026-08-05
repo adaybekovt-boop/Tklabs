@@ -1,11 +1,11 @@
 import { auth } from "@/auth";
 import { generateWithClodex } from "@/lib/ai/providers/clodex";
-import { generateWithNvidia, isUnsafeNvidiaAnswer } from "@/lib/ai/providers/nvidia";
+import { generateWithNvidia } from "@/lib/ai/providers/nvidia";
 import { logAiProviderFailure, logAiRequest } from "@/lib/ai/logging";
 import { newRequestId } from "@/lib/ai/provider-http";
 import type { AiGenerationResult } from "@/lib/ai/types";
 import { createAiResponseMeta, localFallbackResult } from "@/lib/ai/response";
-import { classifyPromptSafety, safetyRefusal } from "@/lib/ai-safety";
+import { classifyPromptSafety, evaluateAssistantContent, safetyRefusal } from "@/lib/ai-safety";
 import { promptValidationMessage, PromptValidationError, validateAndBuildProviderPrompt } from "@/lib/chat-prompt";
 import { DemoRateLimitUnavailableError, commitDemoRequest, releaseDemoRequest, reserveDemoRequest } from "@/lib/demo-rate-limit-access";
 import { isClodexEnabled } from "@/lib/feature-flags";
@@ -54,7 +54,7 @@ function promptErrorResponse(error: PromptValidationError, language: Language, p
 function resultResponse(result: AiGenerationResult, requestedModel: string, requestId: string, startedAt: number, setCookie?: string | null) {
   const meta = createAiResponseMeta(result, requestedModel, requestId, startedAt);
   logAiRequest(meta);
-  return jsonResponse({ answer: result.answer, meta }, requestId, 200, setCookie);
+  return jsonResponse({ answer: result.answer, ...(result.thinking ? { thinking: result.thinking } : {}), meta }, requestId, 200, setCookie);
 }
 
 async function resolveFallback(input: {
@@ -69,8 +69,8 @@ async function resolveFallback(input: {
   const apiKey = process.env.CLODEX_API_KEY?.trim();
   if (isClodexEnabled() && apiKey) {
     try {
-      const answer = await generateWithClodex(input.prompt, apiKey, CLODEX_MODEL, input.language, input.allowCode, input.signal);
-      return { answer, provider: "clodex", actualModel: CLODEX_MODEL, fallbackReason: input.primaryReason };
+      const { answer, thinking } = await generateWithClodex(input.prompt, apiKey, CLODEX_MODEL, input.language, input.allowCode, input.signal);
+      return { answer, thinking, provider: "clodex", actualModel: CLODEX_MODEL, fallbackReason: input.primaryReason };
     } catch (error) {
       logAiProviderFailure({
         requestId: input.requestId,
@@ -197,7 +197,8 @@ export async function POST(request: Request) {
       tone,
       signal: request.signal,
     });
-    if (isUnsafeNvidiaAnswer(result.answer, privilegedAccount)) {
+    const evaluation = evaluateAssistantContent({ answer: result.answer, thinking: result.thinking }, { allowCode: privilegedAccount });
+    if (evaluation.verdict === "unsafe") {
       const safetyResult: AiGenerationResult = {
         answer: safetyRefusal(language),
         provider: "edge-fallback",
@@ -208,7 +209,7 @@ export async function POST(request: Request) {
       return resultResponse(safetyResult, requestedModel, requestId, startedAt, rateLimitCookie);
     }
     await commitDemo();
-    return resultResponse({ answer: result.answer, provider: "nvidia", actualModel: result.actualModel }, requestedModel, requestId, startedAt, rateLimitCookie);
+    return resultResponse({ answer: evaluation.answer, thinking: evaluation.thinking, provider: "nvidia", actualModel: result.actualModel }, requestedModel, requestId, startedAt, rateLimitCookie);
   } catch (error) {
     if (request.signal.aborted) {
       await releaseDemo();

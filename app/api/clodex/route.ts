@@ -118,10 +118,10 @@ export async function POST(request: Request) {
 
   const startedAt = Date.now();
   try {
-    const answer = await generateWithClodex(providerPrompt, apiKey, model.providerModel, language, privilegedAccount, request.signal);
+    const { answer, thinking } = await generateWithClodex(providerPrompt, apiKey, model.providerModel, language, privilegedAccount, request.signal);
     const meta = createAiResponseMeta({ answer, provider: "clodex", actualModel: model.providerModel }, model.name, requestId, startedAt);
     logAiRequest(meta);
-    return jsonResponse({ answer, meta }, requestId);
+    return jsonResponse({ answer, ...(thinking ? { thinking } : {}), meta }, requestId);
   } catch (error) {
     if (allowanceReserved && allowanceReservationId) {
       try {
