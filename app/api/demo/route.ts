@@ -3,6 +3,7 @@ import { generateWithClodex } from "@/lib/ai/providers/clodex";
 import { generateWithNvidia } from "@/lib/ai/providers/nvidia";
 import { logAiProviderFailure, logAiRequest } from "@/lib/ai/logging";
 import { newRequestId } from "@/lib/ai/provider-http";
+import { normalizeAiTextPair } from "@/lib/ai/reasoning";
 import type { AiGenerationResult } from "@/lib/ai/types";
 import { createAiResponseMeta, localFallbackResult } from "@/lib/ai/response";
 import { classifyPromptSafety, evaluateAssistantContent, safetyRefusal } from "@/lib/ai-safety";
@@ -52,9 +53,10 @@ function promptErrorResponse(error: PromptValidationError, language: Language, p
 }
 
 function resultResponse(result: AiGenerationResult, requestedModel: string, requestId: string, startedAt: number, setCookie?: string | null) {
-  const meta = createAiResponseMeta(result, requestedModel, requestId, startedAt);
+  const normalized = { ...result, ...normalizeAiTextPair(result) };
+  const meta = createAiResponseMeta(normalized, requestedModel, requestId, startedAt);
   logAiRequest(meta);
-  return jsonResponse({ answer: result.answer, ...(result.thinking ? { thinking: result.thinking } : {}), meta }, requestId, 200, setCookie);
+  return jsonResponse({ answer: normalized.answer, ...(normalized.thinking ? { thinking: normalized.thinking } : {}), meta }, requestId, 200, setCookie);
 }
 
 async function resolveFallback(input: {
@@ -197,7 +199,8 @@ export async function POST(request: Request) {
       tone,
       signal: request.signal,
     });
-    const evaluation = evaluateAssistantContent({ answer: result.answer, thinking: result.thinking }, { allowCode: privilegedAccount });
+    const normalized = normalizeAiTextPair(result);
+    const evaluation = evaluateAssistantContent(normalized, { allowCode: privilegedAccount });
     if (evaluation.verdict === "unsafe") {
       const safetyResult: AiGenerationResult = {
         answer: safetyRefusal(language),

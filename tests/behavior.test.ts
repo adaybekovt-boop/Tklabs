@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import { createAiResponseMeta, localFallbackResult } from "../lib/ai/response";
+import { normalizeAiTextPair } from "../lib/ai/reasoning";
 import { classifyPromptSafety, evaluateAssistantContent, evaluateAssistantOutput } from "../lib/ai-safety";
 import { validateAndBuildProviderPrompt, PromptValidationError } from "../lib/chat-prompt";
 import { getClodexModel } from "../lib/models/clodex-server";
@@ -15,6 +16,21 @@ import { TTS_DAILY_CHARACTER_QUOTA, TTS_MAX_TEXT_LENGTH, TTS_PRIVILEGED_DAILY_CH
 import { buildD1MigrationsArgs, getMigrationFiles, runD1Migrations, validateMigrationSql } from "../scripts/migrate-d1.mjs";
 import { buildSecretListArgs, missingSecretNames, parseSecretNames, readCloudflareSecretNames, safePreflightError, validateCloudflareSecretNames } from "../scripts/check-cloudflare-secrets.mjs";
 import { canCommitReservation, isReservationExpired, reservationExpiresAt } from "../lib/reservation-policy";
+
+test("AI reasoning is separated from the visible answer and is not duplicated", () => {
+  const thinking = "I should inspect the user wording, follow the response policy, and then give a short natural answer in the requested language.";
+  const tagged = normalizeAiTextPair({ answer: "<think>" + thinking + "</think>\n\nПривет!", thinking });
+  assert.equal(tagged.answer, "Привет!");
+  assert.equal(tagged.thinking, thinking);
+
+  const duplicated = normalizeAiTextPair({ answer: thinking + "\n\nПривет!", thinking });
+  assert.equal(duplicated.answer, "Привет!");
+  assert.equal(duplicated.thinking, thinking);
+
+  const reasoningOnly = normalizeAiTextPair({ answer: thinking, thinking });
+  assert.equal(reasoningOnly.answer, "");
+  assert.equal(reasoningOnly.thinking, thinking);
+});
 
 test("privileged e-mail allowlists normalize, deduplicate, and default to empty", () => {
   assert.deepEqual([...parseEmailAllowlist(" A@EXAMPLE.COM, a@example.com, , B@example.com ")], ["a@example.com", "b@example.com"]);

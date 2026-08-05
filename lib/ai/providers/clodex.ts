@@ -1,5 +1,6 @@
 import { AI_PRIVILEGED_SYSTEM_PROMPT, AI_SAFETY_SYSTEM_PROMPT, evaluateAssistantContent } from "@/lib/ai-safety";
 import { fetchWithTimeout, withTimeout } from "@/lib/ai/provider-http";
+import { normalizeAiTextPair } from "@/lib/ai/reasoning";
 
 const CLODEX_ENDPOINT = "https://clodex.xyz/v1/messages";
 
@@ -31,9 +32,10 @@ export async function generateWithClodex(prompt: string, apiKey: string, model: 
   // Reasoning-capable models (e.g. Clodex Reasoning) return their chain of
   // thought as separate "thinking" content blocks alongside the answer.
   const thinking = blocks.filter((part) => part.type === "thinking" || part.type === "redacted_thinking").map((part) => part.thinking ?? "").join("").trim();
-  if (!answer) throw new Error("clodex_empty_response");
+  const normalized = normalizeAiTextPair({ answer, thinking: thinking || undefined });
+  if (!normalized.answer && !normalized.thinking) throw new Error("clodex_empty_response");
 
-  const evaluation = evaluateAssistantContent({ answer, thinking: thinking || undefined }, { allowCode });
+  const evaluation = evaluateAssistantContent(normalized, { allowCode });
   if (evaluation.verdict === "unsafe") throw new Error("clodex_output_blocked");
   return { answer: evaluation.answer, thinking: evaluation.thinking };
 }

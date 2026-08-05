@@ -91,6 +91,22 @@ test("POST /api/demo commits a reservation only after a mocked provider succeeds
   assert.equal(stub.released, 0);
 });
 
+test("POST /api/demo removes duplicated NVIDIA reasoning from the visible answer", async () => {
+  const stub = makeDemoStub();
+  process.env.RATE_LIMIT_SECRET = "api-test-rate-limit-secret";
+  process.env.NVIDIA_API_KEY_PRIMARY = "test-provider-key";
+  const thinking = "I should inspect the wording, follow the policy, and give a short natural answer in the requested language.";
+  globalThis.fetch = async (input) => String(input).includes("integrate.api.nvidia.com")
+    ? new Response(JSON.stringify({ choices: [{ message: { content: thinking + "\n\nA mocked final answer.", reasoning_content: thinking } }] }), { status: 200 })
+    : new Response("not found", { status: 404 });
+  const { POST } = await loadDemo(stub);
+  const response = await POST(request({ prompt: "Explain a safe educational example", locale: "en" }));
+  const payload = await response.json();
+  assert.equal(response.status, 200);
+  assert.equal(payload.answer, "A mocked final answer.");
+  assert.equal(payload.thinking, thinking);
+  assert.equal(stub.committed, 1);
+});
 test("allowlisted authenticated owner bypasses product demo quota without leaking the allowlist", async () => {
   const stub = makeDemoStub();
   process.env.RATE_LIMIT_SECRET = "api-test-rate-limit-secret";
