@@ -17,10 +17,12 @@ test("production deployment and browser capabilities match the current app", asy
   const workerTypes = await text("types/cloudflare-workers-runtime.d.ts");
   const securityHeaders = await import(new URL("lib/security-headers.mjs", root));
 
-  assert.match(workflow, /workflow_run:/);
-  assert.match(workflow, /workflow_run\.conclusion == 'success'/);
-  assert.match(workflow, /workflow_run\.head_branch == 'main'/);
-  assert.match(workflow, /Download validated Worker build/);
+  assert.match(workflow, /push:/);
+  assert.match(workflow, /- main/);
+  assert.doesNotMatch(workflow, /workflow_run/);
+  assert.doesNotMatch(workflow, /Download validated Worker build/);
+  assert.match(workflow, /npm run check/);
+  assert.match(workflow, /npm audit --omit=dev --audit-level=high/);
   assert.match(workflow, /concurrency:/);
   assert.match(workflow, /AUTH_URL: https:\/\/tklabs\.uk/);
   assert.match(workflow, /AUTH_TRUST_HOST: "true"/);
@@ -123,7 +125,7 @@ test("production hardening keeps quota, entitlement and migration contracts expl
   for (const runtimeSecret of ["AUTH_SECRET", "AUTH_GOOGLE_ID", "AUTH_GOOGLE_SECRET", "RATE_LIMIT_SECRET", "ACCOUNT_ID_SECRET", "NVIDIA_API_KEY_PRIMARY", "CLODEX_API_KEY", "CLODEX_ACCESS_CODE", "ELEVENLABS_API_KEY"]) {
     assert.doesNotMatch(workflow, new RegExp(`^\\s+${runtimeSecret}:\\s+\\$\\{\\{`, "m"), `${runtimeSecret} must remain Cloudflare-owned`);
   }
-  assert.match(workflow, /workflow_run\.conclusion == 'success'/);
+  assert.match(workflow, /Validate and build production Worker/);
   assert.match(admin, /isPrivilegedAiEmail/);
   assert.match(admin, /parseJsonBody<RevokeBody>\(request, 8 \* 1024\)/);
   assert.match(admin, /export async function POST\(request: Request\)/);

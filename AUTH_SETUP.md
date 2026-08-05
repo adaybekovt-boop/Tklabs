@@ -48,7 +48,7 @@ Never expose AUTH_GOOGLE_SECRET or AUTH_SECRET as NEXT_PUBLIC variables and neve
 
 The Validate workflow runs on pushes and pull requests. GitHub Pages is not used because this application has server-side OAuth routes.
 
-The Deploy Cloudflare Worker workflow runs only after the matching `Validate` workflow succeeds for a push to `main`. Add only these repository secrets:
+The Deploy Cloudflare Worker workflow runs automatically on every push to `main`. It performs its own production check and audit before migration/deploy. Add only these repository secrets:
 
     CLOUDFLARE_API_TOKEN
     CLOUDFLARE_ACCOUNT_ID
@@ -57,6 +57,6 @@ The Cloudflare Worker `tkai` is the source of truth for runtime secrets. Its req
 
 The deployment preflight runs `npm run cloudflare:check-secrets`, reads only the Cloudflare secret-name list, and fails on missing feature-enabled requirements. `UNLIMITED_AI_EMAILS` is optional and is never required for deployment. It never copies values to GitHub, prints values, or runs `wrangler secret put`.
 
-Set the non-secret Actions variables `AUTH_URL=https://tklabs.uk`, `AUTH_TRUST_HOST=true`, `CLODEX_ENABLED`, `CLODEX_GRANT_TTL_DAYS`, `CLODEX_GRANT_VERSION`, and the four TTS quota variables only when configuring the Worker. Production defaults are grant version `v2`, public `5` requests/15 minutes and `10000` characters/day, and privileged `30` requests/15 minutes and `100000` characters/day. Do not ship a Worker with `AUTH_URL=http://localhost:3000`. The workflow validates the exact commit, downloads its validated Worker artifact, checks Cloudflare secret names, applies only pending D1 migrations with the official Wrangler migration command, and deploys the generated Wrangler configuration without rewriting existing runtime secrets. A custom domain can be attached in Cloudflare later; then add its exact callback URL in Google Cloud Console.
+Set the non-secret Actions variables `AUTH_URL=https://tklabs.uk`, `AUTH_TRUST_HOST=true`, `CLODEX_ENABLED`, `CLODEX_GRANT_TTL_DAYS`, `CLODEX_GRANT_VERSION`, and the four TTS quota variables only when configuring the Worker. Production defaults are grant version `v2`, public `5` requests/15 minutes and `10000` characters/day, and privileged `30` requests/15 minutes and `100000` characters/day. Do not ship a Worker with `AUTH_URL=http://localhost:3000`. The workflow checks the pushed commit, runs `npm run check` and the production audit, checks Cloudflare secret names, applies only pending D1 migrations with the official Wrangler migration command, and deploys the generated Wrangler configuration without rewriting existing runtime secrets. A custom domain can be attached in Cloudflare later; then add its exact callback URL in Google Cloud Console.
 
 Unlimited access is granted only after a valid authenticated session email exactly matches a normalized full address in the optional `UNLIMITED_AI_EMAILS` Cloudflare secret. Domain-only values, wildcards, malformed entries, absent configuration, and unauthenticated requests fail closed. The allowlist is never returned to clients.
