@@ -3,7 +3,11 @@ import { defineConfig } from "vite";
 
 // macOS Seatbelt blocks FSEvents, so Codex previews need polling for HMR.
 const isCodexSeatbeltSandbox = process.env.CODEX_SANDBOX === "seatbelt";
-const d1DatabaseId = process.env.D1_DATABASE_ID?.trim();
+// D1 database IDs are routing identifiers, not credentials. Keep the production
+// ID in the build fallback so Cloudflare's Git integration also emits the DB
+// binding; CI may still override it for another environment.
+const DEFAULT_D1_DATABASE_ID = "c4085a86-0fec-49f2-b2ed-5999190fcc30";
+const d1DatabaseId = process.env.D1_DATABASE_ID?.trim() || DEFAULT_D1_DATABASE_ID;
 
 const localWorkerConfig = {
   main: "./worker/index.ts",

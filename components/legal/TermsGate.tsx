@@ -72,7 +72,10 @@ export function TermsGate({ enabled, locale }: { enabled: boolean; locale: Terms
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ language, version: CURRENT_TERMS_VERSION }),
       });
-      if (!response.ok) throw new Error("terms_acceptance_failed");
+      if (!response.ok) {
+        setError(response.status === 503 ? text.unavailable : text.acceptanceError);
+        return;
+      }
       setOpen(false);
     } catch {
       setError(text.acceptanceError);
