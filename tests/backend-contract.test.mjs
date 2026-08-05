@@ -208,6 +208,7 @@ test("local archive is bounded, sanitized, and observable by the archive UI", as
   const archiveUi = await text("components/playground/ConversationArchive.tsx");
   const mobileHistory = await text("components/playground/MobileHistory.tsx");
   const playground = await text("app/playground/page.tsx");
+  const historyDropdown = await text("components/playground/HistoryDropdown.tsx");
 
   assert.match(archive, /MAX_ARCHIVE_JSON_LENGTH/);
   assert.match(archive, /MAX_MESSAGE_CONTENT_LENGTH/);
@@ -218,7 +219,8 @@ test("local archive is bounded, sanitized, and observable by the archive UI", as
   assert.match(archiveUi, /onNavigate/);
   assert.match(mobileHistory, /ConversationArchive/);
   assert.match(mobileHistory, /md:hidden/);
-  assert.match(playground, /ConversationArchive/);
+  assert.match(historyDropdown, /ConversationArchive/);
+  assert.match(playground, /PlaygroundChat/);
 });
 
 test("developers section is available in both navigation surfaces", async () => {
@@ -348,7 +350,7 @@ test("unlimited access stays in server-only paths", async () => {
 
 test("new Playground does not show the duplicated empty-state heading", async () => {
   const playground = await text("components/playground/PlaygroundChat.tsx");
-  const heading = "<h2 className=\"mb-3 max-w-2xl font-serif text-[36px] leading-[1.2] text-primary md:text-[48px]\">{text.chat.emptyTitle}</h2>";
+  const heading = "<h2 className=\"mb-3 max-w-2xl font-serif text-[36px] leading-[1.12] text-primary md:text-[48px]\">{text.chat.emptyTitle}</h2>";
   assert.equal(playground.split(heading).length - 1, 1);
 });
 

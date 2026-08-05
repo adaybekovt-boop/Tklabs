@@ -46,13 +46,19 @@ export function MessageList({
       {messages.map((message) =>
         message.role === "user" ? (
           <article key={message.id} className="chat-message-enter flex justify-end">
-            <div className="max-w-[92%] border border-outline-variant bg-surface-container-low px-5 py-4 sm:max-w-[82%] sm:px-6">
+            <div className="max-w-[92%] rounded-3xl border border-outline-variant bg-surface-container-low px-5 py-4 shadow-[0_14px_40px_color-mix(in_srgb,var(--color-primary)_5%,transparent)] sm:max-w-[82%] sm:px-6">
               <p className="whitespace-pre-wrap text-[15px] leading-[1.7] text-primary">{message.content}</p>
             </div>
           </article>
         ) : (
           <article key={message.id} className="chat-message-enter flex justify-start">
-            <div className={cn("max-w-[96%] border-l-2 py-3 pl-5 sm:max-w-[92%] sm:pl-6", message.error ? "border-error" : "border-primary")}>
+            <div className={cn("assistant-message-card max-w-[96%] rounded-3xl border bg-surface-container-lowest px-5 py-5 shadow-[0_16px_48px_color-mix(in_srgb,var(--color-primary)_5%,transparent)] sm:max-w-[92%] sm:px-6", message.error ? "border-error/60" : "border-outline-variant")}>
+              <div className="mb-4 flex items-center gap-3">
+                <span className="grid size-8 place-items-center overflow-hidden rounded-xl border border-outline-variant bg-surface-container-low p-1.5">
+                  <img src="/images/models/model-mark.png" alt="" className="size-full object-contain" />
+                </span>
+                <span className="label-caps text-on-secondary-container">TK LABS AI</span>
+              </div>
               {message.thinking && (
                 <ReasoningTrace thinking={message.thinking} label={text.chat.reasoningLabel} showLabel={text.chat.reasoningShow} hideLabel={text.chat.reasoningHide} />
               )}
@@ -60,12 +66,12 @@ export function MessageList({
                 {message.content || (isPending && message.id === lastMessage?.id ? <AIThinkingBlock label={text.chat.thinking} /> : null)}
               </div>
               {message.content && !message.error && (
-                <div className="mt-5 flex flex-wrap items-center gap-3 border-t border-outline-variant pt-3 text-[11px] text-on-secondary-container">
-                  <button type="button" onClick={() => onCopy(message)} className="flex items-center gap-1.5 transition-colors hover:text-primary">
+                <div className="mt-5 flex flex-wrap items-center gap-2 border-t border-outline-variant pt-4 text-[11px] text-on-secondary-container">
+                  <button type="button" onClick={() => onCopy(message)} className="flex items-center gap-1.5 rounded-full px-2.5 py-1.5 transition-colors hover:bg-surface-container-low hover:text-primary">
                     {copiedMessageId === message.id ? <Check size={13} /> : <Copy size={13} />}
                     {copiedMessageId === message.id ? text.chat.copied : text.chat.copy}
                   </button>
-                  <button type="button" onClick={() => onSpeak(message)} aria-pressed={speakingMessageId === message.id} className="flex items-center gap-1.5 transition-colors hover:text-primary">
+                  <button type="button" onClick={() => onSpeak(message)} aria-pressed={speakingMessageId === message.id} className="flex items-center gap-1.5 rounded-full px-2.5 py-1.5 transition-colors hover:bg-surface-container-low hover:text-primary">
                     <Volume2 size={13} />
                     {speakingMessageId === message.id ? text.chat.stopSpeaking : text.chat.speak}
                   </button>

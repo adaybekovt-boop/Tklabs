@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 
 import { auth, signIn } from "@/auth";
 import { LanguageToggle } from "@/components/site/LanguageToggle";
+import { SiteLogo } from "@/components/site/SiteLogo";
 import { FlowButton } from "@/components/ui/flow-button";
 import { ScrollReveal } from "@/components/ui/scroll-reveal";
 import { getDictionary } from "@/lib/i18n";
@@ -19,7 +20,7 @@ export default async function LoginPage() {
     <div className="flex min-h-screen flex-col bg-surface">
       <header className="border-b-[0.5px] border-primary">
         <div className="stitch-container flex min-h-[92px] items-center justify-between gap-6">
-          <Link href="/" className="font-serif text-[28px]">TK LAB</Link>
+          <Link href="/" aria-label="TK LAB"><SiteLogo /></Link>
           <div className="flex items-center gap-5">
             <LanguageToggle locale={locale} label={text.nav.language} />
             <span className="label-caps hidden text-secondary sm:inline">{text.login.secure}</span>

@@ -20,6 +20,8 @@
   --color-outline: #7e7576;
   --color-outline-variant: #cfc4c5;
   --color-error: #ba1a1a;
+  --color-chat-accent: #718071;
+  --color-chat-accent-soft: #e9eee8;
   --spacing-gutter: 24px;
   --spacing-margin-mobile: 20px;
   --spacing-margin-desktop: 80px;
@@ -56,6 +58,8 @@ html[data-theme="dark"] {
   --color-outline: #a69e99;
   --color-outline-variant: #5c5652;
   --color-error: #ffb4ab;
+  --color-chat-accent: #b7c8b6;
+  --color-chat-accent-soft: #293229;
 }
 
 * {
@@ -99,9 +103,25 @@ button, span { overflow-wrap: break-word; }
 .hairline-t { border-top: 0.5px solid var(--color-primary); }
 .hairline-r { border-right: 0.5px solid var(--color-primary); }
 .quiet-grid { background-image: radial-gradient(circle at 2px 2px, color-mix(in srgb, var(--color-primary) 35%, transparent) 1px, transparent 0); background-size: 32px 32px; }
+.playground-shell {
+  background:
+    radial-gradient(circle at 88% 0%, color-mix(in srgb, var(--color-chat-accent-soft) 70%, transparent), transparent 34%),
+    var(--color-background);
+}
+.playground-header { position: relative; z-index: 60; border-color: color-mix(in srgb, var(--color-primary) 12%, transparent); }
+.playground-transcript {
+  background:
+    linear-gradient(135deg, color-mix(in srgb, var(--color-chat-accent-soft) 34%, transparent), transparent 44%),
+    var(--color-background);
+}
+.chat-composer-area { border-color: color-mix(in srgb, var(--color-primary) 12%, transparent); }
+.chat-empty-card { border-color: color-mix(in srgb, var(--color-chat-accent) 34%, var(--color-outline-variant)); }
+.chat-status-dot { box-shadow: 0 0 0 5px color-mix(in srgb, var(--color-chat-accent) 14%, transparent); }
+.chat-history-dropdown { border-color: color-mix(in srgb, var(--color-chat-accent) 34%, var(--color-outline-variant)); }
+.assistant-message-card { border-color: color-mix(in srgb, var(--color-chat-accent) 18%, var(--color-outline-variant)); }
 
 /* Smooth rounded corners for the modern feel */
-img, video, canvas, picture, svg { border-radius: 12px; }
+img, video, canvas, picture { border-radius: 12px; }
 button, a.quiet-button, .theme-toggle, .editorial-card, article, aside, section, form, input, textarea, select { border-radius: 14px; }
 table, thead, tbody, tfoot, tr, td, th { border-radius: 0; }
 

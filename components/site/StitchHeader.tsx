@@ -3,6 +3,7 @@ import Link from "next/link";
 import { auth } from "@/auth";
 import { GlowNav } from "@/components/site/GlowNav";
 import { LanguageToggle } from "@/components/site/LanguageToggle";
+import { SiteLogo } from "@/components/site/SiteLogo";
 import { TermsGate } from "@/components/legal/TermsGate";
 import { ThemeToggle } from "@/components/site/ThemeToggle";
 import { getDictionary } from "@/lib/i18n";
@@ -26,7 +27,7 @@ export async function StitchHeader({ active }: StitchHeaderProps) {
     <>
       <header className="sticky top-0 z-50 border-b-[0.5px] border-primary bg-surface/95 backdrop-blur-sm">
         <div className="stitch-container flex min-h-[68px] items-center justify-between gap-3 md:min-h-[80px] md:gap-8">
-          <Link href="/" className="shrink-0 font-serif text-[28px] tracking-[-0.03em]">TK LAB</Link>
+          <Link href="/" className="shrink-0" aria-label="TK LAB"><SiteLogo /></Link>
           <div className="hidden lg:block">
             <GlowNav active={active} />
           </div>

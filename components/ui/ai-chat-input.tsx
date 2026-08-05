@@ -11,6 +11,7 @@ export type ChatInputModel = {
   id: string;
   name: string;
   tierLabel: string;
+  markSrc?: string;
   status?: string;
   available: boolean;
 };
@@ -70,16 +71,16 @@ type SpeechRecognitionLike = {
 
 type SpeechRecognitionConstructor = new () => SpeechRecognitionLike;
 
-function ModelGlyph({ active = false }: { active?: boolean }) {
+function ModelMark({ model, active = false }: { model?: ChatInputModel; active?: boolean }) {
   return (
     <span
       aria-hidden="true"
       className={cn(
-        "grid size-5 place-items-center border text-[9px] transition-colors duration-200",
-        active ? "border-primary bg-primary text-on-primary" : "border-outline-variant text-primary",
+        "grid size-9 shrink-0 place-items-center overflow-hidden rounded-xl border p-1 transition-[border-color,background-color,transform] duration-200",
+        active ? "border-primary bg-primary/10 shadow-sm" : "border-outline-variant bg-surface-container-low",
       )}
     >
-      ✦
+      <img src={model?.markSrc ?? "/images/models/model-mark.png"} alt="" className="size-full object-contain" />
     </span>
   );
 }
@@ -343,7 +344,7 @@ export const PromptInput = React.forwardRef<HTMLDivElement, PromptInputProps>(fu
 
       <div
         className={cn(
-          "relative overflow-visible border bg-surface-container-lowest transition-[min-height,border-color] duration-400 ease-[cubic-bezier(.2,.8,.2,1)]",
+          "relative overflow-visible rounded-[2rem] border bg-surface-container-lowest transition-[min-height,border-color,box-shadow] duration-400 ease-[cubic-bezier(.2,.8,.2,1)]",
           expanded ? "min-h-[164px] border-primary md:min-h-[148px]" : "min-h-14 border-outline-variant",
         )}
       >
@@ -352,7 +353,7 @@ export const PromptInput = React.forwardRef<HTMLDivElement, PromptInputProps>(fu
             {attachments.map((attachment, index) => (
               <div
                 key={attachment.id}
-                className="prompt-attachment group relative size-12 shrink-0 overflow-hidden border border-outline-variant bg-surface"
+                className="prompt-attachment group relative size-12 shrink-0 overflow-hidden rounded-xl border border-outline-variant bg-surface"
                 style={{ animationDelay: `${index * 45}ms` }}
               >
                 <button
@@ -366,7 +367,7 @@ export const PromptInput = React.forwardRef<HTMLDivElement, PromptInputProps>(fu
                 </button>
                 <button
                   type="button"
-                  className="absolute right-0 top-0 grid size-6 place-items-center bg-primary text-on-primary opacity-100 transition-opacity sm:size-5 sm:opacity-0 sm:group-hover:opacity-100"
+                  className="absolute right-0 top-0 grid size-6 place-items-center rounded-full bg-primary text-on-primary opacity-100 transition-opacity sm:size-5 sm:opacity-0 sm:group-hover:opacity-100"
                   onClick={(event) => {
                     event.stopPropagation();
                     removeAttachment(attachment.id);
@@ -410,20 +411,20 @@ export const PromptInput = React.forwardRef<HTMLDivElement, PromptInputProps>(fu
             <div className="relative min-w-0 flex-1">
               <button
                 type="button"
-                className="flex h-8 w-full min-w-0 items-center gap-2 px-2 text-left text-[12px] font-medium text-on-surface-variant transition-colors hover:bg-surface-container"
+                className="flex h-9 w-full min-w-0 items-center gap-2 rounded-full border border-transparent bg-surface-container-low px-3 text-left text-[12px] font-medium text-on-surface-variant transition-[background-color,border-color,color] hover:border-outline-variant hover:bg-surface-container hover:text-primary"
                 onClick={() => setModelMenuOpen((open) => !open)}
                 aria-expanded={modelMenuOpen}
                 aria-haspopup="listbox"
                 title={selectedModel?.name ?? labels.model}
               >
-                <ModelGlyph />
+                <ModelMark model={selectedModel} />
                 <span className="min-w-0 flex-1 truncate">{selectedModel?.name ?? labels.model}</span>
                 <ChevronDown size={13} className={cn("transition-transform duration-300", modelMenuOpen && "rotate-180")} />
               </button>
 
               <div
                 className={cn(
-                  "absolute bottom-full left-0 z-40 mb-3 max-h-[min(380px,72vh)] w-[min(340px,calc(100vw-2rem))] origin-bottom-left overflow-y-auto border border-outline-variant bg-surface-container-lowest p-3 shadow-xl transition-[opacity,transform] duration-250 max-[420px]:fixed max-[420px]:inset-x-4 max-[420px]:bottom-28 max-[420px]:left-auto max-[420px]:top-auto max-[420px]:mb-0 max-[420px]:w-auto max-[420px]:origin-bottom",
+                  "absolute bottom-full left-0 z-40 mb-3 max-h-[min(380px,72vh)] w-[min(340px,calc(100vw-2rem))] origin-bottom-left overflow-y-auto rounded-3xl border border-outline-variant bg-surface-container-lowest p-3 shadow-xl transition-[opacity,transform] duration-250 max-[420px]:fixed max-[420px]:inset-x-4 max-[420px]:bottom-28 max-[420px]:left-auto max-[420px]:top-auto max-[420px]:mb-0 max-[420px]:w-auto max-[420px]:origin-bottom",
                   modelMenuOpen ? "pointer-events-auto translate-y-0 scale-100 opacity-100" : "pointer-events-none translate-y-2 scale-[0.98] opacity-0",
                 )}
                 role="listbox"
@@ -438,8 +439,8 @@ export const PromptInput = React.forwardRef<HTMLDivElement, PromptInputProps>(fu
                         type="button"
                         disabled={!model.available}
                         className={cn(
-                          "flex min-h-12 w-full items-center gap-3 px-3 py-2.5 text-left text-[13px] transition-colors hover:bg-surface-container-low disabled:opacity-35",
-                          selectedModelId === model.id && "bg-surface-container-low text-primary",
+                          "my-1 flex min-h-12 w-full items-center gap-3 rounded-2xl px-3 py-2.5 text-left text-[13px] transition-[background-color,color,transform] hover:-translate-y-px hover:bg-surface-container-low disabled:opacity-35",
+                          selectedModelId === model.id && "bg-surface-container-low text-primary shadow-sm",
                         )}
                         role="option"
                         aria-selected={selectedModelId === model.id}
@@ -448,7 +449,7 @@ export const PromptInput = React.forwardRef<HTMLDivElement, PromptInputProps>(fu
                           setModelMenuOpen(false);
                         }}
                       >
-                        <ModelGlyph active={selectedModelId === model.id} />
+                        <ModelMark model={model} active={selectedModelId === model.id} />
                         <span className="min-w-0 flex-1 truncate">{model.name}</span>
                         {model.status && <span className="shrink-0 text-[10px] uppercase tracking-[0.08em] text-on-secondary-container max-[420px]:hidden">{model.status}</span>}
                       </button>
@@ -460,7 +461,7 @@ export const PromptInput = React.forwardRef<HTMLDivElement, PromptInputProps>(fu
 
             <button
               type="button"
-              className="flex h-8 shrink-0 items-center gap-2 px-2 text-[12px] font-medium text-on-surface-variant transition-colors hover:bg-surface-container max-[420px]:px-1"
+              className="flex h-9 shrink-0 items-center gap-2 rounded-full px-3 text-[12px] font-medium text-on-surface-variant transition-colors hover:bg-surface-container max-[420px]:px-2"
               onClick={() => setEffortIndex((index) => (index + 1) % efforts.length)}
               title={labels.effort}
             >
@@ -471,7 +472,7 @@ export const PromptInput = React.forwardRef<HTMLDivElement, PromptInputProps>(fu
             {attachmentsEnabled && (
               <button
                 type="button"
-                className="ml-auto grid size-8 place-items-center text-on-surface-variant transition-colors hover:bg-surface-container hover:text-primary"
+                className="ml-auto grid size-9 place-items-center rounded-full text-on-surface-variant transition-colors hover:bg-surface-container hover:text-primary"
                 onClick={() => fileInputRef.current?.click()}
                 disabled={attachments.length >= 3}
                 aria-label={labels.addAttachment}
@@ -493,7 +494,7 @@ export const PromptInput = React.forwardRef<HTMLDivElement, PromptInputProps>(fu
 
         <button
           type="button"
-          className="absolute bottom-3 right-3 grid size-8 place-items-center bg-primary text-on-primary transition-[opacity,transform] duration-200 hover:opacity-75 active:scale-90 disabled:opacity-25"
+          className="absolute bottom-3 right-3 grid size-9 place-items-center rounded-full bg-primary text-on-primary shadow-lg transition-[opacity,transform] duration-200 hover:opacity-75 active:scale-90 disabled:opacity-25"
           onClick={() => {
             if (isRecording) stopRecording();
             else if (canSubmit) submit();
@@ -516,10 +517,10 @@ export const PromptInput = React.forwardRef<HTMLDivElement, PromptInputProps>(fu
 
       {activeAttachment && (
         <div className="prompt-preview fixed inset-0 z-[100] grid place-items-center bg-primary/85 p-6" role="dialog" aria-modal="true" onClick={() => setActiveAttachment(null)}>
-          <button type="button" className="absolute right-5 top-5 grid size-10 place-items-center bg-white text-primary" onClick={() => setActiveAttachment(null)} aria-label={labels.close}>
+          <button type="button" className="absolute right-5 top-5 grid size-10 place-items-center rounded-full bg-white text-primary shadow-lg" onClick={() => setActiveAttachment(null)} aria-label={labels.close}>
             <X size={17} />
           </button>
-          <div className="max-h-[82vh] max-w-[86vw] overflow-auto border border-on-primary/40 bg-surface p-6 text-primary" onClick={(event) => event.stopPropagation()}>
+          <div className="max-h-[82vh] max-w-[86vw] overflow-auto rounded-3xl border border-on-primary/40 bg-surface p-6 text-primary shadow-2xl" onClick={(event) => event.stopPropagation()}>
             <p className="mb-4 flex items-center gap-2 text-sm font-medium"><FileText size={16} /> {activeAttachment.name}</p>
             <pre className="max-h-[68vh] whitespace-pre-wrap text-left text-[13px] leading-[1.7]">{activeAttachment.content}</pre>
           </div>
