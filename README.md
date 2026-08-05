@@ -138,15 +138,14 @@ Provider and feature configuration:
 
 ## Cloudflare deployment
 
-The [Validate workflow](.github/workflows/ci.yml) runs on pull requests and branches. A push to `main` can trigger [the deployment workflow](.github/workflows/deploy-cloudflare.yml) only after the matching Validate run succeeds. It:
+The [Validate workflow](.github/workflows/ci.yml) runs on pull requests and branches. [The deployment workflow](.github/workflows/deploy-cloudflare.yml) runs automatically on every push to `main` and validates the production commit before deploying. It:
 
 1. installs the lockfile with `npm ci`;
-2. runs audit, typecheck, lint, behavior tests, and the production build in Validate;
-3. transfers the validated Worker build for the exact commit;
-4. verifies mandatory production secrets;
-5. validates Cloudflare runtime secret names without copying or rewriting their values;
-6. validates and applies only pending D1 migrations through the official `wrangler d1 migrations apply` command. Each migration and its `d1_migrations` ledger insert are one execution; a failed migration is not marked applied;
-7. deploys the validated Wrangler configuration while explicitly managing non-secret production variables.
+2. verifies Cloudflare deployment credentials;
+3. runs the complete `npm run check` plus production dependency audit;
+4. validates Cloudflare runtime secret names without copying or rewriting their values;
+5. validates and applies only pending D1 migrations through the official `wrangler d1 migrations apply` command. Each migration and its `d1_migrations` ledger insert are one execution; a failed migration is not marked applied;
+6. deploys the generated Wrangler configuration while explicitly managing non-secret production variables.
 
 Public values such as `AUTH_URL`, `CLODEX_ENABLED`, `CLODEX_GRANT_VERSION`, and TTS quota values are Wrangler vars. API keys, HMAC keys, OAuth secrets, access codes, and allowlists are runtime secrets.
 
