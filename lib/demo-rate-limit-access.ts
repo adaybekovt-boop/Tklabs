@@ -1,6 +1,7 @@
 import { env } from "cloudflare:workers";
 
 import { DEMO_REQUEST_LIMIT, DEMO_REQUEST_WINDOW_MS, type DemoConsumeResult } from "@/lib/demo-rate-limit";
+import { getRateLimitSecret, hmacSha256Hex } from "@/lib/rate-limit-identity";
 
 type DemoRateLimitStub = {
   consumeDemo(): Promise<DemoConsumeResult>;
@@ -29,10 +30,8 @@ function getNamespace() {
   return namespace;
 }
 
-async function rateLimitObjectName(identifier: string) {
-  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(identifier));
-  const hash = Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, "0")).join("");
-  return "demo:" + hash;
+export async function rateLimitObjectName(identifier: string) {
+  return "demo:" + await hmacSha256Hex(identifier, getRateLimitSecret());
 }
 
 function isDevelopment() {
@@ -58,11 +57,12 @@ function consumeLocally(identifier: string): DemoConsumeResult {
 export async function consumeDemoRequest(identifier: string) {
   if (!identifier.trim()) throw new DemoRateLimitUnavailableError();
   try {
-    return await getNamespace().getByName(await rateLimitObjectName(identifier.trim())).consumeDemo();
+    const bucket = await rateLimitObjectName(identifier.trim());
+    return await getNamespace().getByName(bucket).consumeDemo();
   } catch (error) {
     // Vinext's local RSC runner may not expose Durable Object bindings. Keep
     // localhost usable without weakening the production binding-backed limit.
     if (!isDevelopment()) throw error;
-    return consumeLocally(identifier.trim());
+    return consumeLocally(await rateLimitObjectName(identifier.trim()));
   }
 }

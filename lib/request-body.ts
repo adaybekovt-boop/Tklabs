@@ -1,4 +1,4 @@
-export const DEFAULT_JSON_BODY_LIMIT_BYTES = 128 * 1024;
+export const DEFAULT_JSON_BODY_LIMIT_BYTES = 256 * 1024;
 
 export class RequestBodyTooLargeError extends Error {
   constructor() {

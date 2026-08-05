@@ -1,13 +1,16 @@
 import type { ClodexAccessStatus } from "@/lib/clodex-access";
 
-const DEFAULT_UNLIMITED_AI_EMAILS = [
-  "kandykbayevtagir@gmail.com",
-  "adaybekovt@bk.ru",
-] as const;
+export function parseEmailAllowlist(value: string | undefined) {
+  return new Set(
+    (value ?? "")
+      .split(",")
+      .map((email) => email.trim().toLowerCase())
+      .filter(Boolean),
+  );
+}
 
 function configuredEmails() {
-  const configured = process.env.UNLIMITED_AI_EMAILS?.split(",").map((email) => email.trim().toLowerCase()).filter(Boolean) ?? [];
-  return new Set<string>([...DEFAULT_UNLIMITED_AI_EMAILS, ...configured]);
+  return parseEmailAllowlist(process.env.UNLIMITED_AI_EMAILS);
 }
 
 export function isPrivilegedAiEmail(email: string | null | undefined) {
@@ -29,6 +32,5 @@ export function privilegedAccessStatus(): ClodexAccessStatus {
 export function isClodexPromoEligible(email: string | null | undefined) {
   const normalized = email?.trim().toLowerCase();
   if (!normalized) return false;
-  const configured = process.env.CLODEX_PROMO_EMAILS?.split(",").map((value) => value.trim().toLowerCase()).filter(Boolean) ?? [];
-  return configured.includes(normalized);
+  return parseEmailAllowlist(process.env.CLODEX_PROMO_EMAILS).has(normalized);
 }
