@@ -65,7 +65,7 @@ npm run build
 npm audit --omit=dev --audit-level=high
 ```
 
-Final local result: all checks passed, including 10 unit tests and 22 integration/contract tests. The production dependency audit reported zero vulnerabilities. The integration suite uses a small Cloudflare binding loader and mocked NVIDIA/fake Durable Object providers; it never calls a paid provider or production database.
+Final local result: all checks passed, including 10 unit tests and 22 integration/contract tests. The production dependency audit reported zero vulnerabilities. The integration suite uses a small Cloudflare binding loader and mocked NVIDIA/fake Durable Object providers; it never calls a paid provider or production database. Both GitHub Validate jobs passed. The separate Cloudflare Workers Build check failed on this PR; its dashboard log requires the repository's Cloudflare access, and the same external check also failed transiently on PR #22 before a later build passed.
 
 ## Rollback
 
