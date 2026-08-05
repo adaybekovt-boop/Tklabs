@@ -11,9 +11,10 @@ import {
 } from "@/components/ui/ai-chat-input";
 import AIThinkingBlock from "@/components/ui/ai-thinking-block";
 import { MobileHistory } from "@/components/playground/MobileHistory";
+import type { AiResponseMeta } from "@/lib/ai/types";
 import type { ClodexAccessStatus } from "@/lib/clodex-access";
-import { CLODEX_MODELS } from "@/lib/clodex-models";
-import { DEFAULT_ERMA_MODEL_KEY, PRIVILEGED_MAX_PROMPT_LENGTH, PUBLIC_ERMA_MODELS, PUBLIC_MAX_PROMPT_LENGTH, type ErmaTier } from "@/lib/erma-public";
+import { CLODEX_MODELS } from "@/lib/models/clodex-public";
+import { DEFAULT_ERMA_MODEL_KEY, PRIVILEGED_MAX_PROMPT_LENGTH, PUBLIC_ERMA_MODELS, PUBLIC_MAX_PROMPT_LENGTH, type ErmaTier } from "@/lib/models/public";
 import { getDictionary, type Locale } from "@/lib/i18n";
 import { getSession, loadSettings, saveSession, type ArchivedMessage } from "@/lib/local-archive";
 import { cn } from "@/lib/utils";
@@ -34,7 +35,19 @@ type Message = {
   role: "user" | "assistant";
   content: string;
   error?: boolean;
+  meta?: AiResponseMeta;
 };
+
+function isResponseMeta(value: unknown): value is AiResponseMeta {
+  if (!value || typeof value !== "object") return false;
+  const meta = value as Partial<AiResponseMeta>;
+  return typeof meta.requestId === "string"
+    && typeof meta.requestedModel === "string"
+    && (meta.actualProvider === "nvidia" || meta.actualProvider === "clodex" || meta.actualProvider === "edge-fallback")
+    && typeof meta.actualModel === "string"
+    && typeof meta.latencyMs === "number"
+    && typeof meta.httpStatus === "number";
+}
 
 function uid() {
   return typeof crypto !== "undefined" && "randomUUID" in crypto
@@ -95,7 +108,7 @@ export function PlaygroundChat({ locale }: { locale: Locale }) {
 
   const clodexOptions: ChatInputModel[] = CLODEX_MODELS.map((model) => ({
     id: model.key,
-    name: model.id,
+    name: model.name,
     tierLabel: "Clodex",
     available: true,
   }));
@@ -402,46 +415,14 @@ export function PlaygroundChat({ locale }: { locale: Locale }) {
         return;
       }
 
-      const reader = response.body.getReader();
-      const decoder = new TextDecoder();
-      let buffer = "";
-      let assistantContent = "";
-
-      const processEvent = (event: string) => {
-        const line = event.split(/\r?\n/).find((entry) => entry.startsWith("data:"));
-        if (!line) return;
-        const data = line.slice(5).trim();
-        if (!data) return;
-
-        let payload: { token?: unknown };
-        try {
-          payload = JSON.parse(data) as { token?: unknown };
-        } catch {
-          return;
-        }
-
-        if (typeof payload.token === "string") {
-          assistantContent += payload.token;
-          appendAssistant(assistantId, (message) => ({ ...message, content: assistantContent }));
-        }
-      };
-
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        buffer += decoder.decode(value, { stream: true });
-        const events = buffer.split(/\r?\n\r?\n/);
-        buffer = events.pop() ?? "";
-
-        for (const event of events) processEvent(event);
-      }
-
-      buffer += decoder.decode();
-      if (buffer.trim()) processEvent(buffer);
+      const payload = await response.json().catch(() => null) as { answer?: unknown; meta?: unknown } | null;
+      const assistantContent = typeof payload?.answer === "string" ? payload.answer.trim() : "";
+      if (!assistantContent) throw new Error("The AI response was empty.");
+      const responseMeta = isResponseMeta(payload?.meta) ? payload.meta : undefined;
 
       setMessages((current) => {
         const next = current.map((message) => message.id === assistantId
-          ? { ...message, content: assistantContent }
+          ? { ...message, content: assistantContent, ...(responseMeta ? { meta: responseMeta } : {}) }
           : message,
         );
         saveSession({
@@ -516,7 +497,6 @@ export function PlaygroundChat({ locale }: { locale: Locale }) {
                   <div className={cn("max-w-[96%] border-l-2 py-3 pl-5 sm:max-w-[92%] sm:pl-6", message.error ? "border-error" : "border-primary")}>
                     <div className={cn("whitespace-pre-wrap text-[15px] leading-[1.75]", message.error ? "text-error" : "text-primary")}>
                       {message.content || (isStreaming ? <AIThinkingBlock label={text.chat.thinking} /> : null)}
-                      {isStreaming && message.id === lastMessage?.id && message.content && <span className="streaming-caret ml-1 inline-block h-4 w-px bg-primary align-middle" />}
                     </div>
                     {message.content && !message.error && (message.id !== lastMessage?.id || !isStreaming) && (
                       <div className="mt-5 flex flex-wrap items-center gap-3 border-t border-outline-variant pt-3 text-[11px] text-on-secondary-container">
@@ -528,6 +508,16 @@ export function PlaygroundChat({ locale }: { locale: Locale }) {
                           <Volume2 size={13} />
                           {speechMessageId === message.id ? text.chat.stopSpeaking : text.chat.speak}
                         </button>
+                        {message.meta && (
+                          <span className="min-w-0 max-w-full break-words text-on-secondary-container">
+                            {(message.meta.actualProvider === "nvidia" ? text.chat.providerNvidia : message.meta.actualProvider === "clodex" ? text.chat.providerClodex : text.chat.providerFallback)}
+                            {message.meta.actualProvider !== "edge-fallback" && ` · ${message.meta.actualModel}`}
+                            {` · ${message.meta.latencyMs} ms`}
+                          </span>
+                        )}
+                        {message.meta?.fallbackReason && (
+                          <span className="basis-full text-error">{text.chat.fallbackNotice}</span>
+                        )}
                         {speechNotice && message.id === lastMessage?.id && <span className="text-error">{speechNotice}</span>}
                       </div>
                     )}

@@ -1,5 +1,7 @@
 "use client";
 
+import type { AiResponseMeta } from "@/lib/ai/types";
+
 // Everything here is stored only in this browser's localStorage. Nothing is
 // sent to or read from a TK LAB server — see the privacy notes on /truth.
 
@@ -7,12 +9,7 @@ export type ArchivedMessage = {
   id: string;
   role: "user" | "assistant";
   content: string;
-  meta?: {
-    model: string;
-    provider: string;
-    providerModel?: string;
-    latencyMs: number;
-  };
+  meta?: AiResponseMeta;
 };
 
 export type ArchivedSession = {
@@ -57,8 +54,8 @@ export function loadArchive(): ArchivedSession[] {
           id: typeof message.id === "string" ? message.id : `${session.id}-${Math.random().toString(36).slice(2, 8)}`,
           role: message.role,
           content: message.content.slice(0, MAX_MESSAGE_CONTENT_LENGTH),
-          ...(message.meta && typeof message.meta === "object" && typeof message.meta.model === "string" && typeof message.meta.provider === "string"
-            ? { meta: { model: message.meta.model.slice(0, 120), provider: message.meta.provider.slice(0, 80), ...(typeof message.meta.providerModel === "string" ? { providerModel: message.meta.providerModel.slice(0, 160) } : {}), latencyMs: typeof message.meta.latencyMs === "number" ? message.meta.latencyMs : 0 } }
+          ...(message.meta && typeof message.meta === "object" && typeof message.meta.requestId === "string" && typeof message.meta.requestedModel === "string" && typeof message.meta.actualProvider === "string" && typeof message.meta.actualModel === "string"
+            ? { meta: { requestId: message.meta.requestId.slice(0, 120), requestedModel: message.meta.requestedModel.slice(0, 120), actualProvider: message.meta.actualProvider.slice(0, 40) as AiResponseMeta["actualProvider"], actualModel: message.meta.actualModel.slice(0, 160), latencyMs: typeof message.meta.latencyMs === "number" ? Math.max(0, Math.round(message.meta.latencyMs)) : 0, httpStatus: typeof message.meta.httpStatus === "number" ? message.meta.httpStatus : 200, ...(typeof message.meta.fallbackReason === "string" ? { fallbackReason: message.meta.fallbackReason.slice(0, 120) } : {}) } }
             : {}),
         }];
       }).slice(-MAX_MESSAGES_PER_SESSION);
@@ -90,7 +87,7 @@ export function saveSession(session: ArchivedSession) {
       id: message.id.slice(0, 120),
       role: message.role,
       content: message.content.slice(0, MAX_MESSAGE_CONTENT_LENGTH),
-      ...(message.meta ? { meta: { ...message.meta, model: message.meta.model.slice(0, 120), provider: message.meta.provider.slice(0, 80), providerModel: message.meta.providerModel?.slice(0, 160) } } : {}),
+      ...(message.meta ? { meta: { ...message.meta, requestId: message.meta.requestId.slice(0, 120), requestedModel: message.meta.requestedModel.slice(0, 120), actualProvider: message.meta.actualProvider.slice(0, 40) as AiResponseMeta["actualProvider"], actualModel: message.meta.actualModel.slice(0, 160), latencyMs: Math.max(0, Math.round(message.meta.latencyMs)), fallbackReason: message.meta.fallbackReason?.slice(0, 120) } } : {}),
     })),
   };
   const sessions = [safeSession, ...loadArchive().filter((entry) => entry.id !== safeSession.id)].slice(0, MAX_SESSIONS);

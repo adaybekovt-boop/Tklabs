@@ -10,60 +10,19 @@ export type ErmaModel = {
   status: ErmaModelStatus;
   available: boolean;
   reasoning: boolean;
-  vision: boolean;
-  tools: boolean;
+  vision: false;
+  tools: false;
 };
 
-/**
- * Public Erma names are product aliases. The NVIDIA model IDs stay here on
- * the server side so the browser can only request a known catalog entry.
- */
+/** Server-only catalog. Never import this module from a client component. */
 export const ERMA_MODELS: readonly ErmaModel[] = [
-  {
-    key: "erma-spark-lite",
-    name: "Erma Lite",
-    tier: "light",
-    nvidiaModel: "nvidia/nemotron-3-nano-30b-a3b",
-    status: "available",
-    available: true,
-    reasoning: false,
-    vision: false,
-    tools: true,
-  },
-  {
-    key: "erma-nutron",
-    name: "Erma Core",
-    tier: "medium",
-    nvidiaModel: "nvidia/nemotron-3-super-120b-a12b",
-    status: "available",
-    available: true,
-    reasoning: true,
-    vision: false,
-    tools: true,
-  },
-  {
-    key: "erma-apolon",
-    name: "Erma Pro",
-    tier: "heavy",
-    nvidiaModel: "deepseek-ai/deepseek-v4-pro",
-    status: "available",
-    available: true,
-    reasoning: true,
-    vision: false,
-    tools: true,
-  },
+  { key: "erma-spark-lite", name: "Erma Lite", tier: "light", nvidiaModel: "nvidia/nemotron-3-nano-30b-a3b", status: "available", available: true, reasoning: false, vision: false, tools: false },
+  { key: "erma-nutron", name: "Erma Core", tier: "medium", nvidiaModel: "nvidia/nemotron-3-super-120b-a12b", status: "available", available: true, reasoning: true, vision: false, tools: false },
+  { key: "erma-apolon", name: "Erma Pro", tier: "heavy", nvidiaModel: "deepseek-ai/deepseek-v4-pro", status: "available", available: true, reasoning: true, vision: false, tools: false },
 ] as const;
 
 export const DEFAULT_ERMA_MODEL_KEY = "erma-spark-lite";
 
-export function getErmaModel(key: string | undefined): ErmaModel {
-  return ERMA_MODELS.find((model) => model.key === key && model.available) ?? ERMA_MODELS.find((model) => model.available) ?? ERMA_MODELS[0];
-}
-
-/**
- * One reliable assistant persona per tier. The character layer is optional;
- * a normal task must never be hijacked by a forced joke or theatrical scene.
- */
 export const ERMA_TIER_SYSTEM_PROMPTS: Record<ErmaTier, string> = {
   light: `Ты — Erma Lite, быстрый и аккуратный AI-ассистент.
 
@@ -100,10 +59,14 @@ const ERMA_CHARACTER_STYLE = `
 - Не превращай ответ в сценку и не вставляй случайные фразы. Никогда не используй оскорбления, угрозы, панику или обязательные catchphrase.
 - Сначала всегда реши задачу, а характер добавляй только после полезного ответа.`;
 
+export function getErmaModel(key: string | undefined): ErmaModel {
+  return ERMA_MODELS.find((model) => model.key === key && model.available) ?? ERMA_MODELS.find((model) => model.available) ?? ERMA_MODELS[0];
+}
+
 export function normalizeErmaTone(value: unknown): ErmaTone {
   return value === "character" ? "character" : "professional";
 }
 
-export function getErmaSystemPrompt(model: ErmaModel, tone: ErmaTone = "professional"): string {
+export function getErmaSystemPrompt(model: ErmaModel, tone: ErmaTone = "professional") {
   return `${ERMA_TIER_SYSTEM_PROMPTS[model.tier]}${tone === "character" ? ERMA_CHARACTER_STYLE : ""}`;
 }

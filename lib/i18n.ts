@@ -384,7 +384,7 @@ export const dictionaries = {
       thinking: "Думает...",
       clodexReady: "Erma + Clodex доступны",
       newDialog: "Новый диалог",
-      history: "История",
+      history: "Локальные сессии",
       emptyKicker: "Playground / 01",
       emptyTitle: "С чего начнём?",
       emptyDescription: "Выберите модель, настройте глубину ответа и сформулируйте задачу.",
@@ -418,6 +418,7 @@ export const dictionaries = {
       providerNvidia: "NVIDIA Build API",
       providerClodex: "Clodex",
       providerFallback: "Локальный резерв",
+      fallbackNotice: "Выбранная модель временно недоступна. Ответ сформирован резервным режимом.",
       input: {
         effort: "Уровень рассуждения",
         effortLow: "Быстро",
@@ -822,7 +823,7 @@ export const dictionaries = {
       thinking: "Thinking...",
       clodexReady: "Erma + Clodex available",
       newDialog: "New conversation",
-      history: "History",
+      history: "Browser sessions",
       emptyKicker: "Playground / 01",
       emptyTitle: "Where should we begin?",
       emptyDescription: "Choose a model, set response depth, and formulate the task.",
@@ -856,6 +857,7 @@ export const dictionaries = {
       providerNvidia: "NVIDIA Build API",
       providerClodex: "Clodex",
       providerFallback: "Local fallback",
+      fallbackNotice: "The selected model is temporarily unavailable. This answer was produced by a fallback mode.",
       input: {
         effort: "Reasoning level",
         effortLow: "Fast",
