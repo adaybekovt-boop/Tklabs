@@ -232,6 +232,7 @@ test("privileged workspace access is reflected in the client and profile", async
   const publicModels = await text("lib/models/public.ts");
   const playground = await text("components/playground/PlaygroundChat.tsx");
   const profile = await text("app/profile/page.tsx");
+  const accessRoute = await text("app/api/profile/access/route.ts");
   const input = await text("components/ui/ai-chat-input.tsx");
 
   assert.match(publicModels, /PRIVILEGED_MAX_PROMPT_LENGTH = 16_000/);
@@ -240,6 +241,8 @@ test("privileged workspace access is reflected in the client and profile", async
   assert.match(profile, /isPrivilegedAiEmail/);
   assert.match(profile, /unlimitedDailyValue/);
   assert.match(input, /try \{\n      recognition\.start\(\);/);
+  assert.match(accessRoute, /if \(isPrivilegedAiEmail\(email\)\) return Response\.json\(privilegedAccessStatus\(\)/);
+  assert.match(accessRoute, /privilegedAccessStatus\(\)[\s\S]*if \(!isClodexEnabled\(\)\) return disabledResponse\(\)/);
 });
 
 test("new Playground does not show the duplicated empty-state heading", async () => {
