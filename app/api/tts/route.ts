@@ -1,6 +1,7 @@
 import { auth } from "@/auth";
 import { AccountAccessUnavailableError, commitTts, releaseTts, reserveTts } from "@/lib/account-access";
 import { TTS_MAX_TEXT_LENGTH } from "@/lib/tts-rate-limit";
+import { isPrivilegedAiEmail } from "@/lib/privileged-access";
 import { parseJsonBody, RequestBodyTooLargeError } from "@/lib/request-body";
 import { isTrustedRequestOrigin } from "@/lib/request-security";
 
@@ -10,6 +11,8 @@ const ELEVENLABS_ENDPOINT = "https://api.elevenlabs.io/v1/text-to-speech";
 const PROVIDER_TIMEOUT_MS = 20_000;
 
 type SpeechRequest = { text?: unknown; locale?: unknown };
+type Session = { user?: { email?: string | null } } | null;
+type SessionReader = () => Promise<Session>;
 
 function noStore(init?: ResponseInit) {
   return { ...init, headers: { "cache-control": "no-store", ...(init?.headers ?? {}) } };
@@ -19,9 +22,9 @@ function errorResponse(error: string, status: number, requestId?: string) {
   return Response.json({ error, ...(requestId ? { requestId } : {}) }, noStore({ status, headers: requestId ? { "x-request-id": requestId } : undefined }));
 }
 
-async function sessionEmail() {
+async function sessionEmail(readSession: SessionReader = auth) {
   try {
-    return (await auth())?.user?.email?.trim().toLowerCase() ?? "";
+    return (await readSession())?.user?.email?.trim().toLowerCase() ?? "";
   } catch (error) {
     console.error("speech.auth_unavailable", { reason: error instanceof Error ? error.name : "unknown" });
     return null;
@@ -99,8 +102,8 @@ function proxyAudio(
   return stream;
 }
 
-export async function GET() {
-  const email = await sessionEmail();
+export async function GET(readSession: SessionReader = auth) {
+  const email = await sessionEmail(readSession);
   if (email === null) return errorResponse("Speech service is temporarily unavailable.", 503);
   if (!email) return errorResponse("Authentication required.", 401);
   return Response.json(
@@ -109,11 +112,11 @@ export async function GET() {
   );
 }
 
-export async function POST(request: Request) {
+export async function POST(request: Request, readSession: SessionReader = auth) {
   const requestId = crypto.randomUUID();
   if (!isTrustedRequestOrigin(request)) return errorResponse("Request origin is not allowed.", 403, requestId);
 
-  const email = await sessionEmail();
+  const email = await sessionEmail(readSession);
   if (email === null) return errorResponse("Speech service is temporarily unavailable.", 503, requestId);
   if (!email) return errorResponse("Authentication required.", 401, requestId);
 
@@ -126,17 +129,19 @@ export async function POST(request: Request) {
   }
 
   const speechText = typeof body?.text === "string" ? body.text.trim() : "";
-  if (!speechText || speechText.length > TTS_MAX_TEXT_LENGTH) {
+  const characterCount = Array.from(speechText).length;
+  if (!speechText || characterCount > TTS_MAX_TEXT_LENGTH) {
     return errorResponse(`Text must contain 1-${TTS_MAX_TEXT_LENGTH} characters.`, 400, requestId);
   }
 
   const apiKey = process.env.ELEVENLABS_API_KEY?.trim() ?? "";
   const voiceId = process.env.ELEVENLABS_VOICE_ID?.trim() ?? "";
   if (!apiKey || !voiceId) return errorResponse("High-quality speech is not configured.", 503, requestId);
+  if (request.signal.aborted) return errorResponse("Request cancelled.", 499, requestId);
 
   let reservationId = "";
   try {
-    const reservation = await reserveTts(email, speechText.length);
+    const reservation = await reserveTts(email, characterCount, isPrivilegedAiEmail(email));
     if (!reservation.allowed) {
       const message = reservation.error === "parallel_request"
         ? "A speech request is already in progress."
@@ -155,12 +160,16 @@ export async function POST(request: Request) {
     return errorResponse("Speech service is temporarily unavailable.", 503, requestId);
   }
   if (!reservationId) return errorResponse("Speech service is temporarily unavailable.", 503, requestId);
+  if (request.signal.aborted) {
+    await releaseReservation(email, reservationId, requestId);
+    return errorResponse("Request cancelled.", 499, requestId);
+  }
 
   const language = body?.locale === "en" ? "en" : "ru";
   const modelId = process.env.ELEVENLABS_MODEL_ID?.trim() || "eleven_multilingual_v2";
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), PROVIDER_TIMEOUT_MS);
-  const signal = request.signal.aborted ? controller.signal : AbortSignal.any([request.signal, controller.signal]);
+  const signal = AbortSignal.any([request.signal, controller.signal]);
 
   try {
     const response = await fetch(`${ELEVENLABS_ENDPOINT}/${encodeURIComponent(voiceId)}/stream?output_format=mp3_44100_128`, {
@@ -202,6 +211,7 @@ export async function POST(request: Request) {
   } catch (error) {
     await releaseReservation(email, reservationId, requestId);
     clearTimeout(timeout);
+    if (request.signal.aborted) return errorResponse("Request cancelled.", 499, requestId);
     if (!(error instanceof DOMException && error.name === "AbortError")) console.error("tts.provider_failed", { requestId, reason: error instanceof Error ? error.name : "unknown" });
     return errorResponse("High-quality speech is temporarily unavailable.", 502, requestId);
   }
