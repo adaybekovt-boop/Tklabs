@@ -136,7 +136,7 @@ Provider and feature configuration:
 - `npm run build` — one production Worker build.
 - `npm run check` — typecheck, lint, tests, and build.
 - `npm run db:generate` — generate a reviewed Drizzle migration when the D1 schema changes.
-- `npm run db:migrate` — apply every ordered `drizzle/*.sql` migration idempotently to the configured remote D1 database.
+- `npm run db:migrate` — validate the ordered `drizzle/*.sql` files and invoke the official `wrangler d1 migrations apply tklabs --remote` flow. Wrangler selects only pending files and writes its `d1_migrations` ledger row in the same D1 execution as each migration.
 
 ## Cloudflare deployment
 
@@ -147,7 +147,7 @@ The [Validate workflow](.github/workflows/ci.yml) runs on pull requests and bran
 3. transfers the validated Worker build for the exact commit;
 4. verifies mandatory production secrets;
 5. uploads only runtime secrets with `wrangler secret put`;
-6. applies all ordered D1 migrations through `npm run db:migrate`;
+6. validates and applies only pending D1 migrations through the official `wrangler d1 migrations apply` command. Each migration and its `d1_migrations` ledger insert are one execution; a failed migration is not marked applied;
 7. deploys the validated Wrangler configuration.
 
 Public values such as `AUTH_URL`, `CLODEX_ENABLED`, `CLODEX_GRANT_VERSION`, and TTS quota values are Wrangler vars. API keys, HMAC keys, OAuth secrets, access codes, and allowlists are runtime secrets.

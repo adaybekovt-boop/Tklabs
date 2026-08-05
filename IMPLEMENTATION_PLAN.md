@@ -43,9 +43,9 @@
 - [x] Grant `grant_version` is now the server policy version (`CLODEX_GRANT_VERSION`, default `v2`), never a UUID.
 - [x] Demo/TTS reservations have bounded two-minute TTLs, explicit `reserved/committed/released/expired` state, bounded cleanup, and idempotent expiry/refund behavior.
 - [x] Status checks moved from an isolate-local cache to a shared `HealthStatus` Durable Object with 60-second TTL, five-minute stale fallback, single-flight refresh, no secret/body output, and Clodex probe gating.
-- [x] D1 runner reads the ledger and executes only pending, safely named migrations; failed files are not recorded and reruns are no-ops.
+- [x] D1 deployment now delegates pending-file selection and the `d1_migrations` ledger to official `wrangler d1 migrations apply --remote`; the migration SQL and ledger insert execute together, failed files are not marked applied, and a repeat with no pending files is a no-op.
 - [x] TTS counts Unicode code points with `Array.from`, honors pre-provider aborts, and enforces public/privileged production quotas with one parallel request and a 2,000-code-point request cap.
-- [x] Added behavioral coverage for fallback settlement, account precedence, admin route failure modes, migration ledger logic, health binding contract, and exact TTS policy defaults.
+- [x] Added behavioral coverage for fallback settlement, account precedence, admin route failure modes, framework-compatible route signatures, TTS retry windows, official migration delegation, health binding contract, and exact TTS policy defaults.
 
 ### P1 — backend architecture — completed
 
@@ -77,7 +77,7 @@ npm run build
 npm audit --omit=dev --audit-level=high
 ```
 
-Final follow-up result: `npm ci`, production audit, typecheck, lint, 11 unit tests, 29 integration/contract tests, `npm test`, production build, and `git diff --check` all pass locally. The production dependency audit reported zero vulnerabilities. The integration suite uses a small Cloudflare binding loader and mocked NVIDIA/fake Durable Object providers; it never calls a paid provider or production database. Both GitHub Validate jobs passed. The separate Cloudflare Workers Build check failed on PR #24 (latest observed build `e7985ba1-59a9-4178-84d7-907735c367e2`); its dashboard log requires repository Cloudflare access, so this change does not claim that external failure is fixed.
+Final follow-up result: local `npm ci`, production audit, typecheck, lint, 11 unit tests, 30 integration/contract tests, `npm test`, production build, `wrangler deploy --dry-run`, and `git diff --check` pass. The production dependency audit reports zero vulnerabilities. The integration suite uses a small Cloudflare binding loader and mocked NVIDIA/fake Durable Object providers; it never calls a paid provider or production database. The separate Cloudflare Workers Build check was inspected in the dashboard at build `0b43d7c8-7270-4a7e-b060-65b0309637a0` (commit `4387f32`). Build and packaging completed, but deployment failed with Cloudflare API error `10181`: the generated `DB` binding referenced the stale database ID `7b481442-f635-41f2-ba5d-a62f106c518c`, which does not exist in the account. The live `tklabs` D1 database is `c4085a86-0fec-49f2-b2ed-5999190fcc30`; the repository fallback and workflow fallback now use that ID. The next external build must be green before this draft is considered merge-ready.
 
 ## Rollback
 
@@ -86,7 +86,9 @@ Rollback is a revert of the draft PR. Durable Object schema changes are additive
 ## Manual GitHub / Cloudflare actions
 
 - Confirm repository default branch is `main`, enable branch protection/required checks, and enable automatic head-branch deletion after merge.
-- Configure production secrets and variables listed in `.env.example` in the correct Cloudflare account/Worker and GitHub environment.
-- If GitHub Actions is the sole production deploy path, disable the duplicate Cloudflare Git Integration build or align its build command/environment; otherwise investigate its failed `Workers Builds: tkai` check in the Cloudflare dashboard before merge. Do not mark the external check fixed without a successful log.
+- Configure production secrets and variables listed in `.env.example` in the correct Cloudflare account/Worker and GitHub environment. The inspected Worker currently has `AUTH_URL=http://localhost:3000` and no dashboard build variables; set the production value to `https://tklabs.uk` or disable the duplicate Git Integration deployment path.
+- The inspected Cloudflare Git Integration uses repository root `/`, Node.js `24.18.0`, `npm run build`, and `npx wrangler versions upload`; it has production branch `main`, non-production builds enabled, and no build variables. Either align it with the GitHub Actions contract (including the corrected D1 ID, `AUTH_URL`, secrets, and `HEALTH_STATUS`) or disable it so GitHub Actions is the single production path.
+- If GitHub Actions is the sole production deploy path, disable the duplicate Cloudflare Git Integration build or builds for non-production branches. Do not mark the external check fixed without a subsequent successful dashboard build.
+- Ensure the Cloudflare Worker runtime contains the required HMAC/provider secrets, including `RATE_LIMIT_SECRET` and `ACCOUNT_ID_SECRET`; secret values must be entered manually and are not stored in this repository.
 - Confirm the GitHub deployment account owns the `tklabs.uk` zone and the intended Worker; a local Wrangler account may not have access to that zone.
 - Review open PR #8 separately; it is from an earlier architecture and should not be merged without rebasing and re-review.
