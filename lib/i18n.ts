@@ -136,6 +136,19 @@ export const dictionaries = {
       entries: [
         {
           date: "05 Aug 2026",
+          version: "v0.7.1",
+          title: "Mainline hardening release",
+          summary: "The repository hardening work is now merged into main with safer boundaries, clearer operations, and a verified release pipeline.",
+          changes: [
+            "Merged the focused security and architecture cleanup into the main production branch after a successful validation workflow.",
+            "Documented the complete AI request lifecycle: bounded body and attachment validation, provider routing, fallback provenance, request IDs, and safe response metadata.",
+            "Added production deployment guards for authentication, HMAC rate limiting, NVIDIA inference, and Cloudflare credentials before deployment starts.",
+            "Published repository maintenance guidance through the updated README, SECURITY.md, CONTRIBUTING.md, and implementation plan.",
+            "Kept the Clodex experiment feature-gated and the terms gate database-backed, with no secrets or personal allowlists committed to the repository.",
+          ],
+        },
+        {
+          date: "05 Aug 2026",
           version: "v0.7.0",
           title: "Repository hardening & honest provider routing",
           summary: "The AI workspace now has stricter request boundaries, clearer provider provenance, and a smaller server surface to maintain.",
@@ -582,6 +595,19 @@ export const dictionaries = {
       title: "What changed in TK LAB.",
       intro: "A public, English-language log of product, interface, and reliability updates. New releases will be added here as the system evolves.",
       entries: [
+        {
+          date: "05 Aug 2026",
+          version: "v0.7.1",
+          title: "Mainline hardening release",
+          summary: "The repository hardening work is now merged into main with safer boundaries, clearer operations, and a verified release pipeline.",
+          changes: [
+            "Merged the focused security and architecture cleanup into the main production branch after a successful validation workflow.",
+            "Documented the complete AI request lifecycle: bounded body and attachment validation, provider routing, fallback provenance, request IDs, and safe response metadata.",
+            "Added production deployment guards for authentication, HMAC rate limiting, NVIDIA inference, and Cloudflare credentials before deployment starts.",
+            "Published repository maintenance guidance through the updated README, SECURITY.md, CONTRIBUTING.md, and implementation plan.",
+            "Kept the Clodex experiment feature-gated and the terms gate database-backed, with no secrets or personal allowlists committed to the repository.",
+          ],
+        },
         {
           date: "05 Aug 2026",
           version: "v0.7.0",
