@@ -25,3 +25,10 @@ export function privilegedAccessStatus(): ClodexAccessStatus {
     resetAt: null,
   };
 }
+
+export function isClodexPromoEligible(email: string | null | undefined) {
+  const normalized = email?.trim().toLowerCase();
+  if (!normalized) return false;
+  const configured = process.env.CLODEX_PROMO_EMAILS?.split(",").map((value) => value.trim().toLowerCase()).filter(Boolean) ?? [];
+  return configured.includes(normalized);
+}

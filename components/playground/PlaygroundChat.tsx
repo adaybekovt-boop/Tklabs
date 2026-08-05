@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { BookOpen, Check, Copy, Cpu, PenLine, Route, Square, Timer, Volume2 } from "lucide-react";
+import { BookOpen, Check, Copy, PenLine, Square, Volume2 } from "lucide-react";
 
 import {
   PromptInput,
@@ -26,18 +26,10 @@ const TIER_LABEL: Record<ErmaTier, string> = {
 type SuggestionKind = "learn" | "write";
 type Tone = "professional" | "character";
 
-type Meta = {
-  model: string;
-  provider: string;
-  providerModel?: string;
-  latencyMs: number;
-};
-
 type Message = {
   id: string;
   role: "user" | "assistant";
   content: string;
-  meta?: Meta;
   error?: boolean;
 };
 
@@ -291,9 +283,9 @@ export function PlaygroundChat({ locale }: { locale: Locale }) {
           const data = line.slice(5).trim();
           if (!data) continue;
 
-          let payload: { token?: string; done?: boolean; meta?: Meta };
+          let payload: { token?: string; done?: boolean };
           try {
-            payload = JSON.parse(data) as { token?: string; done?: boolean; meta?: Meta };
+            payload = JSON.parse(data) as { token?: string; done?: boolean };
           } catch {
             continue;
           }
@@ -303,7 +295,7 @@ export function PlaygroundChat({ locale }: { locale: Locale }) {
           }
           if (payload.done) {
             setMessages((current) => {
-              const next = current.map((message) => (message.id === assistantId ? { ...message, meta: payload.meta } : message));
+              const next = current;
               saveSession({
                 id: sessionIdRef.current,
                 title: titleFrom(prompt),
@@ -326,7 +318,6 @@ export function PlaygroundChat({ locale }: { locale: Locale }) {
   }
 
   const lastMessage = messages[messages.length - 1];
-  const providerLabel = (provider: string) => provider === "nvidia" ? text.chat.providerNvidia : provider === "clodex" ? text.chat.providerClodex : text.chat.providerFallback;
 
   return (
     <>
@@ -389,13 +380,6 @@ export function PlaygroundChat({ locale }: { locale: Locale }) {
                           {speechMessageId === message.id ? text.chat.stopSpeaking : text.chat.speak}
                         </button>
                         {speechNotice && message.id === lastMessage?.id && <span className="text-error">{speechNotice}</span>}
-                      </div>
-                    )}
-                    {message.meta && (
-                      <div className="response-meta-enter mt-5 flex flex-wrap items-center gap-x-5 gap-y-2 border-t border-outline-variant pt-4 text-[11px] text-on-secondary-container">
-                        <span className="flex items-center gap-1.5"><Route size={13} /> {providerLabel(message.meta.provider)}</span>
-                        <span className="flex items-center gap-1.5"><Cpu size={13} /> {message.meta.model}</span>
-                        <span className="flex items-center gap-1.5"><Timer size={13} /> {message.meta.latencyMs} {text.status.ms}</span>
                       </div>
                     )}
                   </div>

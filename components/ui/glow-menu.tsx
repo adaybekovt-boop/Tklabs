@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { motion } from "framer-motion";
+import { motion, type Variants } from "framer-motion";
 import { cn } from "@/lib/utils";
 import { LucideIcon } from "lucide-react";
 
@@ -13,31 +13,32 @@ interface MenuItem {
   iconColor: string;
 }
 
-interface MenuBarProps extends React.HTMLAttributes<HTMLDivElement> {
+interface MenuBarProps {
   items: MenuItem[];
   activeItem?: string;
   onItemClick?: (label: string) => void;
+  className?: string;
 }
 
-const glowVariants = {
+const glowVariants: Variants = {
   initial: { opacity: 0, scale: 0.6 },
   hover: {
     opacity: 1,
     scale: 1.8,
     transition: {
-      opacity: { duration: 0.4, ease: [0.4, 0, 0.2, 1] },
+      opacity: { duration: 0.4, ease: [0.4, 0, 0.2, 1] as const },
       scale: { duration: 0.5, type: "spring", stiffness: 300, damping: 25 },
     },
   },
 };
 
-const navGlowVariants = {
+const navGlowVariants: Variants = {
   initial: { opacity: 0 },
   hover: {
     opacity: 1,
     transition: {
       duration: 0.4,
-      ease: [0.4, 0, 0.2, 1],
+      ease: [0.4, 0, 0.2, 1] as const,
     },
   },
 };
@@ -58,7 +59,7 @@ function useTkTheme() {
 }
 
 export const MenuBar = React.forwardRef<HTMLDivElement, MenuBarProps>(
-  ({ className, items, activeItem, onItemClick, ...props }, ref) => {
+  ({ className, items, activeItem, onItemClick }, ref) => {
     const { theme } = useTkTheme();
     const isDarkTheme = theme === "dark";
 
@@ -71,7 +72,6 @@ export const MenuBar = React.forwardRef<HTMLDivElement, MenuBarProps>(
         )}
         initial="initial"
         whileHover="hover"
-        {...props}
       >
         <motion.div
           className="pointer-events-none absolute -inset-2 z-0 rounded-3xl"

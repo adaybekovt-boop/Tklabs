@@ -136,6 +136,30 @@ export const dictionaries = {
       entries: [
         {
           date: "05 Aug 2026",
+          version: "v0.6.1",
+          title: "Cleaner response surfaces & mobile model picker",
+          summary: "The chat now keeps the answer focused and makes model selection easier to use on narrow screens.",
+          changes: [
+            "Removed provider, model, and latency badges from the bottom of assistant answers so the response ends cleanly.",
+            "Made the model selector use the available composer width and added a compact mobile sheet for small screens.",
+            "Improved model-name truncation, touch target sizing, selected-state semantics, and dark-theme contrast in the picker.",
+            "Reviewed the incoming Erma Lite hardening commit and kept only changes compatible with the current TK LAB workspace architecture.",
+          ],
+        },
+        {
+          date: "05 Aug 2026",
+          version: "v0.6.0",
+          title: "Versioned terms consent & account controls",
+          summary: "TK LAB now records agreement consent in the account database and adds guarded account tools for eligible users.",
+          changes: [
+            "Added a bilingual first-run agreement gate with an explicit language choice and a database-backed acceptance record.",
+            "Re-requested consent automatically when the agreement version changes, while keeping the current edition visible in the admin review panel.",
+            "Added the full Russian and English agreement text plus implementation documentation for D1, API flow, and deployment.",
+            "Kept the Clodex promo-code field hidden until an explicitly allowlisted account opens it from the profile.",
+          ],
+        },
+        {
+          date: "05 Aug 2026",
           version: "v0.5.3",
           title: "Light / dark workspace themes",
           summary: "TK LAB now supports a persistent dark workspace without sacrificing contrast, hierarchy, or mobile readability.",
@@ -269,6 +293,19 @@ export const dictionaries = {
       clodexValue: "Требуется отдельный доступ",
       clodexUnlimitedValue: "Включён без ограничений",
       portraitAlt: "Чёрно-белый портрет исследователя",
+      adminToolsLabel: "Административные инструменты",
+      adminToolsTitle: "Управление доступом",
+      reviewAgreement: "Открыть пользовательское соглашение",
+      promo: {
+        trigger: "Расширенный доступ",
+        label: "Промокод Clodex",
+        placeholder: "Введите промокод",
+        submit: "Активировать",
+        close: "Скрыть поле",
+        success: "Доступ Clodex активирован.",
+        invalid: "Промокод не принят.",
+        unavailable: "Сервис доступа временно недоступен.",
+      },
     },
     status: {
       eyebrow: "Мониторинг платформы",
@@ -512,6 +549,30 @@ export const dictionaries = {
       entries: [
         {
           date: "05 Aug 2026",
+          version: "v0.6.1",
+          title: "Cleaner response surfaces & mobile model picker",
+          summary: "The chat now keeps the answer focused and makes model selection easier to use on narrow screens.",
+          changes: [
+            "Removed provider, model, and latency badges from the bottom of assistant answers so the response ends cleanly.",
+            "Made the model selector use the available composer width and added a compact mobile sheet for small screens.",
+            "Improved model-name truncation, touch target sizing, selected-state semantics, and dark-theme contrast in the picker.",
+            "Reviewed the incoming Erma Lite hardening commit and kept only changes compatible with the current TK LAB workspace architecture.",
+          ],
+        },
+        {
+          date: "05 Aug 2026",
+          version: "v0.6.0",
+          title: "Versioned terms consent & account controls",
+          summary: "TK LAB now records agreement consent in the account database and adds guarded account tools for eligible users.",
+          changes: [
+            "Added a bilingual first-run agreement gate with an explicit language choice and a database-backed acceptance record.",
+            "Re-requested consent automatically when the agreement version changes, while keeping the current edition visible in the admin review panel.",
+            "Added the full Russian and English agreement text plus implementation documentation for D1, API flow, and deployment.",
+            "Kept the Clodex promo-code field hidden until an explicitly allowlisted account opens it from the profile.",
+          ],
+        },
+        {
+          date: "05 Aug 2026",
           version: "v0.5.3",
           title: "Light / dark workspace themes",
           summary: "TK LAB now supports a persistent dark workspace without sacrificing contrast, hierarchy, or mobile readability.",
@@ -645,6 +706,19 @@ export const dictionaries = {
       clodexValue: "Separate access required",
       clodexUnlimitedValue: "Included without limits",
       portraitAlt: "Black-and-white researcher portrait",
+      adminToolsLabel: "Administrative tools",
+      adminToolsTitle: "Access management",
+      reviewAgreement: "Open the user agreement",
+      promo: {
+        trigger: "Extended access",
+        label: "Clodex promo code",
+        placeholder: "Enter promo code",
+        submit: "Activate",
+        close: "Hide field",
+        success: "Clodex access activated.",
+        invalid: "The promo code was not accepted.",
+        unavailable: "The access service is temporarily unavailable.",
+      },
     },
     status: {
       eyebrow: "Platform monitoring",

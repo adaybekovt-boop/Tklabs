@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import Image from "next/image";
+import Link from "next/link";
 
 import { auth } from "@/auth";
 import { StitchFooter } from "@/components/site/StitchFooter";
@@ -7,7 +8,8 @@ import { StitchHeader } from "@/components/site/StitchHeader";
 import { ScrollReveal } from "@/components/ui/scroll-reveal";
 import { getDictionary } from "@/lib/i18n";
 import { getLocale } from "@/lib/locale";
-import { isPrivilegedAiEmail } from "@/lib/privileged-access";
+import { isClodexPromoEligible, isPrivilegedAiEmail } from "@/lib/privileged-access";
+import { PromoCodePanel } from "@/components/profile/PromoCodePanel";
 
 export default async function ProfilePage() {
   const session = await auth();
@@ -15,6 +17,7 @@ export default async function ProfilePage() {
 
   const text = getDictionary(await getLocale());
   const unlimited = isPrivilegedAiEmail(session?.user?.email);
+  const promoEligible = isClodexPromoEligible(session?.user?.email);
   const profileImage = session?.user?.image?.trim();
   const profileInitials = (session?.user?.name ?? session?.user?.email ?? "TK")
     .split(/\s+/)
@@ -65,6 +68,18 @@ export default async function ProfilePage() {
             ))}
           </ScrollReveal>
         </section>
+        {(promoEligible || unlimited) && (
+          <section className="mt-section-gap grid gap-8 border-t-[0.5px] border-primary pt-10 md:grid-cols-12">
+            <div className="md:col-span-4">
+              <p className="label-caps text-secondary">{text.profile.adminToolsLabel}</p>
+              <h2 className="headline-title mt-4">{text.profile.adminToolsTitle}</h2>
+            </div>
+            <div className="space-y-5 md:col-span-7 md:col-start-6">
+              {promoEligible && <PromoCodePanel labels={text.profile.promo} />}
+              {unlimited && <Link href="/admin/terms" className="label-caps inline-flex border-b border-primary pb-2 text-primary">{text.profile.reviewAgreement} ↗</Link>}
+            </div>
+          </section>
+        )}
       </main>
       <StitchFooter />
     </>

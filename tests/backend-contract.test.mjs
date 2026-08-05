@@ -43,6 +43,36 @@ test("protected API routes fail safely when Auth.js is unavailable", async () =>
   assert.match(access, /unavailableResponse/);
 });
 
+test("terms consent is database-backed, versioned, and admin-reviewable", async () => {
+  const schema = await text("db/schema.ts");
+  const terms = await text("lib/terms.ts");
+  const consent = await text("lib/terms-consent.ts");
+  const route = await text("app/api/account/terms/route.ts");
+  const gate = await text("components/legal/TermsGate.tsx");
+  const admin = await text("app/admin/terms/page.tsx");
+  const workflow = await text(".github/workflows/deploy-cloudflare.yml");
+  const legalDoc = await text("docs/USER_AGREEMENT.md");
+  const implementation = await text("docs/TERMS_CONSENT_IMPLEMENTATION.md");
+
+  assert.match(schema, /termsAccepted: integer\("terms_accepted", \{ mode: "boolean" \}\)/);
+  assert.match(schema, /termsAcceptedAt: integer\("terms_accepted_at", \{ mode: "timestamp_ms" \}\)/);
+  assert.match(schema, /termsVersion: text\("terms_version"\)/);
+  assert.match(schema, /language: text\("language", \{ enum: \["ru", "en"\] \}\)/);
+  assert.match(terms, /CURRENT_TERMS_VERSION = "2026-08-05"/);
+  assert.match(terms, /satisfies Record<TermsLanguage, TermsContent>/);
+  assert.match(consent, /acceptedVersion !== CURRENT_TERMS_VERSION/);
+  assert.match(route, /POST/);
+  assert.match(route, /isTrustedRequestOrigin/);
+  assert.doesNotMatch(gate, /localStorage|document\.cookie/si, "the gate must not use browser storage as consent authority");
+  assert.match(admin, /isPrivilegedAiEmail/);
+  assert.match(admin, /TermsDocument language=\{locale\}/);
+  assert.match(workflow, /test -n "\$D1_DATABASE_ID"/);
+  assert.match(workflow, /Apply D1 schema/);
+  assert.match(legalDoc, /## Русская редакция/);
+  assert.match(legalDoc, /## English edition/);
+  assert.match(implementation, /D1 storage/);
+});
+
 test("local archive is bounded, sanitized, and observable by the archive UI", async () => {
   const archive = await text("lib/local-archive.ts");
   const archiveUi = await text("components/playground/ConversationArchive.tsx");
@@ -128,7 +158,7 @@ test("mobile layouts avoid fixed-width content traps", async () => {
   assert.match(home, /md:hidden/);
   assert.match(home, /aspect-\[4\/5\] lg:aspect-auto/);
   assert.doesNotMatch(home, /min-w-\[700px\]/);
-  assert.match(input, /w-\[min\(290px,calc\(100vw-2rem\)\)\]/);
+  assert.match(input, /max-\[420px\]:fixed/);
   assert.match(login, /grid-cols-1.*sm:grid-cols-2/);
 });
 
@@ -164,4 +194,16 @@ test("new Playground does not show the duplicated empty-state heading", async ()
   const playground = await text("components/playground/PlaygroundChat.tsx");
   const heading = "<h2 className=\"mb-3 max-w-2xl font-serif text-[36px] leading-[1.2] text-primary md:text-[48px]\">{text.chat.emptyTitle}</h2>";
   assert.equal(playground.split(heading).length - 1, 1);
+});
+
+test("chat keeps response metadata out of the answer footer and keeps model selection mobile-safe", async () => {
+  const playground = await text("components/playground/PlaygroundChat.tsx");
+  const input = await text("components/ui/ai-chat-input.tsx");
+  const css = await text("app/globals.css");
+
+  assert.doesNotMatch(playground, /response-meta-enter|latencyMs|providerLabel|<Timer/);
+  assert.match(input, /max-\[420px\]:fixed/);
+  assert.match(input, /aria-haspopup="listbox"/);
+  assert.match(input, /min-w-0 flex-1/);
+  assert.doesNotMatch(css, /response-meta-enter/);
 });

@@ -1,10 +1,12 @@
 import { notFound } from "next/navigation";
 
+import { TermsDocument } from "@/components/legal/TermsDocument";
 import { StitchFooter } from "@/components/site/StitchFooter";
 import { StitchHeader } from "@/components/site/StitchHeader";
 import { ScrollReveal, StaggerContainer, StaggerItem } from "@/components/ui/scroll-reveal";
 import { getDictionary } from "@/lib/i18n";
 import { getLocale } from "@/lib/locale";
+import { getTerms } from "@/lib/terms";
 
 type LegalDocKey = "terms" | "api" | "privacy";
 
@@ -12,7 +14,25 @@ export default async function LegalPage({ params }: { params: Promise<{ doc: str
   const { doc } = await params;
   if (doc !== "terms" && doc !== "api" && doc !== "privacy") notFound();
 
-  const text = getDictionary(await getLocale());
+  const locale = await getLocale();
+  const text = getDictionary(locale);
+  if (doc === "terms") {
+    const terms = getTerms(locale);
+    return (
+      <>
+        <StitchHeader />
+        <main className="stitch-container py-section-gap">
+          <header className="mb-section-gap border-b border-primary pb-8">
+            <p className="label-caps mb-7 text-secondary">{terms.label}</p>
+            <h1 className="display-title">{terms.title}</h1>
+            <p className="mt-6 max-w-2xl text-[18px] leading-[1.6] text-on-surface-variant">{terms.intro}</p>
+          </header>
+          <TermsDocument language={locale} />
+        </main>
+        <StitchFooter />
+      </>
+    );
+  }
   const document = text.legal[doc as LegalDocKey];
 
   return (
