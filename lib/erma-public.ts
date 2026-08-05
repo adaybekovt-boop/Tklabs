@@ -22,14 +22,9 @@ export type PublicErmaModel = {
  * actually used.
  */
 export const PUBLIC_ERMA_MODELS: readonly PublicErmaModel[] = [
-  { key: "erma-spark-lite", name: "ErmaSpark lite 0.9", tier: "light", status: "available", available: true, reasoning: false, vision: false, tools: true },
-  { key: "erma-instant", name: "Erma 1.0 instant", tier: "light", status: "available", available: true, reasoning: false, vision: false, tools: true },
-  { key: "erma-polos", name: "Erma Polos 1.0 think", tier: "light", status: "available", available: true, reasoning: true, vision: false, tools: true },
-  { key: "erma-dalos", name: "Erma Dalos 1.1", tier: "medium", status: "available", available: true, reasoning: true, vision: false, tools: true },
-  { key: "erma-nutron", name: "Erma nutron 1.2 think", tier: "medium", status: "available", available: true, reasoning: true, vision: false, tools: true },
-  { key: "erma-reborn", name: "Erma reborn 1.3 think", tier: "heavy", status: "available", available: true, reasoning: true, vision: false, tools: true },
-  { key: "erma-apolon", name: "Erma apolon 1.4", tier: "heavy", status: "available", available: true, reasoning: true, vision: false, tools: true },
-  { key: "erma-asimasi", name: "Erma AsiMasi 2 preview", tier: "heavy", status: "preview", available: true, reasoning: true, vision: true, tools: true },
+  { key: "erma-spark-lite", name: "Erma Lite", tier: "light", status: "available", available: true, reasoning: false, vision: false, tools: true },
+  { key: "erma-nutron", name: "Erma Core", tier: "medium", status: "available", available: true, reasoning: true, vision: false, tools: true },
+  { key: "erma-apolon", name: "Erma Pro", tier: "heavy", status: "available", available: true, reasoning: true, vision: false, tools: true },
 ] as const;
 
 export const DEFAULT_ERMA_MODEL_KEY = "erma-spark-lite";

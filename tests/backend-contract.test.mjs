@@ -37,6 +37,36 @@ test("status page uses live health checks", async () => {
   assert.match(board, /text\.status\.refresh/);
 });
 
+test("high-quality speech stays server-side and has a browser fallback", async () => {
+  const route = await text("app/api/tts/route.ts");
+  const playground = await text("components/playground/PlaygroundChat.tsx");
+  const workflow = await text(".github/workflows/deploy-cloudflare.yml");
+
+  assert.match(route, /ELEVENLABS_API_KEY/);
+  assert.match(route, /export async function GET/);
+  assert.match(route, /eleven_multilingual_v2/);
+  assert.match(route, /xi-api-key/);
+  assert.match(route, /audio\/mpeg/);
+  assert.match(route, /Authentication required/);
+  assert.match(playground, /fetch\("\/api\/tts"/);
+  assert.match(playground, /ttsAvailable/);
+  assert.match(playground, /speakWithBrowser/);
+  assert.match(workflow, /ELEVENLABS_API_KEY/);
+  assert.match(workflow, /ELEVENLABS_VOICE_ID/);
+});
+
+test("the public Erma catalog exposes one model per working tier", async () => {
+  const publicModels = await text("lib/erma-public.ts");
+  const serverModels = await text("lib/models.ts");
+
+  for (const model of ["Erma Lite", "Erma Core", "Erma Pro"]) {
+    assert.match(publicModels, new RegExp(`name: "${model}"`));
+    assert.match(serverModels, new RegExp(`name: "${model}"`));
+  }
+  assert.doesNotMatch(publicModels, /erma-instant|erma-polos|erma-dalos|erma-reborn|erma-asimasi/);
+  assert.doesNotMatch(serverModels, /erma-instant|erma-polos|erma-dalos|erma-reborn|erma-asimasi/);
+});
+
 test("protected API routes fail safely when Auth.js is unavailable", async () => {
   const clodex = await text("app/api/clodex/route.ts");
   const access = await text("app/api/profile/access/route.ts");
@@ -131,6 +161,7 @@ test("patch notes are linked and written as an English release log", async () =>
   assert.match(nav, /href: "\/patch-notes"/);
   assert.match(footer, /href="\/patch-notes"/);
   assert.match(translations, /patchNotes: "Patch Notes"/);
+  assert.match(translations, /version: "v0\.6\.3"/);
   assert.match(translations, /version: "v0\.6\.2"/);
   assert.match(translations, /version: "v0\.5\.3"/);
   assert.match(translations, /version: "v0\.5\.2"/);
@@ -223,5 +254,7 @@ test("chat keeps response metadata out of the answer footer and keeps model sele
   assert.doesNotMatch(input, /role="button"/, "attachment controls must use real buttons, not nested button-like spans");
   assert.match(playground, /let assistantContent = ""/);
   assert.match(playground, /message\.id === lastMessage\?\.id && message\.content/);
+  assert.match(playground, /gap-12/);
+  assert.match(playground, /overflow-x-auto/);
   assert.doesNotMatch(css, /response-meta-enter/);
 });

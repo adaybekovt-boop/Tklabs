@@ -14,6 +14,7 @@ The Playground requires a signed-in account. Conversation history is intentional
 
 - `POST /api/demo` — public Erma route with Durable Object-backed IP limits.
 - `POST /api/clodex` — authenticated, account-gated Clodex route.
+- `POST /api/tts` — authenticated ElevenLabs speech route with browser-speech fallback when unconfigured.
 - `GET|POST /api/profile/access` — Clodex entitlement status and redemption.
 - `GET|POST /api/account/terms` — D1-backed versioned agreement status and acceptance.
 - `GET /api/status` — live configuration and provider health checks with bounded timeouts.

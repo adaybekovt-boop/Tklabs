@@ -28,6 +28,9 @@ jobs:
       CLODEX_ACCESS_CODE: ${{ secrets.CLODEX_ACCESS_CODE }}
       NVIDIA_API_KEY_PRIMARY: ${{ secrets.NVIDIA_API_KEY_PRIMARY }}
       NVIDIA_API_KEY_SECONDARY: ${{ secrets.NVIDIA_API_KEY_SECONDARY }}
+      ELEVENLABS_API_KEY: ${{ secrets.ELEVENLABS_API_KEY }}
+      ELEVENLABS_VOICE_ID: ${{ secrets.ELEVENLABS_VOICE_ID }}
+      ELEVENLABS_MODEL_ID: ${{ secrets.ELEVENLABS_MODEL_ID }}
       D1_DATABASE_ID: ${{ secrets.D1_DATABASE_ID || 'c4085a86-0fec-49f2-b2ed-5999190fcc30' }}
       CLODEX_PROMO_EMAILS: ${{ secrets.CLODEX_PROMO_EMAILS }}
     steps:
@@ -49,7 +52,7 @@ jobs:
       - name: Upload runtime secrets
         run: |
           set -euo pipefail
-          for name in AUTH_SECRET AUTH_URL AUTH_GOOGLE_ID AUTH_GOOGLE_SECRET CLODEX_API_KEY CLODEX_ACCESS_CODE CLODEX_PROMO_EMAILS NVIDIA_API_KEY_PRIMARY NVIDIA_API_KEY_SECONDARY; do
+          for name in AUTH_SECRET AUTH_URL AUTH_GOOGLE_ID AUTH_GOOGLE_SECRET CLODEX_API_KEY CLODEX_ACCESS_CODE CLODEX_PROMO_EMAILS NVIDIA_API_KEY_PRIMARY NVIDIA_API_KEY_SECONDARY ELEVENLABS_API_KEY ELEVENLABS_VOICE_ID ELEVENLABS_MODEL_ID; do
             value="${!name:-}"
             if [ -n "$value" ]; then
               printf '%s' "$value" | npx wrangler secret put "$name" --config dist/server/wrangler.json
