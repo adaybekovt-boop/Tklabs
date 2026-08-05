@@ -12,11 +12,63 @@ import { getRateLimitIdentity, hmacSha256Hex } from "../lib/rate-limit-identity"
 import { accountObjectName, legacyAccountObjectName } from "../lib/account-id";
 import { TTS_DAILY_CHARACTER_QUOTA, TTS_MAX_TEXT_LENGTH, TTS_PRIVILEGED_DAILY_CHARACTER_QUOTA, TTS_PRIVILEGED_REQUEST_LIMIT, TTS_REQUEST_LIMIT, getTtsPolicy } from "../lib/tts-rate-limit";
 import { buildD1MigrationsArgs, getMigrationFiles, runD1Migrations, validateMigrationSql } from "../scripts/migrate-d1.mjs";
+import { buildSecretListArgs, missingSecretNames, parseSecretNames, readCloudflareSecretNames, validateCloudflareSecretNames } from "../scripts/check-cloudflare-secrets.mjs";
 import { canCommitReservation, isReservationExpired, reservationExpiresAt } from "../lib/reservation-policy";
 
 test("privileged e-mail allowlists normalize, deduplicate, and default to empty", () => {
   assert.deepEqual([...parseEmailAllowlist(" A@EXAMPLE.COM, a@example.com, , B@example.com ")], ["a@example.com", "b@example.com"]);
   assert.equal(parseEmailAllowlist(undefined).size, 0);
+});
+
+test("Cloudflare secret preflight validates names without returning secret values", () => {
+  const names = parseSecretNames(JSON.stringify([
+    { name: "AUTH_SECRET", type: "secret_text", value: "must-not-leak" },
+    { name: "RATE_LIMIT_SECRET", type: "secret_text" },
+  ]));
+  assert.deepEqual([...names], ["AUTH_SECRET", "RATE_LIMIT_SECRET"]);
+  assert.deepEqual(missingSecretNames(names, { CLODEX_ENABLED: "false" }), ["AUTH_GOOGLE_ID", "AUTH_GOOGLE_SECRET", "ACCOUNT_ID_SECRET", "NVIDIA_API_KEY_PRIMARY"]);
+  assert.throws(() => validateCloudflareSecretNames(names, { CLODEX_ENABLED: "true" }), /AUTH_GOOGLE_ID/);
+  assert.throws(() => parseSecretNames("not-json"), /malformed JSON/);
+  assert.deepEqual(missingSecretNames(new Set([
+    "AUTH_SECRET",
+    "AUTH_GOOGLE_ID",
+    "AUTH_GOOGLE_SECRET",
+    "RATE_LIMIT_SECRET",
+    "ACCOUNT_ID_SECRET",
+    "NVIDIA_API_KEY_PRIMARY",
+  ]), { CLODEX_ENABLED: "false" }), []);
+  assert.deepEqual(missingSecretNames(new Set([
+    "AUTH_SECRET",
+    "AUTH_GOOGLE_ID",
+    "AUTH_GOOGLE_SECRET",
+    "RATE_LIMIT_SECRET",
+    "ACCOUNT_ID_SECRET",
+    "NVIDIA_API_KEY_PRIMARY",
+  ]), { CLODEX_ENABLED: "true" }), ["CLODEX_API_KEY", "CLODEX_ACCESS_CODE"]);
+  assert.deepEqual(missingSecretNames(new Set([
+    "AUTH_SECRET",
+    "AUTH_GOOGLE_ID",
+    "AUTH_GOOGLE_SECRET",
+    "RATE_LIMIT_SECRET",
+    "ACCOUNT_ID_SECRET",
+    "NVIDIA_API_KEY_PRIMARY",
+    "ELEVENLABS_API_KEY",
+  ]), { CLODEX_ENABLED: "false" }), ["ELEVENLABS_VOICE_ID"]);
+  assert.doesNotThrow(() => validateCloudflareSecretNames(new Set([
+    "AUTH_SECRET",
+    "AUTH_GOOGLE_ID",
+    "AUTH_GOOGLE_SECRET",
+    "RATE_LIMIT_SECRET",
+    "ACCOUNT_ID_SECRET",
+    "NVIDIA_API_KEY_PRIMARY",
+  ]), { CLODEX_ENABLED: "false" }));
+  assert.deepEqual(buildSecretListArgs("dist/server/wrangler.json"), ["wrangler", "secret", "list", "--config", "dist/server/wrangler.json", "--format", "json"]);
+  const mockedNames = readCloudflareSecretNames({
+    config: "dist/server/wrangler.json",
+    root: "/repo",
+    run: () => JSON.stringify([{ name: "AUTH_SECRET", type: "secret_text", value: "do-not-return" }]),
+  });
+  assert.deepEqual([...mockedNames], ["AUTH_SECRET"]);
 });
 
 test("attachment validation applies the final provider-context policy", () => {

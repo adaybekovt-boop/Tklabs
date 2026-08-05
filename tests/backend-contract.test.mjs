@@ -57,7 +57,6 @@ test("high-quality speech stays server-side and has a browser fallback", async (
   const route = await text("app/api/tts/route.ts");
   const playground = await text("components/playground/PlaygroundChat.tsx");
   const speechHook = await text("hooks/use-speech.ts");
-  const workflow = await text(".github/workflows/deploy-cloudflare.yml");
 
   assert.match(route, /ELEVENLABS_API_KEY/);
   assert.match(route, /export async function GET/);
@@ -74,8 +73,6 @@ test("high-quality speech stays server-side and has a browser fallback", async (
   assert.match(route, /export async function POST\(request: Request\)/);
   assert.match(route, /handleTtsGet\(auth\)/);
   assert.match(route, /handleTtsPost\(request, auth\)/);
-  assert.match(workflow, /ELEVENLABS_API_KEY/);
-  assert.match(workflow, /ELEVENLABS_VOICE_ID/);
 });
 
 test("production hardening keeps quota, entitlement and migration contracts explicit", async () => {
@@ -112,8 +109,15 @@ test("production hardening keeps quota, entitlement and migration contracts expl
   assert.match(migrationRunner, /d1_migrations/);
   assert.doesNotMatch(migrationRunner, /d1", "execute"/);
   assert.doesNotMatch(migrationRunner, /INSERT OR IGNORE INTO _tklabs_migrations/);
-  assert.match(workflow, /ACCOUNT_ID_SECRET/);
   assert.match(workflow, /npm run db:migrate/);
+  assert.match(workflow, /npm run cloudflare:check-secrets/);
+  assert.match(workflow, /CLOUDFLARE_API_TOKEN/);
+  assert.match(workflow, /CLOUDFLARE_ACCOUNT_ID/);
+  assert.doesNotMatch(workflow, /Upload runtime secrets/);
+  assert.doesNotMatch(workflow, /wrangler secret put/);
+  for (const runtimeSecret of ["AUTH_SECRET", "AUTH_GOOGLE_ID", "AUTH_GOOGLE_SECRET", "RATE_LIMIT_SECRET", "ACCOUNT_ID_SECRET", "NVIDIA_API_KEY_PRIMARY", "CLODEX_API_KEY", "CLODEX_ACCESS_CODE", "ELEVENLABS_API_KEY"]) {
+    assert.doesNotMatch(workflow, new RegExp(`^\\s+${runtimeSecret}:\\s+\\$\\{\\{`, "m"), `${runtimeSecret} must remain Cloudflare-owned`);
+  }
   assert.match(workflow, /workflow_run\.conclusion == 'success'/);
   assert.match(admin, /isPrivilegedAiEmail/);
   assert.match(admin, /parseJsonBody<RevokeBody>\(request, 8 \* 1024\)/);
@@ -176,7 +180,6 @@ test("terms consent is database-backed, versioned, and admin-reviewable", async 
   assert.doesNotMatch(gate, /localFallback|local-terms-consent|localStorage|document\.cookie/si, "consent must fail closed until D1 records it");
   assert.match(admin, /isPrivilegedAiEmail/);
   assert.match(admin, /TermsDocument language=\{locale\}/);
-  assert.match(workflow, /D1_DATABASE_ID:.*c4085a86-0fec-49f2-b2ed-5999190fcc30/);
   assert.match(viteConfig, /DEFAULT_D1_DATABASE_ID = "c4085a86-0fec-49f2-b2ed-5999190fcc30"/);
   assert.match(workflow, /Apply all D1 migrations/);
   assert.match(legalDoc, /## Русская редакция/);
