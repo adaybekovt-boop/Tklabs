@@ -17,30 +17,41 @@ test("production deployment and browser capabilities match the current app", asy
   const workerTypes = await text("types/cloudflare-workers-runtime.d.ts");
   const securityHeaders = await import(new URL("lib/security-headers.mjs", root));
 
-  assert.match(workflow, /push:[\s\S]*branches:[\s\S]*- main/);
+  assert.match(workflow, /workflow_run:/);
+  assert.match(workflow, /workflow_run\.conclusion == 'success'/);
+  assert.match(workflow, /workflow_run\.head_branch == 'main'/);
+  assert.match(workflow, /Download validated Worker build/);
   assert.match(workflow, /concurrency:/);
   assert.match(workflow, /AUTH_URL: https:\/\/tklabs\.uk/);
+  assert.match(workflow, /AUTH_TRUST_HOST: "true"/);
+  assert.match(workflow, /--var "AUTH_URL:\$AUTH_URL" --var "AUTH_TRUST_HOST:\$AUTH_TRUST_HOST"/);
+  assert.doesNotMatch(workflow, /--keep-vars/);
   assert.match(viteConfig, /const configuredAuthUrl = process\.env\.AUTH_URL\?\.trim\(\);/);
+  assert.match(viteConfig, /const authTrustHost = process\.env\.AUTH_TRUST_HOST\?\.trim\(\) \|\| "true";/);
+  assert.match(viteConfig, /AUTH_TRUST_HOST: authTrustHost/);
   assert.match(viteConfig, /\.\.\.\(configuredAuthUrl \? \{ AUTH_URL: configuredAuthUrl \} : \{\}\)/);
   assert.doesNotMatch(viteConfig, /AUTH_URL: process\.env\.AUTH_URL\?\.trim\(\) \|\| "http:\/\/localhost:3000"/);
   assert.equal(securityHeaders.SECURITY_HEADERS.find((header) => header.key === "Permissions-Policy")?.value, "camera=(), microphone=(self), geolocation=(), payment=()");
   assert.doesNotMatch(nextConfig, /microphone=\(\)/);
   assert.match(packageJson.scripts.test, /test:unit/);
-  assert.match(packageJson.scripts["test:integration"], /node --test/);
+  assert.match(packageJson.scripts["test:integration"], /--test/);
   assert.doesNotMatch(tsconfig, /cloudflare:workers/, "native Cloudflare bindings must stay external in production builds");
   assert.match(workerTypes, /declare module "cloudflare:workers"/);
 });
 
 test("status page uses live health checks", async () => {
   const route = await text("app/api/status/route.ts");
+  const worker = await text("worker/health-status.ts");
   const page = await text("app/status/page.tsx");
   const board = await text("components/status/StatusBoard.tsx");
 
-  assert.match(route, /PROVIDER_TIMEOUT_MS = 2_500/);
-  assert.match(route, /integrate\.api\.nvidia\.com\/v1\/models/);
-  assert.match(route, /clodex\.xyz\/v1\/models/);
-  assert.match(route, /isClodexEnabled/);
-  assert.match(route, /clodexEnabled && Boolean\(clodexKey\),\s+false,/s);
+  assert.match(route, /HEALTH_STATUS/);
+  assert.match(worker, /PROVIDER_TIMEOUT_MS = 2_500/);
+  assert.match(worker, /integrate\.api\.nvidia\.com\/v1\/models/);
+  assert.match(worker, /clodex\.xyz\/v1\/models/);
+  assert.match(worker, /clodexEnabled && Boolean\(clodexKey\), false\)/);
+  assert.match(worker, /LIVE_TTL_MS = 60_000/);
+  assert.match(worker, /STALE_TTL_MS = 5 \* 60_000/);
   assert.match(route, /cache-control/);
   assert.match(page, /StatusBoard/);
   assert.match(board, /fetch\("\/api\/status"/);
@@ -50,7 +61,7 @@ test("status page uses live health checks", async () => {
 test("high-quality speech stays server-side and has a browser fallback", async () => {
   const route = await text("app/api/tts/route.ts");
   const playground = await text("components/playground/PlaygroundChat.tsx");
-  const workflow = await text(".github/workflows/deploy-cloudflare.yml");
+  const speechHook = await text("hooks/use-speech.ts");
 
   assert.match(route, /ELEVENLABS_API_KEY/);
   assert.match(route, /export async function GET/);
@@ -60,9 +71,68 @@ test("high-quality speech stays server-side and has a browser fallback", async (
   assert.match(route, /Authentication required/);
   assert.match(playground, /fetch\("\/api\/tts"/);
   assert.match(playground, /ttsAvailable/);
-  assert.match(playground, /speakWithBrowser/);
-  assert.match(workflow, /ELEVENLABS_API_KEY/);
-  assert.match(workflow, /ELEVENLABS_VOICE_ID/);
+  assert.match(speechHook, /speakWithBrowser/);
+  assert.match(route, /TTS_MAX_TEXT_LENGTH/);
+  assert.match(route, /reserveTts/);
+  assert.match(route, /export async function GET\(_request: Request\)/);
+  assert.match(route, /export async function POST\(request: Request\)/);
+  assert.match(route, /handleTtsGet\(auth\)/);
+  assert.match(route, /handleTtsPost\(request, auth\)/);
+});
+
+test("production hardening keeps quota, entitlement and migration contracts explicit", async () => {
+  const tts = await text("app/api/tts/route.ts");
+  const demo = await text("app/api/demo/route.ts");
+  const account = await text("lib/account-access.ts");
+  const accountId = await text("lib/account-id.ts");
+  const durableObject = await text("worker/clodex-access.ts");
+  const migrationRunner = await text("scripts/migrate-d1.mjs");
+  const workflow = await text(".github/workflows/deploy-cloudflare.yml");
+  const admin = await text("app/api/admin/clodex/revoke/route.ts");
+  const ttsPolicy = await text("lib/tts-rate-limit.ts");
+
+  assert.match(tts, /TTS_MAX_TEXT_LENGTH/);
+  assert.match(tts, /reserveTts/);
+  assert.match(tts, /releaseReservation/);
+  assert.doesNotMatch(tts, /speechText\.slice\(/);
+  assert.match(demo, /reserveDemoRequest/);
+  assert.match(demo, /commitDemo/);
+  assert.match(demo, /releaseDemo/);
+  assert.match(accountId, /HMAC/);
+  assert.match(accountId, /legacyAccountObjectName/);
+  assert.match(account, /legacyAccountObjectName/);
+  assert.match(durableObject, /expires_at/);
+  assert.match(durableObject, /revoked_at/);
+  assert.match(durableObject, /grant_version/);
+  assert.match(durableObject, /hasGrant/);
+  assert.match(durableObject, /TTS_RESERVATION_TTL_MS/);
+  assert.match(durableObject, /state = 'expired'/);
+  assert.match(durableObject, /reserveTts/);
+  assert.match(durableObject, /reserveDemo/);
+  assert.match(migrationRunner, /d1.*migrations.*apply/s);
+  assert.match(migrationRunner, /--remote/);
+  assert.match(migrationRunner, /d1_migrations/);
+  assert.doesNotMatch(migrationRunner, /d1", "execute"/);
+  assert.doesNotMatch(migrationRunner, /INSERT OR IGNORE INTO _tklabs_migrations/);
+  assert.match(workflow, /npm run db:migrate/);
+  assert.match(workflow, /npm run cloudflare:check-secrets/);
+  assert.match(workflow, /CLOUDFLARE_API_TOKEN/);
+  assert.match(workflow, /CLOUDFLARE_ACCOUNT_ID/);
+  assert.doesNotMatch(workflow, /Upload runtime secrets/);
+  assert.doesNotMatch(workflow, /wrangler secret put/);
+  for (const runtimeSecret of ["AUTH_SECRET", "AUTH_GOOGLE_ID", "AUTH_GOOGLE_SECRET", "RATE_LIMIT_SECRET", "ACCOUNT_ID_SECRET", "NVIDIA_API_KEY_PRIMARY", "CLODEX_API_KEY", "CLODEX_ACCESS_CODE", "ELEVENLABS_API_KEY"]) {
+    assert.doesNotMatch(workflow, new RegExp(`^\\s+${runtimeSecret}:\\s+\\$\\{\\{`, "m"), `${runtimeSecret} must remain Cloudflare-owned`);
+  }
+  assert.match(workflow, /workflow_run\.conclusion == 'success'/);
+  assert.match(admin, /isPrivilegedAiEmail/);
+  assert.match(admin, /parseJsonBody<RevokeBody>\(request, 8 \* 1024\)/);
+  assert.match(admin, /export async function POST\(request: Request\)/);
+  assert.match(admin, /handleAdminClodexRevoke\(request, auth\)/);
+  assert.doesNotMatch(admin, /isClodexEnabled/);
+  assert.match(ttsPolicy, /TTS_REQUEST_LIMIT = 5/);
+  assert.match(ttsPolicy, /TTS_DAILY_CHARACTER_QUOTA = 10_000/);
+  assert.match(ttsPolicy, /TTS_PRIVILEGED_REQUEST_LIMIT = 30/);
+  assert.match(ttsPolicy, /TTS_PRIVILEGED_DAILY_CHARACTER_QUOTA = 100_000/);
 });
 
 test("the public Erma catalog exposes one model per working tier", async () => {
@@ -115,9 +185,8 @@ test("terms consent is database-backed, versioned, and admin-reviewable", async 
   assert.doesNotMatch(gate, /localFallback|local-terms-consent|localStorage|document\.cookie/si, "consent must fail closed until D1 records it");
   assert.match(admin, /isPrivilegedAiEmail/);
   assert.match(admin, /TermsDocument language=\{locale\}/);
-  assert.match(workflow, /D1_DATABASE_ID:.*7b481442-f635-41f2-ba5d-a62f106c518c/);
-  assert.match(viteConfig, /DEFAULT_D1_DATABASE_ID = "7b481442-f635-41f2-ba5d-a62f106c518c"/);
-  assert.match(workflow, /Apply D1 schema/);
+  assert.match(viteConfig, /DEFAULT_D1_DATABASE_ID = "c4085a86-0fec-49f2-b2ed-5999190fcc30"/);
+  assert.match(workflow, /Apply all D1 migrations/);
   assert.match(legalDoc, /## Русская редакция/);
   assert.match(legalDoc, /## English edition/);
   assert.match(implementation, /D1 storage/);
@@ -171,6 +240,7 @@ test("patch notes are linked and written as an English release log", async () =>
   assert.match(nav, /href: "\/patch-notes"/);
   assert.match(footer, /href="\/patch-notes"/);
   assert.match(translations, /patchNotes: "Patch Notes"/);
+  assert.match(translations, /version: "v0\.8\.0"/);
   assert.match(translations, /version: "v0\.7\.1"/);
   assert.match(translations, /version: "v0\.7\.0"/);
   assert.match(translations, /version: "v0\.6\.3"/);
@@ -241,7 +311,7 @@ test("privileged workspace access is reflected in the client and profile", async
   const accessRoute = await text("app/api/profile/access/route.ts");
   const input = await text("components/ui/ai-chat-input.tsx");
 
-  assert.match(publicModels, /PRIVILEGED_MAX_PROMPT_LENGTH = 16_000/);
+  assert.match(publicModels, /PUBLIC_MAX_PROMPT_LENGTH = 2_000/);
   assert.match(playground, /clodexAccess\?\.unlimited \? PRIVILEGED_MAX_PROMPT_LENGTH/);
   assert.match(playground, /maxLength=\{promptLimit\}/);
   assert.match(profile, /isPrivilegedAiEmail/);
@@ -249,6 +319,20 @@ test("privileged workspace access is reflected in the client and profile", async
   assert.match(input, /try \{\n      recognition\.start\(\);/);
   assert.match(accessRoute, /if \(isPrivilegedAiEmail\(email\)\) return Response\.json\(privilegedAccessStatus\(\)/);
   assert.match(accessRoute, /privilegedAccessStatus\(\)[\s\S]*if \(!isClodexEnabled\(\)\) return disabledResponse\(\)/);
+});
+
+test("unlimited access stays in server-only paths", async () => {
+  const privileged = await text("lib/privileged-access.ts");
+  const chat = await text("components/playground/PlaygroundChat.tsx");
+  const toolbar = await text("components/playground/ChatToolbar.tsx");
+  const input = await text("components/ui/ai-chat-input.tsx");
+
+  assert.match(privileged, /export function parseUnlimitedEmails/);
+  assert.match(privileged, /export function hasUnlimitedAccess/);
+  assert.match(privileged, /process\.env\.UNLIMITED_AI_EMAILS/);
+  for (const clientSource of [chat, toolbar, input]) {
+    assert.doesNotMatch(clientSource, /UNLIMITED_AI_EMAILS|parseUnlimitedEmails|hasUnlimitedAccess/);
+  }
 });
 
 test("new Playground does not show the duplicated empty-state heading", async () => {
@@ -259,12 +343,14 @@ test("new Playground does not show the duplicated empty-state heading", async ()
 
 test("chat uses one JSON response contract and keeps model selection mobile-safe", async () => {
   const playground = await text("components/playground/PlaygroundChat.tsx");
+  const chatHook = await text("hooks/use-chat-request.ts");
+  const toolbar = await text("components/playground/ChatToolbar.tsx");
   const messageList = await text("components/playground/MessageList.tsx");
   const input = await text("components/ui/ai-chat-input.tsx");
   const css = await text("app/globals.css");
 
-  assert.match(playground, /response\.json\(\)/);
-  assert.match(playground, /actualProvider/);
+  assert.match(chatHook, /response\.json\(\)/);
+  assert.match(chatHook, /actualProvider/);
   assert.match(messageList, /fallbackNotice/);
   assert.match(input, /max-\[420px\]:fixed/);
   assert.match(input, /aria-haspopup="listbox"/);
@@ -275,6 +361,6 @@ test("chat uses one JSON response contract and keeps model selection mobile-safe
   assert.doesNotMatch(playground, /text\/event-stream|data:\s*\$\{JSON\.stringify/);
   assert.doesNotMatch(playground, /message\.id === lastMessage\?\.id && message\.content/);
   assert.match(input, /items-center gap-2/);
-  assert.match(playground, /overflow-x-auto/);
+  assert.match(toolbar, /overflow-x-auto/);
   assert.doesNotMatch(css, /response-meta-enter/);
 });

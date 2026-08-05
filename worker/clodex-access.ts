@@ -7,15 +7,31 @@ import {
   type ClodexConsumeResult,
   type ClodexRedeemResult,
   type ClodexReleaseResult,
+  type ClodexRevokeResult,
 } from "@/lib/clodex-access";
 import {
   DEMO_REQUEST_LIMIT,
   DEMO_REQUEST_WINDOW_MS,
-  type DemoConsumeResult,
+  type DemoReleaseResult,
+  type DemoReservationResult,
 } from "@/lib/demo-rate-limit";
+import {
+  TTS_REQUEST_WINDOW_MS,
+  TTS_RESERVATION_TTL_MS,
+  getTtsPolicy,
+  type TtsReservationReleaseResult,
+  type TtsReservationResult,
+} from "@/lib/tts-rate-limit";
+import { canCommitReservation, reservationExpiresAt } from "@/lib/reservation-policy";
 
 type ClodexAccessEnv = {
   CLODEX_ACCESS_CODE?: string;
+  CLODEX_GRANT_TTL_DAYS?: string;
+  CLODEX_GRANT_VERSION?: string;
+  TTS_REQUEST_LIMIT?: string;
+  TTS_DAILY_CHARACTER_QUOTA?: string;
+  TTS_PRIVILEGED_REQUEST_LIMIT?: string;
+  TTS_PRIVILEGED_DAILY_CHARACTER_QUOTA?: string;
 };
 
 type UsageRow = {
@@ -29,12 +45,47 @@ type ReservationRow = {
   released: number;
 };
 
+type DemoReservationRow = {
+  reservation_id: string;
+  window_start: number;
+  created_at: number | null;
+  expires_at: number | null;
+  state: "reserved" | "committed" | "released" | "expired";
+};
+
+type TtsUsageRow = {
+  window_start: number;
+  request_count: number;
+  day_start: number;
+  character_count: number;
+};
+
+type TtsReservationRow = {
+  reservation_id: string;
+  day_start: number;
+  characters: number;
+  created_at: number | null;
+  expires_at: number | null;
+  state: "reserved" | "committed" | "released" | "expired";
+};
+
+type GrantRow = {
+  activated_at: number;
+  expires_at: number | null;
+  revoked_at: number | null;
+  grant_version: string;
+};
+
 type AttemptRow = {
   window_start: number;
   attempt_count: number;
 };
 
 const REDEMPTION_ATTEMPT_LIMIT = 5;
+const DEFAULT_GRANT_TTL_DAYS = 30;
+const DEFAULT_GRANT_VERSION = "v2";
+const RESERVATION_RETENTION_MS = 7 * 24 * 60 * 60 * 1000;
+const CLEANUP_BATCH_SIZE = 100;
 
 function constantTimeEqual(left: string, right: string) {
   if (left.length !== right.length) return false;
@@ -47,8 +98,8 @@ function constantTimeEqual(left: string, right: string) {
 }
 
 /**
- * One object is created per signed-in account. Its SQLite state makes both
- * the entitlement and the rate limit durable across Worker isolates.
+ * One object is created per signed-in account. Its SQLite state makes the
+ * entitlement, provider reservations and rate limits durable across isolates.
  */
 export class ClodexAccess extends DurableObject<ClodexAccessEnv> {
   constructor(ctx: DurableObjectState, env: ClodexAccessEnv) {
@@ -60,7 +111,10 @@ export class ClodexAccess extends DurableObject<ClodexAccessEnv> {
     this.ctx.storage.sql.exec(`
       CREATE TABLE IF NOT EXISTS access_grants (
         slot INTEGER PRIMARY KEY CHECK (slot = 1),
-        activated_at INTEGER NOT NULL
+        activated_at INTEGER NOT NULL,
+        expires_at INTEGER,
+        revoked_at INTEGER,
+        grant_version TEXT NOT NULL DEFAULT 'v1'
       );
       CREATE TABLE IF NOT EXISTS request_windows (
         slot INTEGER PRIMARY KEY CHECK (slot = 1),
@@ -82,6 +136,28 @@ export class ClodexAccess extends DurableObject<ClodexAccessEnv> {
         window_start INTEGER NOT NULL,
         released INTEGER NOT NULL DEFAULT 0
       );
+      CREATE TABLE IF NOT EXISTS demo_reservations (
+        reservation_id TEXT PRIMARY KEY,
+        window_start INTEGER NOT NULL,
+        created_at INTEGER,
+        expires_at INTEGER,
+        state TEXT NOT NULL CHECK (state IN ('reserved', 'committed', 'released', 'expired'))
+      );
+      CREATE TABLE IF NOT EXISTS tts_usage (
+        slot INTEGER PRIMARY KEY CHECK (slot = 1),
+        window_start INTEGER NOT NULL,
+        request_count INTEGER NOT NULL,
+        day_start INTEGER NOT NULL,
+        character_count INTEGER NOT NULL
+      );
+      CREATE TABLE IF NOT EXISTS tts_reservations (
+        reservation_id TEXT PRIMARY KEY,
+        day_start INTEGER NOT NULL,
+        characters INTEGER NOT NULL,
+        created_at INTEGER,
+        expires_at INTEGER,
+        state TEXT NOT NULL CHECK (state IN ('reserved', 'committed', 'released', 'expired'))
+      );
       CREATE TABLE IF NOT EXISTS redemption_attempts (
         slot INTEGER PRIMARY KEY CHECK (slot = 1),
         window_start INTEGER NOT NULL,
@@ -90,10 +166,81 @@ export class ClodexAccess extends DurableObject<ClodexAccessEnv> {
       INSERT OR IGNORE INTO clodex_request_windows (slot, window_start, request_count)
         SELECT slot, window_start, request_count FROM request_windows;
     `);
+
+    // Existing objects were created with the pre-hardening schema. SQLite has
+    // no portable IF NOT EXISTS for ALTER TABLE, so each additive migration is
+    // attempted independently and is safe to retry on every isolate startup.
+    for (const statement of [
+      "ALTER TABLE access_grants ADD COLUMN expires_at INTEGER",
+      "ALTER TABLE access_grants ADD COLUMN revoked_at INTEGER",
+      "ALTER TABLE access_grants ADD COLUMN grant_version TEXT NOT NULL DEFAULT 'v1'",
+      "ALTER TABLE demo_reservations ADD COLUMN created_at INTEGER",
+      "ALTER TABLE demo_reservations ADD COLUMN expires_at INTEGER",
+      "ALTER TABLE tts_reservations ADD COLUMN created_at INTEGER",
+      "ALTER TABLE tts_reservations ADD COLUMN expires_at INTEGER",
+    ]) {
+      try {
+        this.ctx.storage.sql.exec(statement);
+      } catch (error) {
+        // Additive migrations are retried on every isolate startup. Only the
+        // expected duplicate-column error is safe to ignore.
+        if (!(error instanceof Error && /duplicate column name|already exists/i.test(error.message))) throw error;
+      }
+    }
+    const demoSchema = this.ctx.storage.sql.exec<{ sql: string }>("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'demo_reservations'").toArray()[0]?.sql ?? "";
+    if (demoSchema && !demoSchema.includes("'expired'")) {
+      this.ctx.storage.sql.exec("ALTER TABLE demo_reservations RENAME TO demo_reservations_legacy");
+      this.ctx.storage.sql.exec(`CREATE TABLE demo_reservations (
+        reservation_id TEXT PRIMARY KEY,
+        window_start INTEGER NOT NULL,
+        created_at INTEGER,
+        expires_at INTEGER,
+        state TEXT NOT NULL CHECK (state IN ('reserved', 'committed', 'released', 'expired'))
+      )`);
+      this.ctx.storage.sql.exec("INSERT INTO demo_reservations (reservation_id, window_start, created_at, expires_at, state) SELECT reservation_id, window_start, window_start, window_start + ?, state FROM demo_reservations_legacy", TTS_RESERVATION_TTL_MS);
+      this.ctx.storage.sql.exec("DROP TABLE demo_reservations_legacy");
+    }
+    const ttsSchema = this.ctx.storage.sql.exec<{ sql: string }>("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'tts_reservations'").toArray()[0]?.sql ?? "";
+    if (ttsSchema && !ttsSchema.includes("'expired'")) {
+      this.ctx.storage.sql.exec("ALTER TABLE tts_reservations RENAME TO tts_reservations_legacy");
+      this.ctx.storage.sql.exec(`CREATE TABLE tts_reservations (
+        reservation_id TEXT PRIMARY KEY,
+        day_start INTEGER NOT NULL,
+        characters INTEGER NOT NULL,
+        created_at INTEGER,
+        expires_at INTEGER,
+        state TEXT NOT NULL CHECK (state IN ('reserved', 'committed', 'released', 'expired'))
+      )`);
+      this.ctx.storage.sql.exec("INSERT INTO tts_reservations (reservation_id, day_start, characters, created_at, expires_at, state) SELECT reservation_id, day_start, characters, day_start, day_start + ?, state FROM tts_reservations_legacy", TTS_RESERVATION_TTL_MS);
+      this.ctx.storage.sql.exec("DROP TABLE tts_reservations_legacy");
+    }
+    // If an isolate was terminated between a rename and the replacement
+    // table, finish that migration safely on its next startup.
+    const demoLegacyExists = this.ctx.storage.sql.exec<{ name: string }>("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'demo_reservations_legacy'").toArray().length > 0;
+    if (demoLegacyExists) {
+      this.ctx.storage.sql.exec("CREATE TABLE IF NOT EXISTS demo_reservations (reservation_id TEXT PRIMARY KEY, window_start INTEGER NOT NULL, created_at INTEGER, expires_at INTEGER, state TEXT NOT NULL CHECK (state IN ('reserved', 'committed', 'released', 'expired')))");
+      this.ctx.storage.sql.exec("INSERT OR IGNORE INTO demo_reservations (reservation_id, window_start, created_at, expires_at, state) SELECT reservation_id, window_start, COALESCE(created_at, window_start), COALESCE(expires_at, window_start + ?), state FROM demo_reservations_legacy", TTS_RESERVATION_TTL_MS);
+      this.ctx.storage.sql.exec("DROP TABLE demo_reservations_legacy");
+    }
+    const ttsLegacyExists = this.ctx.storage.sql.exec<{ name: string }>("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'tts_reservations_legacy'").toArray().length > 0;
+    if (ttsLegacyExists) {
+      this.ctx.storage.sql.exec("CREATE TABLE IF NOT EXISTS tts_reservations (reservation_id TEXT PRIMARY KEY, day_start INTEGER NOT NULL, characters INTEGER NOT NULL, created_at INTEGER, expires_at INTEGER, state TEXT NOT NULL CHECK (state IN ('reserved', 'committed', 'released', 'expired')))");
+      this.ctx.storage.sql.exec("INSERT OR IGNORE INTO tts_reservations (reservation_id, day_start, characters, created_at, expires_at, state) SELECT reservation_id, day_start, characters, COALESCE(created_at, day_start), COALESCE(expires_at, day_start + ?), state FROM tts_reservations_legacy", TTS_RESERVATION_TTL_MS);
+      this.ctx.storage.sql.exec("DROP TABLE tts_reservations_legacy");
+    }
+    this.ctx.storage.sql.exec("UPDATE demo_reservations SET created_at = COALESCE(created_at, window_start), expires_at = COALESCE(expires_at, window_start + ?)", TTS_RESERVATION_TTL_MS);
+    this.ctx.storage.sql.exec("UPDATE tts_reservations SET created_at = COALESCE(created_at, day_start), expires_at = COALESCE(expires_at, day_start + ?)", TTS_RESERVATION_TTL_MS);
   }
 
-  private isActive() {
-    return this.ctx.storage.sql.exec<{ activated_at: number }>("SELECT activated_at FROM access_grants WHERE slot = 1").toArray().length > 0;
+  private grant() {
+    return this.ctx.storage.sql.exec<GrantRow>(
+      "SELECT activated_at, expires_at, revoked_at, grant_version FROM access_grants WHERE slot = 1",
+    ).toArray()[0] ?? null;
+  }
+
+  private isActive(now = Date.now()) {
+    const grant = this.grant();
+    return Boolean(grant && grant.grant_version === this.grantVersion() && !grant.revoked_at && (grant.expires_at === null || grant.expires_at > now));
   }
 
   private currentUsage(now: number, table: "clodex_request_windows" | "demo_request_windows", windowMs: number) {
@@ -104,13 +251,24 @@ export class ClodexAccess extends DurableObject<ClodexAccessEnv> {
 
   private status(now = Date.now()): ClodexAccessStatus {
     const usage = this.currentUsage(now, "clodex_request_windows", CLODEX_REQUEST_WINDOW_MS);
+    const grant = this.grant();
     return {
-      active: this.isActive(),
+      hasGrant: Boolean(grant),
+      active: this.isActive(now),
       limit: CLODEX_REQUEST_LIMIT,
       windowMs: CLODEX_REQUEST_WINDOW_MS,
       remaining: usage ? Math.max(0, CLODEX_REQUEST_LIMIT - usage.request_count) : CLODEX_REQUEST_LIMIT,
       resetAt: usage ? usage.window_start + CLODEX_REQUEST_WINDOW_MS : null,
+      activatedAt: grant?.activated_at ?? null,
+      expiresAt: grant?.expires_at ?? null,
+      revokedAt: grant?.revoked_at ?? null,
+      grantVersion: grant?.grant_version ?? null,
     };
+  }
+
+  private grantVersion() {
+    const configured = this.env.CLODEX_GRANT_VERSION?.trim();
+    return configured && /^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/.test(configured) ? configured : DEFAULT_GRANT_VERSION;
   }
 
   private failedAttemptStatus(now: number) {
@@ -131,13 +289,21 @@ export class ClodexAccess extends DurableObject<ClodexAccessEnv> {
     return { windowStart, attemptCount };
   }
 
+  private grantTtlMs() {
+    const configuredDays = Number(this.env.CLODEX_GRANT_TTL_DAYS);
+    const days = Number.isFinite(configuredDays) && configuredDays >= 1 && configuredDays <= 3_650
+      ? Math.floor(configuredDays)
+      : DEFAULT_GRANT_TTL_DAYS;
+    return days * 24 * 60 * 60 * 1000;
+  }
+
   async getStatus(): Promise<ClodexAccessStatus> {
     return this.status();
   }
 
   async redeem(code: string): Promise<ClodexRedeemResult> {
     const now = Date.now();
-    if (this.isActive()) return { ...this.status(now), redeemed: true };
+    if (this.isActive(now)) return { ...this.status(now), redeemed: true };
 
     const expectedCode = this.env.CLODEX_ACCESS_CODE?.trim();
     if (!expectedCode) return { ...this.status(now), redeemed: false, error: "not_configured" };
@@ -165,16 +331,26 @@ export class ClodexAccess extends DurableObject<ClodexAccessEnv> {
     }
 
     this.ctx.storage.sql.exec(
-      "INSERT INTO access_grants (slot, activated_at) VALUES (1, ?) ON CONFLICT(slot) DO UPDATE SET activated_at = excluded.activated_at",
+      "INSERT INTO access_grants (slot, activated_at, expires_at, revoked_at, grant_version) VALUES (1, ?, ?, NULL, ?) ON CONFLICT(slot) DO UPDATE SET activated_at = excluded.activated_at, expires_at = excluded.expires_at, revoked_at = NULL, grant_version = excluded.grant_version",
       now,
+      now + this.grantTtlMs(),
+      this.grantVersion(),
     );
     this.ctx.storage.sql.exec("DELETE FROM redemption_attempts WHERE slot = 1");
     return { ...this.status(now), redeemed: true };
   }
 
+  async revoke(): Promise<ClodexRevokeResult> {
+    const now = Date.now();
+    const grant = this.grant();
+    if (!grant || grant.revoked_at) return { ...this.status(now), revoked: false };
+    this.ctx.storage.sql.exec("UPDATE access_grants SET revoked_at = ? WHERE slot = 1", now);
+    return { ...this.status(now), revoked: true };
+  }
+
   async consume(): Promise<ClodexConsumeResult> {
     const now = Date.now();
-    if (!this.isActive()) return { ...this.status(now), allowed: false, error: "access_required" };
+    if (!this.isActive(now)) return { ...this.status(now), allowed: false, error: "access_required" };
 
     const existing = this.currentUsage(now, "clodex_request_windows", CLODEX_REQUEST_WINDOW_MS);
     if (existing && existing.request_count >= CLODEX_REQUEST_LIMIT) {
@@ -201,45 +377,190 @@ export class ClodexAccess extends DurableObject<ClodexAccessEnv> {
     );
 
     return {
+      ...this.status(now),
       active: true,
-      limit: CLODEX_REQUEST_LIMIT,
-      windowMs: CLODEX_REQUEST_WINDOW_MS,
-      remaining: CLODEX_REQUEST_LIMIT - requestCount,
+      remaining: Math.max(0, CLODEX_REQUEST_LIMIT - requestCount),
       resetAt: windowStart + CLODEX_REQUEST_WINDOW_MS,
       allowed: true,
       reservationId,
     };
   }
 
-  /** Reuse the already-migrated request window table for the public demo. */
-  async consumeDemo(): Promise<DemoConsumeResult> {
-    const now = Date.now();
-    const existing = this.currentUsage(now, "demo_request_windows", DEMO_REQUEST_WINDOW_MS);
-    if (existing && existing.request_count >= DEMO_REQUEST_LIMIT) {
-      return {
-        limit: DEMO_REQUEST_LIMIT,
-        windowMs: DEMO_REQUEST_WINDOW_MS,
-        remaining: 0,
-        resetAt: existing.window_start + DEMO_REQUEST_WINDOW_MS,
-        allowed: false,
-      };
+  private demoStatus(now = Date.now()): DemoReservationResult {
+    const usage = this.currentUsage(now, "demo_request_windows", DEMO_REQUEST_WINDOW_MS);
+    return {
+      limit: DEMO_REQUEST_LIMIT,
+      windowMs: DEMO_REQUEST_WINDOW_MS,
+      remaining: usage ? Math.max(0, DEMO_REQUEST_LIMIT - usage.request_count) : DEMO_REQUEST_LIMIT,
+      resetAt: usage ? usage.window_start + DEMO_REQUEST_WINDOW_MS : null,
+      allowed: true,
+    };
+  }
+
+  /** Expire in-flight reservations and refund their counters before a new reservation. */
+  private cleanupReservations(now: number) {
+    const demoExpired = this.ctx.storage.sql.exec<DemoReservationRow>(
+      "SELECT reservation_id, window_start, created_at, expires_at, state FROM demo_reservations WHERE state = 'reserved' AND COALESCE(expires_at, created_at + ?) <= ? LIMIT ?",
+      TTS_RESERVATION_TTL_MS,
+      now,
+      CLEANUP_BATCH_SIZE,
+    ).toArray();
+    for (const reservation of demoExpired) {
+      const usage = this.currentUsage(now, "demo_request_windows", DEMO_REQUEST_WINDOW_MS);
+      if (usage?.window_start === reservation.window_start) {
+        if (usage.request_count <= 1) this.ctx.storage.sql.exec("DELETE FROM demo_request_windows WHERE slot = 1");
+        else this.ctx.storage.sql.exec("UPDATE demo_request_windows SET request_count = ? WHERE slot = 1", usage.request_count - 1);
+      }
+      this.ctx.storage.sql.exec("UPDATE demo_reservations SET state = 'expired' WHERE reservation_id = ? AND state = 'reserved'", reservation.reservation_id);
     }
 
+    const ttsExpired = this.ctx.storage.sql.exec<TtsReservationRow>(
+      "SELECT reservation_id, day_start, characters, created_at, expires_at, state FROM tts_reservations WHERE state = 'reserved' AND COALESCE(expires_at, created_at + ?) <= ? LIMIT ?",
+      TTS_RESERVATION_TTL_MS,
+      now,
+      CLEANUP_BATCH_SIZE,
+    ).toArray();
+    for (const reservation of ttsExpired) {
+      const usage = this.ttsUsage(now);
+      if (usage.day_start === reservation.day_start) {
+        this.ctx.storage.sql.exec("UPDATE tts_usage SET request_count = ?, character_count = ? WHERE slot = 1", Math.max(0, usage.request_count - 1), Math.max(0, usage.character_count - reservation.characters));
+      }
+      this.ctx.storage.sql.exec("UPDATE tts_reservations SET state = 'expired' WHERE reservation_id = ? AND state = 'reserved'", reservation.reservation_id);
+    }
+
+    const cutoff = now - RESERVATION_RETENTION_MS;
+    this.ctx.storage.sql.exec("DELETE FROM demo_reservations WHERE state != 'reserved' AND COALESCE(created_at, window_start) < ? LIMIT ?", cutoff, CLEANUP_BATCH_SIZE);
+    this.ctx.storage.sql.exec("DELETE FROM tts_reservations WHERE state != 'reserved' AND COALESCE(created_at, day_start) < ? LIMIT ?", cutoff, CLEANUP_BATCH_SIZE);
+  }
+
+  async reserveDemo(): Promise<DemoReservationResult> {
+    const now = Date.now();
+    this.cleanupReservations(now);
+    const existing = this.currentUsage(now, "demo_request_windows", DEMO_REQUEST_WINDOW_MS);
+    if (existing && existing.request_count >= DEMO_REQUEST_LIMIT) {
+      return { ...this.demoStatus(now), allowed: false };
+    }
     const windowStart = existing?.window_start ?? now;
     const requestCount = (existing?.request_count ?? 0) + 1;
+    const reservationId = crypto.randomUUID();
     this.ctx.storage.sql.exec(
       "INSERT INTO demo_request_windows (slot, window_start, request_count) VALUES (1, ?, ?) ON CONFLICT(slot) DO UPDATE SET window_start = excluded.window_start, request_count = excluded.request_count",
       windowStart,
       requestCount,
     );
+    this.ctx.storage.sql.exec("INSERT INTO demo_reservations (reservation_id, window_start, created_at, expires_at, state) VALUES (?, ?, ?, ?, 'reserved')", reservationId, windowStart, now, reservationExpiresAt(now));
+    return { ...this.demoStatus(now), remaining: Math.max(0, DEMO_REQUEST_LIMIT - requestCount), resetAt: windowStart + DEMO_REQUEST_WINDOW_MS, reservationId };
+  }
 
+  async commitDemo(reservationId: string): Promise<DemoReservationResult> {
+    const now = Date.now();
+    this.cleanupReservations(now);
+    const reservation = this.ctx.storage.sql.exec<DemoReservationRow>("SELECT reservation_id, window_start, created_at, expires_at, state FROM demo_reservations WHERE reservation_id = ?", reservationId).toArray()[0];
+    if (!reservation) return { ...this.demoStatus(now), allowed: false, reservationId, committed: false };
+    if (reservation.state === "committed") return { ...this.demoStatus(now), reservationId, committed: true };
+    const expiresAt = reservation.expires_at ?? reservationExpiresAt(reservation.created_at ?? now);
+    if (!canCommitReservation(reservation.state, expiresAt, now)) {
+      return { ...this.demoStatus(now), allowed: false, reservationId, committed: false, ...(reservation.state === "expired" ? { expired: true } : {}) };
+    }
+    this.ctx.storage.sql.exec("UPDATE demo_reservations SET state = 'committed' WHERE reservation_id = ? AND state = 'reserved'", reservationId);
+    return { ...this.demoStatus(now), reservationId, committed: true };
+  }
+
+  async releaseDemo(reservationId: string): Promise<DemoReleaseResult> {
+    const now = Date.now();
+    this.cleanupReservations(now);
+    const reservation = this.ctx.storage.sql.exec<DemoReservationRow>("SELECT reservation_id, window_start, created_at, expires_at, state FROM demo_reservations WHERE reservation_id = ?", reservationId).toArray()[0];
+    if (!reservation || reservation.state !== "reserved") return { ...this.demoStatus(now), released: false, reservationId, ...(reservation?.state === "expired" ? { expired: true } : {}) };
+    const usage = this.currentUsage(now, "demo_request_windows", DEMO_REQUEST_WINDOW_MS);
+    if (usage?.window_start === reservation.window_start) {
+      if (usage.request_count <= 1) this.ctx.storage.sql.exec("DELETE FROM demo_request_windows WHERE slot = 1");
+      else this.ctx.storage.sql.exec("UPDATE demo_request_windows SET request_count = ? WHERE slot = 1", usage.request_count - 1);
+    }
+    this.ctx.storage.sql.exec("UPDATE demo_reservations SET state = 'released' WHERE reservation_id = ? AND state = 'reserved'", reservationId);
+    return { ...this.demoStatus(now), released: true, reservationId };
+  }
+
+  /** Backwards-compatible alias for older Worker callers. */
+  async consumeDemo(): Promise<DemoReservationResult> {
+    return this.reserveDemo();
+  }
+
+  private ttsUsage(now: number): TtsUsageRow {
+    const existing = this.ctx.storage.sql.exec<TtsUsageRow>("SELECT window_start, request_count, day_start, character_count FROM tts_usage WHERE slot = 1").toArray()[0];
+    const dayStart = existing && now - existing.day_start < 24 * 60 * 60 * 1000 ? existing.day_start : now;
+    const windowStart = existing && now - existing.window_start < TTS_REQUEST_WINDOW_MS ? existing.window_start : now;
+    const requestCount = dayStart === existing?.day_start && windowStart === existing?.window_start ? existing.request_count : 0;
+    const characterCount = dayStart === existing?.day_start ? existing.character_count : 0;
+    const usage = { window_start: windowStart, request_count: requestCount, day_start: dayStart, character_count: characterCount };
+    this.ctx.storage.sql.exec(
+      "INSERT INTO tts_usage (slot, window_start, request_count, day_start, character_count) VALUES (1, ?, ?, ?, ?) ON CONFLICT(slot) DO UPDATE SET window_start = excluded.window_start, request_count = excluded.request_count, day_start = excluded.day_start, character_count = excluded.character_count",
+      usage.window_start,
+      usage.request_count,
+      usage.day_start,
+      usage.character_count,
+    );
+    return usage;
+  }
+
+  private ttsStatus(now = Date.now(), privileged = false): TtsReservationResult {
+    const usage = this.ttsUsage(now);
+    const policy = getTtsPolicy(privileged, this.env);
     return {
-      limit: DEMO_REQUEST_LIMIT,
-      windowMs: DEMO_REQUEST_WINDOW_MS,
-      remaining: DEMO_REQUEST_LIMIT - requestCount,
-      resetAt: windowStart + DEMO_REQUEST_WINDOW_MS,
+      requestLimit: policy.requestLimit,
+      requestWindowMs: TTS_REQUEST_WINDOW_MS,
+      requestsRemaining: Math.max(0, policy.requestLimit - usage.request_count),
+      requestResetAt: usage.window_start + TTS_REQUEST_WINDOW_MS,
+      dailyCharacterQuota: policy.dailyCharacterQuota,
+      charactersRemaining: Math.max(0, policy.dailyCharacterQuota - usage.character_count),
+      dayResetAt: usage.day_start + 24 * 60 * 60 * 1000,
       allowed: true,
     };
+  }
+
+  async reserveTts(characters: number, privileged = false): Promise<TtsReservationResult> {
+    const now = Date.now();
+    this.cleanupReservations(now);
+    const policy = getTtsPolicy(privileged, this.env);
+    if (!Number.isInteger(characters) || characters < 1 || characters > 2_000) {
+      return { ...this.ttsStatus(now, privileged), allowed: false, error: "daily_quota" };
+    }
+    const usage = this.ttsUsage(now);
+    const inFlight = this.ctx.storage.sql.exec<{ reservation_id: string }>("SELECT reservation_id FROM tts_reservations WHERE state = 'reserved' AND COALESCE(expires_at, created_at + ?) > ? AND day_start = ? LIMIT 1", TTS_RESERVATION_TTL_MS, now, usage.day_start).toArray()[0];
+    if (inFlight) return { ...this.ttsStatus(now, privileged), allowed: false, error: "parallel_request" };
+    if (usage.request_count >= policy.requestLimit) return { ...this.ttsStatus(now, privileged), allowed: false, error: "request_limit" };
+    if (usage.character_count + characters > policy.dailyCharacterQuota) return { ...this.ttsStatus(now, privileged), allowed: false, error: "daily_quota" };
+
+    const reservationId = crypto.randomUUID();
+    this.ctx.storage.sql.exec("UPDATE tts_usage SET request_count = ?, character_count = ? WHERE slot = 1", usage.request_count + 1, usage.character_count + characters);
+    this.ctx.storage.sql.exec("INSERT INTO tts_reservations (reservation_id, day_start, characters, created_at, expires_at, state) VALUES (?, ?, ?, ?, ?, 'reserved')", reservationId, usage.day_start, characters, now, reservationExpiresAt(now));
+    return { ...this.ttsStatus(now, privileged), requestsRemaining: Math.max(0, policy.requestLimit - usage.request_count - 1), charactersRemaining: Math.max(0, policy.dailyCharacterQuota - usage.character_count - characters), reservationId };
+  }
+
+  async commitTts(reservationId: string): Promise<TtsReservationResult> {
+    const now = Date.now();
+    this.cleanupReservations(now);
+    const reservation = this.ctx.storage.sql.exec<TtsReservationRow>("SELECT reservation_id, day_start, characters, created_at, expires_at, state FROM tts_reservations WHERE reservation_id = ?", reservationId).toArray()[0];
+    if (!reservation) return { ...this.ttsStatus(now), allowed: false, reservationId };
+    if (reservation.state === "committed") return { ...this.ttsStatus(now), allowed: true, reservationId };
+    const expiresAt = reservation.expires_at ?? reservationExpiresAt(reservation.created_at ?? now);
+    if (!canCommitReservation(reservation.state, expiresAt, now)) {
+      return { ...this.ttsStatus(now), allowed: false, reservationId };
+    }
+    this.ctx.storage.sql.exec("UPDATE tts_reservations SET state = 'committed' WHERE reservation_id = ? AND state = 'reserved'", reservationId);
+    return { ...this.ttsStatus(now), reservationId };
+  }
+
+  async releaseTts(reservationId: string): Promise<TtsReservationReleaseResult> {
+    const now = Date.now();
+    this.cleanupReservations(now);
+    const reservation = this.ctx.storage.sql.exec<TtsReservationRow>("SELECT reservation_id, day_start, characters, created_at, expires_at, state FROM tts_reservations WHERE reservation_id = ?", reservationId).toArray()[0];
+    if (!reservation || reservation.state !== "reserved") return { ...this.ttsStatus(now), released: false, reservationId };
+    const usage = this.ttsUsage(now);
+    if (usage.day_start === reservation.day_start) {
+      this.ctx.storage.sql.exec("UPDATE tts_usage SET request_count = ?, character_count = ? WHERE slot = 1", Math.max(0, usage.request_count - 1), Math.max(0, usage.character_count - reservation.characters));
+    }
+    this.ctx.storage.sql.exec("UPDATE tts_reservations SET state = 'released' WHERE reservation_id = ? AND state = 'reserved'", reservationId);
+    return { ...this.ttsStatus(now), released: true, reservationId };
   }
 
   async release(reservationId: string): Promise<ClodexReleaseResult> {
@@ -253,16 +574,9 @@ export class ClodexAccess extends DurableObject<ClodexAccessEnv> {
       return { ...this.status(now), released: false, reservationId };
     }
 
-    if (existing.request_count <= 1) {
-      this.ctx.storage.sql.exec("DELETE FROM clodex_request_windows WHERE slot = 1");
-    } else {
-      this.ctx.storage.sql.exec(
-        "UPDATE clodex_request_windows SET request_count = ? WHERE slot = 1",
-        existing.request_count - 1,
-      );
-    }
+    if (existing.request_count <= 1) this.ctx.storage.sql.exec("DELETE FROM clodex_request_windows WHERE slot = 1");
+    else this.ctx.storage.sql.exec("UPDATE clodex_request_windows SET request_count = ? WHERE slot = 1", existing.request_count - 1);
     this.ctx.storage.sql.exec("UPDATE clodex_reservations SET released = 1 WHERE reservation_id = ?", reservationId);
-
     return { ...this.status(now), released: true, reservationId };
   }
 }

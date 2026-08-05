@@ -2,12 +2,18 @@ export const CLODEX_REQUEST_LIMIT = 5;
 export const CLODEX_REQUEST_WINDOW_MS = 15 * 60 * 1000;
 
 export type ClodexAccessStatus = {
+  /** True once this account has ever received a grant, even if it is no longer active. */
+  hasGrant: boolean;
   active: boolean;
   unlimited?: boolean;
   limit: number;
   windowMs: number;
   remaining: number;
   resetAt: number | null;
+  activatedAt?: number | null;
+  expiresAt?: number | null;
+  revokedAt?: number | null;
+  grantVersion?: string | null;
 };
 
 export type ClodexRedeemResult = ClodexAccessStatus & {
@@ -26,4 +32,8 @@ export type ClodexConsumeResult = ClodexAccessStatus & {
 export type ClodexReleaseResult = ClodexAccessStatus & {
   released: boolean;
   reservationId?: string;
+};
+
+export type ClodexRevokeResult = ClodexAccessStatus & {
+  revoked: boolean;
 };

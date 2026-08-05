@@ -56,7 +56,7 @@ Accepts `{ "language": "ru" | "en", "version": "2026-08-05" }`. The route reject
 
 ## Deployment checklist
 
-1. Use the Cloudflare D1 database named `tklabs` (`7b481442-f635-41f2-ba5d-a62f106c518c` in production).
+1. Use the Cloudflare D1 database named `tklabs` (`c4085a86-0fec-49f2-b2ed-5999190fcc30` in production).
 2. The production database ID is included as a non-secret build fallback so both GitHub Actions and Cloudflare Git integration emit the Worker binding `DB`. Set the optional `D1_DATABASE_ID` override only for another environment.
 3. Apply `drizzle/0000_nappy_gunslinger.sql` to the production database using the project’s approved Wrangler/D1 migration process.
 4. Deploy and verify an authenticated account with `GET /api/account/terms`.

@@ -7,7 +7,7 @@ import type { AiGenerationResult } from "@/lib/ai/types";
 import { createAiResponseMeta, localFallbackResult } from "@/lib/ai/response";
 import { classifyPromptSafety, safetyRefusal } from "@/lib/ai-safety";
 import { promptValidationMessage, PromptValidationError, validateAndBuildProviderPrompt } from "@/lib/chat-prompt";
-import { DemoRateLimitUnavailableError, consumeDemoRequest } from "@/lib/demo-rate-limit-access";
+import { DemoRateLimitUnavailableError, commitDemoRequest, releaseDemoRequest, reserveDemoRequest } from "@/lib/demo-rate-limit-access";
 import { isClodexEnabled } from "@/lib/feature-flags";
 import { getErmaModel, type ErmaTone } from "@/lib/models/server";
 import { getRateLimitIdentity, RateLimitConfigurationError } from "@/lib/rate-limit-identity";
@@ -125,12 +125,15 @@ export async function POST(request: Request) {
   }
 
   let rateLimitCookie: string | null = null;
+  let rateLimitIdentifier = "";
+  let demoReservationId = "";
   if (!privilegedAccount) {
     let allowance;
     try {
       const identity = await getRateLimitIdentity(request, sessionEmail);
       rateLimitCookie = identity.setCookie;
-      allowance = await consumeDemoRequest(identity.identifier);
+      rateLimitIdentifier = identity.identifier;
+      allowance = await reserveDemoRequest(identity.identifier);
     } catch (error) {
       if (!(error instanceof DemoRateLimitUnavailableError || error instanceof RateLimitConfigurationError)) {
         console.warn("demo.rate_limit_unavailable", { requestId });
@@ -153,7 +156,33 @@ export async function POST(request: Request) {
       if (retryAfter) response.headers.set("retry-after", String(retryAfter));
       return response;
     }
+    demoReservationId = allowance.reservationId ?? "";
+    if (!demoReservationId) {
+      return jsonResponse(
+        { error: language === "ru" ? "Демо временно недоступно. Попробуйте позже." : "The demo is temporarily unavailable. Please try again later.", requestId },
+        requestId,
+        503,
+        rateLimitCookie,
+      );
+    }
   }
+
+  const commitDemo = async () => {
+    if (!demoReservationId || !rateLimitIdentifier) return;
+    try {
+      await commitDemoRequest(rateLimitIdentifier, demoReservationId);
+    } catch {
+      console.warn("demo.rate_limit_commit_failed", { requestId });
+    }
+  };
+  const releaseDemo = async () => {
+    if (!demoReservationId || !rateLimitIdentifier) return;
+    try {
+      await releaseDemoRequest(rateLimitIdentifier, demoReservationId);
+    } catch {
+      console.warn("demo.rate_limit_release_failed", { requestId });
+    }
+  };
 
   const startedAt = Date.now();
   const requestedModel = model.name;
@@ -175,11 +204,14 @@ export async function POST(request: Request) {
         actualModel: "safety-policy",
         fallbackReason: "safety_output_blocked",
       };
+      await commitDemo();
       return resultResponse(safetyResult, requestedModel, requestId, startedAt, rateLimitCookie);
     }
+    await commitDemo();
     return resultResponse({ answer: result.answer, provider: "nvidia", actualModel: result.actualModel }, requestedModel, requestId, startedAt, rateLimitCookie);
   } catch (error) {
     if (request.signal.aborted) {
+      await releaseDemo();
       return jsonResponse({ error: "Request cancelled.", requestId }, requestId, 499, rateLimitCookie);
     }
     const reason = error instanceof Error && error.message === "nvidia_not_configured" ? "nvidia_not_configured" : "nvidia_request_failed";
@@ -191,6 +223,12 @@ export async function POST(request: Request) {
       reason,
     });
     const fallback = await resolveFallback({ prompt: providerPrompt, language, allowCode: privilegedAccount, requestId, requestedModel, primaryReason: reason, signal: request.signal });
+    // A provider reservation is committed only when an external provider
+    // actually produced the answer. Local deterministic fallback is free and
+    // must refund the reservation. This also keeps full-provider failures
+    // honest instead of consuming demo quota.
+    if (fallback.provider === "clodex") await commitDemo();
+    else await releaseDemo();
     return resultResponse(fallback, requestedModel, requestId, startedAt, rateLimitCookie);
   }
 }
