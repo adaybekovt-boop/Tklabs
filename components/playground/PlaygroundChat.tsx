@@ -21,7 +21,13 @@ import { cn } from "@/lib/utils";
 
 const TIER_LABEL: Record<ErmaTier, string> = { light: "Light", medium: "Medium", heavy: "Heavy" };
 type SuggestionKind = "learn" | "write";
-type Tone = "professional" | "character";
+type Tone = "professional" | "character" | "erma";
+
+const NEXT_TONE: Record<Tone, Tone> = {
+  professional: "character",
+  character: "erma",
+  erma: "professional",
+};
 
 export function PlaygroundChat({ locale }: { locale: Locale }) {
   const text = getDictionary(locale);
@@ -75,7 +81,7 @@ export function PlaygroundChat({ locale }: { locale: Locale }) {
 
   useEffect(() => {
     const savedTone = window.localStorage.getItem("tklabs.erma-tone");
-    if (savedTone === "professional" || savedTone === "character") {
+    if (savedTone === "professional" || savedTone === "character" || savedTone === "erma") {
       // eslint-disable-next-line react-hooks/set-state-in-effect
       setTone(savedTone);
     }
@@ -150,7 +156,7 @@ export function PlaygroundChat({ locale }: { locale: Locale }) {
       </div>
 
       <div className="hairline-t safe-area-bottom w-full flex-shrink-0 bg-surface/95 px-4 pt-7 backdrop-blur-md sm:px-margin-mobile md:px-margin-desktop">
-        <ChatToolbar text={text} suggestionKind={suggestionKind} reasonEnabled={reasonEnabled} tone={tone} onSuggestion={(kind) => setSuggestionKind((current) => current === kind ? null : kind)} onReason={() => setReasonEnabled((enabled) => !enabled)} onTone={() => setTone((current) => current === "professional" ? "character" : "professional")} />
+        <ChatToolbar text={text} suggestionKind={suggestionKind} reasonEnabled={reasonEnabled} tone={tone} onSuggestion={(kind) => setSuggestionKind((current) => current === kind ? null : kind)} onReason={() => setReasonEnabled((enabled) => !enabled)} onTone={() => setTone((current) => NEXT_TONE[current])} />
         {suggestionKind && <SuggestionPanel text={text} kind={suggestionKind} onClose={() => setSuggestionKind(null)} onChoose={(suggestion) => { setInput(suggestion); setSuggestionKind(null); }} />}
         <PromptInput value={input} onChange={setInput} onSubmit={chat.handleSubmit} models={models} selectedModelId={selectedModel?.id ?? DEFAULT_ERMA_MODEL_KEY} onModelChange={setModelKey} disabled={chat.isPending} maxLength={promptLimit} placeholder={text.chat.promptPlaceholder} attachmentsEnabled maxAttachmentBytes={clodexAccess?.unlimited ? 64 * 1024 : 16 * 1024} maxAttachmentContextLength={clodexAccess?.unlimited ? 32_000 : 8_000} labels={text.chat.input} voiceLanguage={locale === "ru" ? "ru-RU" : "en-US"} />
       </div>

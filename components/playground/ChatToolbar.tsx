@@ -4,7 +4,7 @@ import { getDictionary } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 
 type SuggestionKind = "learn" | "write";
-type Tone = "professional" | "character";
+type Tone = "professional" | "character" | "erma";
 
 export function ChatToolbar({
   text,
@@ -34,8 +34,8 @@ export function ChatToolbar({
       <button type="button" onClick={onReason} className={cn("label-caps shrink-0 border border-outline-variant px-3 py-2.5 transition-colors hover:border-primary", reasonEnabled && "border-primary bg-surface-container-low")} aria-pressed={reasonEnabled}>
         {reasonEnabled ? text.chat.reasoningOn : text.chat.reasoningOff}
       </button>
-      <button type="button" onClick={onTone} className={cn("label-caps shrink-0 border border-outline-variant px-3 py-2.5 transition-colors hover:border-primary", tone === "character" && "border-primary bg-surface-container-low")} aria-pressed={tone === "character"}>
-        {tone === "professional" ? text.chat.toneProfessional : text.chat.toneCharacter}
+      <button type="button" onClick={onTone} className={cn("label-caps shrink-0 border border-outline-variant px-3 py-2.5 transition-colors hover:border-primary", tone !== "professional" && "border-primary bg-surface-container-low")} aria-pressed={tone !== "professional"}>
+        {tone === "professional" ? text.chat.toneProfessional : tone === "character" ? text.chat.toneCharacter : text.chat.toneErma}
       </button>
     </div>
   );

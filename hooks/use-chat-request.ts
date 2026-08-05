@@ -7,7 +7,7 @@ import type { ArchivedMessage } from "@/lib/local-archive";
 import type { ChatInputSubmitMeta } from "@/components/ui/ai-chat-input";
 import type { ChatMessage } from "@/components/playground/MessageList";
 
-type Tone = "professional" | "character";
+type Tone = "professional" | "character" | "erma";
 
 function isResponseMeta(value: unknown): value is AiResponseMeta {
   if (!value || typeof value !== "object") return false;
