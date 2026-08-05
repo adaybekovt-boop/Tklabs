@@ -6,7 +6,7 @@ const isCodexSeatbeltSandbox = process.env.CODEX_SANDBOX === "seatbelt";
 // D1 database IDs are routing identifiers, not credentials. Keep the production
 // ID in the build fallback so Cloudflare's Git integration also emits the DB
 // binding; CI may still override it for another environment.
-const DEFAULT_D1_DATABASE_ID = "c4085a86-0fec-49f2-b2ed-5999190fcc30";
+const DEFAULT_D1_DATABASE_ID = "7b481442-f635-41f2-ba5d-a62f106c518c";
 const d1DatabaseId = process.env.D1_DATABASE_ID?.trim() || DEFAULT_D1_DATABASE_ID;
 const clodexEnabled = process.env.CLODEX_ENABLED?.trim().toLowerCase() === "true";
 
