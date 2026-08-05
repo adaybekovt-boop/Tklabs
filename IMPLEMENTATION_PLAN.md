@@ -71,4 +71,6 @@ The final PR will be a single draft PR with small logical commits. It will not b
 - P2 is implemented: provider metadata and fallback notices are visible, the status page is live-only/no-store, the chat has one JSON contract, the archive is labeled as browser-local sessions, and attachment controls reject rather than silently truncate oversized files.
 - P3 is implemented: behavior tests and separated scripts are in `7e2622d`, CI/deploy checks are in `c35304b`, and documentation/security policy are in `7a308f6`.
 - The unused `examples/d1` sample was removed in `a05df5d`; the actual D1 layer remains because terms consent uses it.
-- The final `npm ci`, full check, production audit, secret scan, push, and draft PR creation remain release-gate tasks. No merge is planned.
+- Release-gate verification passed: `npm ci`, `npm run typecheck`, `npm run lint`, `npm test` (7 unit + 16 integration), `npm run build`, and `npm audit --omit=dev --audit-level=high` (0 production vulnerabilities).
+- A supplementary full `npm audit --audit-level=high` still reports 16 development/toolchain vulnerabilities across Vite, Wrangler/Miniflare, React Server Components, and related transitive packages. Automatic `--force` remediation would introduce out-of-range or breaking upgrades, so it is documented as follow-up debt rather than hidden or applied blindly.
+- Secret scan, push, and draft PR creation remain release-gate tasks. No merge is planned.
