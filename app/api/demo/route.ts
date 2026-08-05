@@ -3,7 +3,8 @@ import { generateWithClodex } from "@/lib/ai/providers/clodex";
 import { generateWithNvidia, isUnsafeNvidiaAnswer } from "@/lib/ai/providers/nvidia";
 import { logAiProviderFailure, logAiRequest } from "@/lib/ai/logging";
 import { newRequestId } from "@/lib/ai/provider-http";
-import type { AiGenerationResult, AiResponseMeta } from "@/lib/ai/types";
+import type { AiGenerationResult } from "@/lib/ai/types";
+import { createAiResponseMeta, localFallbackResult } from "@/lib/ai/response";
 import { classifyPromptSafety, safetyRefusal } from "@/lib/ai-safety";
 import { promptValidationMessage, PromptValidationError, validateAndBuildProviderPrompt } from "@/lib/chat-prompt";
 import { DemoRateLimitUnavailableError, consumeDemoRequest } from "@/lib/demo-rate-limit-access";
@@ -30,12 +31,6 @@ function normalizeTone(value: unknown): ErmaTone {
   return value === "character" ? "character" : "professional";
 }
 
-function responseFor(language: Language) {
-  return language === "ru"
-    ? "Выбранная модель временно недоступна. Ответ сформирован резервным режимом."
-    : "The selected model is temporarily unavailable. This answer was produced by a fallback mode.";
-}
-
 function responseHeaders(requestId: string, setCookie?: string | null) {
   const headers = new Headers({ "cache-control": "no-store", "x-request-id": requestId });
   if (setCookie) headers.set("set-cookie", setCookie);
@@ -54,20 +49,8 @@ function promptErrorResponse(error: PromptValidationError, language: Language, p
   );
 }
 
-function resultMeta(result: AiGenerationResult, requestedModel: string, requestId: string, startedAt: number, status: number): AiResponseMeta {
-  return {
-    requestId,
-    requestedModel,
-    actualProvider: result.provider,
-    actualModel: result.actualModel,
-    latencyMs: Date.now() - startedAt,
-    httpStatus: status,
-    ...(result.fallbackReason ? { fallbackReason: result.fallbackReason } : {}),
-  };
-}
-
 function resultResponse(result: AiGenerationResult, requestedModel: string, requestId: string, startedAt: number, setCookie?: string | null) {
-  const meta = resultMeta(result, requestedModel, requestId, startedAt, 200);
+  const meta = createAiResponseMeta(result, requestedModel, requestId, startedAt);
   logAiRequest(meta);
   return jsonResponse({ answer: result.answer, meta }, requestId, 200, setCookie);
 }
@@ -79,11 +62,12 @@ async function resolveFallback(input: {
   requestId: string;
   requestedModel: string;
   primaryReason: string;
+  signal?: AbortSignal;
 }) : Promise<AiGenerationResult> {
   const apiKey = process.env.CLODEX_API_KEY?.trim();
   if (isClodexEnabled() && apiKey) {
     try {
-      const answer = await generateWithClodex(input.prompt, apiKey, CLODEX_MODEL, input.language, input.allowCode);
+      const answer = await generateWithClodex(input.prompt, apiKey, CLODEX_MODEL, input.language, input.allowCode, input.signal);
       return { answer, provider: "clodex", actualModel: CLODEX_MODEL, fallbackReason: input.primaryReason };
     } catch (error) {
       logAiProviderFailure({
@@ -96,12 +80,7 @@ async function resolveFallback(input: {
     }
   }
 
-  return {
-    answer: responseFor(input.language),
-    provider: "edge-fallback",
-    actualModel: "local-fallback",
-    fallbackReason: isClodexEnabled() ? `${input.primaryReason};clodex_unavailable` : `${input.primaryReason};clodex_disabled`,
-  };
+  return localFallbackResult(input.language, isClodexEnabled() ? `${input.primaryReason};clodex_unavailable` : `${input.primaryReason};clodex_disabled`);
 }
 
 export async function POST(request: Request) {
@@ -185,6 +164,7 @@ export async function POST(request: Request) {
       effort,
       allowCode: privilegedAccount,
       tone,
+      signal: request.signal,
     });
     if (isUnsafeNvidiaAnswer(result.answer, privilegedAccount)) {
       const safetyResult: AiGenerationResult = {
@@ -197,6 +177,9 @@ export async function POST(request: Request) {
     }
     return resultResponse({ answer: result.answer, provider: "nvidia", actualModel: result.actualModel }, requestedModel, requestId, startedAt, rateLimitCookie);
   } catch (error) {
+    if (request.signal.aborted) {
+      return jsonResponse({ error: "Request cancelled.", requestId }, requestId, 499, rateLimitCookie);
+    }
     const reason = error instanceof Error && error.message === "nvidia_not_configured" ? "nvidia_not_configured" : "nvidia_request_failed";
     logAiProviderFailure({
       requestId,
@@ -205,7 +188,7 @@ export async function POST(request: Request) {
       status: typeof error === "object" && error && "status" in error && typeof error.status === "number" ? error.status : undefined,
       reason,
     });
-    const fallback = await resolveFallback({ prompt: providerPrompt, language, allowCode: privilegedAccount, requestId, requestedModel, primaryReason: reason });
+    const fallback = await resolveFallback({ prompt: providerPrompt, language, allowCode: privilegedAccount, requestId, requestedModel, primaryReason: reason, signal: request.signal });
     return resultResponse(fallback, requestedModel, requestId, startedAt, rateLimitCookie);
   }
 }

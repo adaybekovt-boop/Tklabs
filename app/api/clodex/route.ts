@@ -2,7 +2,8 @@ import { auth } from "@/auth";
 import { generateWithClodex } from "@/lib/ai/providers/clodex";
 import { logAiProviderFailure, logAiRequest } from "@/lib/ai/logging";
 import { newRequestId } from "@/lib/ai/provider-http";
-import type { AiGenerationResult, AiResponseMeta } from "@/lib/ai/types";
+import { createAiResponseMeta } from "@/lib/ai/response";
+import type { AiGenerationResult } from "@/lib/ai/types";
 import { AccountAccessUnavailableError, consumeClodexAccess, releaseClodexAccess } from "@/lib/account-access";
 import { classifyPromptSafety, safetyRefusal } from "@/lib/ai-safety";
 import { promptValidationMessage, PromptValidationError, validateAndBuildProviderPrompt } from "@/lib/chat-prompt";
@@ -39,18 +40,6 @@ function errorText(language: Language, type: "access" | "limit" | "provider" | "
     configuration: "Model access is being configured.",
   };
   return (language === "ru" ? ru : en)[type];
-}
-
-function responseMeta(result: AiGenerationResult, requestedModel: string, requestId: string, startedAt: number): AiResponseMeta {
-  return {
-    requestId,
-    requestedModel,
-    actualProvider: result.provider,
-    actualModel: result.actualModel,
-    latencyMs: Date.now() - startedAt,
-    httpStatus: 200,
-    ...(result.fallbackReason ? { fallbackReason: result.fallbackReason } : {}),
-  };
 }
 
 export async function POST(request: Request) {
@@ -129,8 +118,8 @@ export async function POST(request: Request) {
 
   const startedAt = Date.now();
   try {
-    const answer = await generateWithClodex(providerPrompt, apiKey, model.providerModel, language, privilegedAccount);
-    const meta = responseMeta({ answer, provider: "clodex", actualModel: model.providerModel }, model.name, requestId, startedAt);
+    const answer = await generateWithClodex(providerPrompt, apiKey, model.providerModel, language, privilegedAccount, request.signal);
+    const meta = createAiResponseMeta({ answer, provider: "clodex", actualModel: model.providerModel }, model.name, requestId, startedAt);
     logAiRequest(meta);
     return jsonResponse({ answer, meta }, requestId);
   } catch (error) {
@@ -141,11 +130,12 @@ export async function POST(request: Request) {
         console.warn("clodex.access_release_failed", { requestId });
       }
     }
+    if (request.signal.aborted) return jsonResponse({ error: "Request cancelled.", requestId }, requestId, 499);
     const isSafetyBlock = error instanceof Error && error.message === "clodex_output_blocked";
     const result: AiGenerationResult = isSafetyBlock
       ? { answer: safetyRefusal(language), provider: "edge-fallback", actualModel: "safety-policy", fallbackReason: "safety_output_blocked" }
       : { answer: errorText(language, "provider"), provider: "edge-fallback", actualModel: "provider-error", fallbackReason: "clodex_request_failed" };
-    const meta = responseMeta(result, model.name, requestId, startedAt);
+    const meta = createAiResponseMeta(result, model.name, requestId, startedAt, isSafetyBlock ? 200 : 502);
     logAiProviderFailure({ requestId, requestedModel: model.name, provider: "clodex", reason: isSafetyBlock ? "output_blocked" : "request_failed" });
     logAiRequest(meta);
     return jsonResponse({ answer: result.answer, meta }, requestId, isSafetyBlock ? 200 : 502);

@@ -5,9 +5,10 @@ const CLODEX_ENDPOINT = "https://clodex.xyz/v1/messages";
 
 type ClodexResponse = { content?: Array<{ text?: string; type?: string }> | string };
 
-export async function generateWithClodex(prompt: string, apiKey: string, model: string, language: "ru" | "en", allowCode: boolean) {
+export async function generateWithClodex(prompt: string, apiKey: string, model: string, language: "ru" | "en", allowCode: boolean, signal?: AbortSignal) {
   const response = await fetchWithTimeout(CLODEX_ENDPOINT, {
     method: "POST",
+    signal,
     headers: { "anthropic-version": "2023-06-01", "content-type": "application/json", "x-api-key": apiKey },
     body: JSON.stringify({
       model,

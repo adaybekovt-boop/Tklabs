@@ -11,6 +11,7 @@ type HealthCheck = {
   id: string;
   status: HealthStatus;
   latencyMs: number | null;
+  required?: boolean;
 };
 
 type HealthPayload = {
@@ -51,13 +52,14 @@ export function StatusBoard({ locale }: { locale: Locale }) {
   }, []);
 
   const statusById = useMemo(() => new Map(payload?.services.map((service) => [service.id, service]) ?? []), [payload]);
+  const requiredServices = payload?.services.filter((service) => service.required !== false) ?? [];
   const headline = loading
     ? text.status.checking
     : failed
       ? text.status.down
-      : payload?.services.some((service) => service.status === "down")
+      : requiredServices.some((service) => service.status === "down")
         ? text.status.down
-        : payload?.services.some((service) => service.status !== "operational")
+        : requiredServices.some((service) => service.status !== "operational")
           ? text.status.partial
           : text.status.allWorking;
   const checkedLabel = payload

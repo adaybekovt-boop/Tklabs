@@ -45,6 +45,7 @@ export type PromptInputLabels = {
   voiceUnsupported: string;
   voiceDenied: string;
   listening: string;
+  attachmentTooLarge: string;
 };
 type SpeechRecognitionResultLike = {
   isFinal: boolean;
@@ -110,6 +111,8 @@ export interface PromptInputProps {
   attachmentsEnabled?: boolean;
   labels: PromptInputLabels;
   voiceLanguage: string;
+  maxAttachmentBytes?: number;
+  maxAttachmentContextLength?: number;
   className?: string;
 }
 
@@ -127,6 +130,8 @@ export const PromptInput = React.forwardRef<HTMLDivElement, PromptInputProps>(fu
     attachmentsEnabled = false,
     labels,
     voiceLanguage,
+    maxAttachmentBytes = 16 * 1024,
+    maxAttachmentContextLength = 8_000,
     className,
   },
   forwardedRef,
@@ -143,6 +148,7 @@ export const PromptInput = React.forwardRef<HTMLDivElement, PromptInputProps>(fu
   const [activeAttachment, setActiveAttachment] = React.useState<ChatInputAttachment | null>(null);
   const [isRecording, setIsRecording] = React.useState(false);
   const [voiceError, setVoiceError] = React.useState("");
+  const [attachmentError, setAttachmentError] = React.useState("");
 
   const rootRef = React.useRef<HTMLDivElement | null>(null);
   const textareaRef = React.useRef<HTMLTextAreaElement>(null);
@@ -209,21 +215,40 @@ export const PromptInput = React.forwardRef<HTMLDivElement, PromptInputProps>(fu
     attachments.forEach((attachment) => URL.revokeObjectURL(attachment.url));
     setAttachments([]);
     setVoiceError("");
+    setAttachmentError("");
   }
 
   async function addFiles(files: FileList | null) {
     if (!files) return;
+    setAttachmentError("");
     const room = Math.max(0, 3 - attachments.length);
-    const incoming = Array.from(files)
-      .filter((file) => file.size <= 64 * 1024 && (file.type.startsWith("text/") || /\.(md|txt)$/i.test(file.name)))
-      .slice(0, room);
-    const next = await Promise.all(incoming.map(async (file) => ({
-      id: file.name + "-" + file.lastModified + "-" + Math.random().toString(36).slice(2, 8),
-      file,
-      name: file.name,
-      content: (await file.text()).slice(0, 8_000),
-      url: URL.createObjectURL(file),
-    })));
+    const candidates = Array.from(files);
+    let hasRejectedFile = candidates.length > room;
+    let contextLength = attachments.reduce((total, attachment) => total + Array.from(`[${attachment.name}]\n${attachment.content}`).length + 2, 0);
+    const next: ChatInputAttachment[] = [];
+
+    for (const file of candidates.slice(0, room)) {
+      if (file.size > maxAttachmentBytes || !(file.type.startsWith("text/") || /\.(md|txt)$/i.test(file.name))) {
+        hasRejectedFile = true;
+        continue;
+      }
+      const content = await file.text();
+      const contentBytes = new TextEncoder().encode(content).byteLength;
+      const additionLength = Array.from(`[${file.name.trim()}]\n${content.trim()}`).length + 2;
+      if (!file.name.trim() || Array.from(file.name.trim()).length > 120 || !content.trim() || contentBytes > maxAttachmentBytes || contextLength + additionLength > maxAttachmentContextLength) {
+        hasRejectedFile = true;
+        continue;
+      }
+      next.push({
+        id: file.name + "-" + file.lastModified + "-" + Math.random().toString(36).slice(2, 8),
+        file,
+        name: file.name,
+        content,
+        url: URL.createObjectURL(file),
+      });
+      contextLength += additionLength;
+    }
+    if (hasRejectedFile) setAttachmentError(labels.attachmentTooLarge);
     setAttachments((current) => [...current, ...next]);
   }
 
@@ -484,6 +509,9 @@ export const PromptInput = React.forwardRef<HTMLDivElement, PromptInputProps>(fu
       </div>
       {voiceError && (
         <div className="mt-2 px-1 text-[11px] text-error" role="status">{voiceError}</div>
+      )}
+      {attachmentError && (
+        <div className="mt-2 px-1 text-[11px] text-error" role="status">{attachmentError}</div>
       )}
 
       {activeAttachment && (

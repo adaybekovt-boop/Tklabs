@@ -32,11 +32,11 @@ SECURITY POLICY — HIGHEST PRIORITY
 `.trim();
 
 const CODE_REQUEST_PATTERNS = [
-  /\b(?:write|generate|create|implement|build|provide|show|give|debug|fix|refactor|translate|explain)\b.{0,100}\b(?:code|script|function|class|program|regex|query|command|snippet|python|javascript|typescript|java|rust|golang|php|sql|html|css|react|next\.js)\b/i,
-  /\b(?:code|script|function|class|program|regex|query|command|snippet|python|javascript|typescript|java|rust|golang|php|sql|html|css|react|next\.js)\b.{0,100}\b(?:write|generate|create|implement|build|provide|show|give|debug|fix|refactor|translate|explain)\b/i,
+  /\b(?:write|generate|create|implement|build|provide|show|give|debug|fix|refactor)\b.{0,100}\b(?:code|script|function|class|program|regex|query|command|snippet|python|javascript|typescript|java|rust|golang|php|sql|html|css|react|next\.js)\b/i,
+  /\b(?:code|script|function|class|program|regex|query|command|snippet|python|javascript|typescript|java|rust|golang|php|sql|html|css|react|next\.js)\b.{0,100}\b(?:write|generate|create|implement|build|provide|show|give|debug|fix|refactor)\b/i,
   /\b(?:how to|make me|can you)\b.{0,100}\b(?:code|script|function|class|program|regex|query|command|python|javascript|typescript|java|rust|golang|php|sql)\b/i,
-  /(?:напиши|сгенерируй|создай|реализуй|разработай|покажи|дай|сделай|исправь|отладь|переведи|объясни).{0,100}(?:код|скрипт|функци|класс|программ|регулярн|запрос|команд|сниппет|питон|питона|джаваскрипт|тайпскрипт|джава|раст|голанг|пхп|с[икью]+л|python|javascript|typescript|java|rust|golang|php|sql|html|css|react|next\.js)/iu,
-  /(?:код|скрипт|функци|класс|программ|регулярн|запрос|команд|сниппет).{0,100}(?:напиши|сгенерируй|создай|реализуй|разработай|покажи|дай|сделай|исправь|отладь|переведи|объясни)/iu,
+  /(?:напиши|сгенерируй|создай|реализуй|разработай|покажи|дай|сделай|исправь|отладь).{0,100}(?:код|скрипт|функци|класс|программ|регулярн|запрос|команд|сниппет|питон|питона|джаваскрипт|тайпскрипт|джава|раст|голанг|пхп|с[икью]+л|python|javascript|typescript|java|rust|golang|php|sql|html|css|react|next\.js)/iu,
+  /(?:код|скрипт|функци|класс|программ|регулярн|запрос|команд|сниппет).{0,100}(?:напиши|сгенерируй|создай|реализуй|разработай|покажи|дай|сделай|исправь|отладь)/iu,
   /```|<script\b|#!\s*\/usr\/bin\/env|\b(?:npm|pip|cargo|curl|git)\s+(?:install|add|run|clone|fetch|exec)\b/i,
 ];
 

@@ -2,15 +2,15 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { BookOpen, Check, Copy, PenLine, Square, Volume2 } from "lucide-react";
+import { BookOpen, PenLine, Square } from "lucide-react";
 
 import {
   PromptInput,
   type ChatInputModel,
   type ChatInputSubmitMeta,
 } from "@/components/ui/ai-chat-input";
-import AIThinkingBlock from "@/components/ui/ai-thinking-block";
 import { MobileHistory } from "@/components/playground/MobileHistory";
+import { MessageList, type ChatMessage } from "@/components/playground/MessageList";
 import type { AiResponseMeta } from "@/lib/ai/types";
 import type { ClodexAccessStatus } from "@/lib/clodex-access";
 import { CLODEX_MODELS } from "@/lib/models/clodex-public";
@@ -30,13 +30,7 @@ const MAX_PROVIDER_TTS_LENGTH = 10_000;
 type SuggestionKind = "learn" | "write";
 type Tone = "professional" | "character";
 
-type Message = {
-  id: string;
-  role: "user" | "assistant";
-  content: string;
-  error?: boolean;
-  meta?: AiResponseMeta;
-};
+type Message = ChatMessage;
 
 function isResponseMeta(value: unknown): value is AiResponseMeta {
   if (!value || typeof value !== "object") return false;
@@ -82,7 +76,7 @@ export function PlaygroundChat({ locale }: { locale: Locale }) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [modelKey, setModelKey] = useState(DEFAULT_ERMA_MODEL_KEY);
-  const [isStreaming, setIsStreaming] = useState(false);
+  const [isPending, setIsPending] = useState(false);
   const [clodexAccess, setClodexAccess] = useState<ClodexAccessStatus | null>(null);
   const [ttsAvailable, setTtsAvailable] = useState(false);
   const [tone, setTone] = useState<Tone>("professional");
@@ -234,7 +228,7 @@ export function PlaygroundChat({ locale }: { locale: Locale }) {
       }
       return next;
     });
-    setIsStreaming(false);
+    setIsPending(false);
   }
 
   function releaseAudio() {
@@ -376,7 +370,7 @@ export function PlaygroundChat({ locale }: { locale: Locale }) {
   }
 
   async function handleSubmit(prompt: string, submitMeta: ChatInputSubmitMeta) {
-    if (!prompt || prompt.length > promptLimit || isStreaming) return;
+    if (!prompt || prompt.length > promptLimit || isPending) return;
 
     const nextModelKey = submitMeta.model;
     const userMessage: Message = { id: uid(), role: "user", content: prompt };
@@ -386,7 +380,7 @@ export function PlaygroundChat({ locale }: { locale: Locale }) {
     setMessages((current) => [...current, userMessage, { id: assistantId, role: "assistant", content: "" }]);
     setInput("");
     setSuggestionKind(null);
-    setIsStreaming(true);
+    setIsPending(true);
     activeRequestRef.current = controller;
     activeConversationRef.current = { prompt, model: nextModelKey, assistantId };
 
@@ -442,24 +436,22 @@ export function PlaygroundChat({ locale }: { locale: Locale }) {
         activeRequestRef.current = null;
         activeConversationRef.current = null;
       }
-      setIsStreaming(false);
+      setIsPending(false);
     }
   }
-
-  const lastMessage = messages[messages.length - 1];
 
   return (
     <>
       <header className="hairline-b flex h-16 flex-shrink-0 items-center justify-between gap-3 bg-white px-margin-mobile md:px-margin-desktop">
         <div className="flex min-w-0 items-center gap-2">
           <MobileHistory locale={locale} />
-          <span className={cn("size-2 bg-primary transition-transform duration-500", isStreaming && "scale-150 animate-pulse")} />
+          <span className={cn("size-2 bg-primary transition-transform duration-500", isPending && "scale-150 animate-pulse")} />
           <span className="min-w-0 truncate text-[13px] leading-[1.4] text-on-secondary-container">
-            {isStreaming ? text.chat.streaming : clodexAccess?.active ? text.chat.clodexReady : text.chat.ready}
+            {isPending ? text.chat.streaming : clodexAccess?.active ? text.chat.clodexReady : text.chat.ready}
           </span>
         </div>
         <div className="flex shrink-0 items-center gap-3 sm:gap-4">
-          {isStreaming && (
+          {isPending && (
             <button type="button" onClick={stopGeneration} aria-label={text.chat.generationStopped} className="label-caps flex shrink-0 items-center gap-2 text-error transition-colors hover:text-primary">
               <Square size={12} />
               <span className="max-[420px]:hidden">{text.chat.generationStopped}</span>
@@ -468,7 +460,7 @@ export function PlaygroundChat({ locale }: { locale: Locale }) {
           <button
             type="button"
             onClick={startNewDialog}
-            disabled={messages.length === 0 || isStreaming}
+            disabled={messages.length === 0 || isPending}
             className="label-caps text-on-secondary-container transition-[color,transform] duration-200 hover:-translate-y-px hover:text-primary disabled:pointer-events-none disabled:opacity-30"
           >
             {text.chat.newDialog}
@@ -484,48 +476,17 @@ export function PlaygroundChat({ locale }: { locale: Locale }) {
             <p className="max-w-xl text-[16px] leading-[1.6] text-on-secondary-container">{text.chat.emptyDescription}</p>
           </div>
         ) : (
-          <div className="mx-auto flex w-full max-w-3xl flex-col gap-12 pb-10 md:gap-10 md:pb-8" aria-live="polite">
-            {messages.map((message) =>
-              message.role === "user" ? (
-                <article key={message.id} className="chat-message-enter flex justify-end">
-                  <div className="max-w-[92%] border border-outline-variant bg-surface-container-low px-5 py-4 sm:max-w-[82%] sm:px-6">
-                    <p className="whitespace-pre-wrap text-[15px] leading-[1.7] text-primary">{message.content}</p>
-                  </div>
-                </article>
-              ) : (
-                <article key={message.id} className="chat-message-enter flex justify-start">
-                  <div className={cn("max-w-[96%] border-l-2 py-3 pl-5 sm:max-w-[92%] sm:pl-6", message.error ? "border-error" : "border-primary")}>
-                    <div className={cn("whitespace-pre-wrap text-[15px] leading-[1.75]", message.error ? "text-error" : "text-primary")}>
-                      {message.content || (isStreaming ? <AIThinkingBlock label={text.chat.thinking} /> : null)}
-                    </div>
-                    {message.content && !message.error && (message.id !== lastMessage?.id || !isStreaming) && (
-                      <div className="mt-5 flex flex-wrap items-center gap-3 border-t border-outline-variant pt-3 text-[11px] text-on-secondary-container">
-                        <button type="button" onClick={() => void copyMessage(message)} className="flex items-center gap-1.5 transition-colors hover:text-primary">
-                          {copiedMessageId === message.id ? <Check size={13} /> : <Copy size={13} />}
-                          {copiedMessageId === message.id ? text.chat.copied : text.chat.copy}
-                        </button>
-                        <button type="button" onClick={() => void speakMessage(message)} aria-pressed={speechMessageId === message.id} className="flex items-center gap-1.5 transition-colors hover:text-primary">
-                          <Volume2 size={13} />
-                          {speechMessageId === message.id ? text.chat.stopSpeaking : text.chat.speak}
-                        </button>
-                        {message.meta && (
-                          <span className="min-w-0 max-w-full break-words text-on-secondary-container">
-                            {(message.meta.actualProvider === "nvidia" ? text.chat.providerNvidia : message.meta.actualProvider === "clodex" ? text.chat.providerClodex : text.chat.providerFallback)}
-                            {message.meta.actualProvider !== "edge-fallback" && ` · ${message.meta.actualModel}`}
-                            {` · ${message.meta.latencyMs} ms`}
-                          </span>
-                        )}
-                        {message.meta?.fallbackReason && (
-                          <span className="basis-full text-error">{text.chat.fallbackNotice}</span>
-                        )}
-                        {speechNotice && message.id === lastMessage?.id && <span className="text-error">{speechNotice}</span>}
-                      </div>
-                    )}
-                  </div>
-                </article>
-              ),
-            )}
-          </div>
+          <MessageList
+            messages={messages}
+            isPending={isPending}
+            locale={locale}
+            text={text}
+            copiedMessageId={copiedMessageId}
+            speakingMessageId={speechMessageId}
+            speechNotice={speechNotice}
+            onCopy={(message) => void copyMessage(message)}
+            onSpeak={(message) => void speakMessage(message)}
+          />
         )}
       </div>
 
@@ -566,10 +527,12 @@ export function PlaygroundChat({ locale }: { locale: Locale }) {
           models={models}
           selectedModelId={selectedModel?.id ?? DEFAULT_ERMA_MODEL_KEY}
           onModelChange={setModelKey}
-          disabled={isStreaming}
+          disabled={isPending}
           maxLength={promptLimit}
           placeholder={text.chat.promptPlaceholder}
           attachmentsEnabled
+          maxAttachmentBytes={clodexAccess?.unlimited ? 64 * 1024 : 16 * 1024}
+          maxAttachmentContextLength={clodexAccess?.unlimited ? 32_000 : 8_000}
           labels={text.chat.input}
           voiceLanguage={locale === "ru" ? "ru-RU" : "en-US"}
         />
