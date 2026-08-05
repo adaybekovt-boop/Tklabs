@@ -158,7 +158,7 @@ test("mobile layouts avoid fixed-width content traps", async () => {
   assert.match(home, /md:hidden/);
   assert.match(home, /aspect-\[4\/5\] lg:aspect-auto/);
   assert.doesNotMatch(home, /min-w-\[700px\]/);
-  assert.match(input, /w-\[min\(290px,calc\(100vw-2rem\)\)\]/);
+  assert.match(input, /max-\[420px\]:fixed/);
   assert.match(login, /grid-cols-1.*sm:grid-cols-2/);
 });
 
@@ -194,4 +194,16 @@ test("new Playground does not show the duplicated empty-state heading", async ()
   const playground = await text("components/playground/PlaygroundChat.tsx");
   const heading = "<h2 className=\"mb-3 max-w-2xl font-serif text-[36px] leading-[1.2] text-primary md:text-[48px]\">{text.chat.emptyTitle}</h2>";
   assert.equal(playground.split(heading).length - 1, 1);
+});
+
+test("chat keeps response metadata out of the answer footer and keeps model selection mobile-safe", async () => {
+  const playground = await text("components/playground/PlaygroundChat.tsx");
+  const input = await text("components/ui/ai-chat-input.tsx");
+  const css = await text("app/globals.css");
+
+  assert.doesNotMatch(playground, /response-meta-enter|latencyMs|providerLabel|<Timer/);
+  assert.match(input, /max-\[420px\]:fixed/);
+  assert.match(input, /aria-haspopup="listbox"/);
+  assert.match(input, /min-w-0 flex-1/);
+  assert.doesNotMatch(css, /response-meta-enter/);
 });

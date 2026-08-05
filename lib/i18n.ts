@@ -136,6 +136,18 @@ export const dictionaries = {
       entries: [
         {
           date: "05 Aug 2026",
+          version: "v0.6.1",
+          title: "Cleaner response surfaces & mobile model picker",
+          summary: "The chat now keeps the answer focused and makes model selection easier to use on narrow screens.",
+          changes: [
+            "Removed provider, model, and latency badges from the bottom of assistant answers so the response ends cleanly.",
+            "Made the model selector use the available composer width and added a compact mobile sheet for small screens.",
+            "Improved model-name truncation, touch target sizing, selected-state semantics, and dark-theme contrast in the picker.",
+            "Reviewed the incoming Erma Lite hardening commit and kept only changes compatible with the current TK LAB workspace architecture.",
+          ],
+        },
+        {
+          date: "05 Aug 2026",
           version: "v0.6.0",
           title: "Versioned terms consent & account controls",
           summary: "TK LAB now records agreement consent in the account database and adds guarded account tools for eligible users.",
@@ -535,6 +547,18 @@ export const dictionaries = {
       title: "What changed in TK LAB.",
       intro: "A public, English-language log of product, interface, and reliability updates. New releases will be added here as the system evolves.",
       entries: [
+        {
+          date: "05 Aug 2026",
+          version: "v0.6.1",
+          title: "Cleaner response surfaces & mobile model picker",
+          summary: "The chat now keeps the answer focused and makes model selection easier to use on narrow screens.",
+          changes: [
+            "Removed provider, model, and latency badges from the bottom of assistant answers so the response ends cleanly.",
+            "Made the model selector use the available composer width and added a compact mobile sheet for small screens.",
+            "Improved model-name truncation, touch target sizing, selected-state semantics, and dark-theme contrast in the picker.",
+            "Reviewed the incoming Erma Lite hardening commit and kept only changes compatible with the current TK LAB workspace architecture.",
+          ],
+        },
         {
           date: "05 Aug 2026",
           version: "v0.6.0",

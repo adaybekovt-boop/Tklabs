@@ -142,7 +142,7 @@ html[data-theme="dark"] .bg-white { background-color: var(--color-surface-contai
 .editorial-enter-delay { animation: quiet-rise 650ms 120ms cubic-bezier(.2,.8,.2,1) both; }
 .editorial-card { transition: background-color 160ms ease, color 160ms ease, transform 220ms ease; }
 .editorial-card:hover { transform: translateY(-3px); }
-.chat-empty-enter, .chat-message-enter, .response-meta-enter { animation: quiet-rise 420ms cubic-bezier(.2,.8,.2,1) both; }
+.chat-empty-enter, .chat-message-enter { animation: quiet-rise 420ms cubic-bezier(.2,.8,.2,1) both; }
 .prompt-action-icon, .prompt-morph-text { animation: quiet-fade 220ms ease both; }
 .prompt-preview { animation: quiet-fade 180ms ease both; }
 .voice-bar { height: 6px; animation: voice-wave 650ms ease-in-out infinite alternate; }
