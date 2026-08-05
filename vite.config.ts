@@ -3,6 +3,7 @@ import { defineConfig } from "vite";
 
 // macOS Seatbelt blocks FSEvents, so Codex previews need polling for HMR.
 const isCodexSeatbeltSandbox = process.env.CODEX_SANDBOX === "seatbelt";
+const d1DatabaseId = process.env.D1_DATABASE_ID?.trim();
 
 const localWorkerConfig = {
   main: "./worker/index.ts",
@@ -12,6 +13,9 @@ const localWorkerConfig = {
   },
   migrations: [{ tag: "v1", new_sqlite_classes: ["ClodexAccess"] }],
   workers_dev: true,
+  ...(d1DatabaseId ? {
+    d1_databases: [{ binding: "DB", database_name: "tklabs", database_id: d1DatabaseId }],
+  } : {}),
 };
 
 export default defineConfig(async () => {

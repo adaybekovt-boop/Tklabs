@@ -5,7 +5,7 @@ import {
   redeemClodexAccess,
 } from "@/lib/account-access";
 import { parseJsonBody, RequestBodyTooLargeError } from "@/lib/request-body";
-import { isPrivilegedAiEmail, privilegedAccessStatus } from "@/lib/privileged-access";
+import { isClodexPromoEligible, isPrivilegedAiEmail, privilegedAccessStatus } from "@/lib/privileged-access";
 import { isTrustedRequestOrigin } from "@/lib/request-security";
 
 export const runtime = "edge";
@@ -52,6 +52,7 @@ export async function POST(request: Request) {
   if (email === null) return unavailableResponse();
   if (!email) return Response.json({ error: "Authentication required." }, { status: 401, headers: { "cache-control": "no-store" } });
   if (isPrivilegedAiEmail(email)) return Response.json(privilegedAccessStatus(), { headers: { "cache-control": "no-store" } });
+  if (!isClodexPromoEligible(email)) return Response.json({ error: "Access-code redemption is not enabled for this account." }, { status: 403, headers: { "cache-control": "no-store" } });
 
   let body: { code?: unknown } | null;
   try {

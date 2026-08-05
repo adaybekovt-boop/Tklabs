@@ -28,6 +28,8 @@ jobs:
       CLODEX_ACCESS_CODE: ${{ secrets.CLODEX_ACCESS_CODE }}
       NVIDIA_API_KEY_PRIMARY: ${{ secrets.NVIDIA_API_KEY_PRIMARY }}
       NVIDIA_API_KEY_SECONDARY: ${{ secrets.NVIDIA_API_KEY_SECONDARY }}
+      D1_DATABASE_ID: ${{ secrets.D1_DATABASE_ID }}
+      CLODEX_PROMO_EMAILS: ${{ secrets.CLODEX_PROMO_EMAILS }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -44,15 +46,18 @@ jobs:
         run: |
           test -n "$CLOUDFLARE_API_TOKEN"
           test -n "$CLOUDFLARE_ACCOUNT_ID"
+          test -n "$D1_DATABASE_ID"
       - name: Upload runtime secrets
         run: |
           set -euo pipefail
-          for name in AUTH_SECRET AUTH_URL AUTH_GOOGLE_ID AUTH_GOOGLE_SECRET CLODEX_API_KEY CLODEX_ACCESS_CODE NVIDIA_API_KEY_PRIMARY NVIDIA_API_KEY_SECONDARY; do
+          for name in AUTH_SECRET AUTH_URL AUTH_GOOGLE_ID AUTH_GOOGLE_SECRET CLODEX_API_KEY CLODEX_ACCESS_CODE CLODEX_PROMO_EMAILS NVIDIA_API_KEY_PRIMARY NVIDIA_API_KEY_SECONDARY; do
             value="${!name:-}"
             if [ -n "$value" ]; then
               printf '%s' "$value" | npx wrangler secret put "$name" --config dist/server/wrangler.json
             fi
           done
+      - name: Apply D1 schema
+        run: npx wrangler d1 execute tklabs --remote --file=drizzle/0000_nappy_gunslinger.sql --config dist/server/wrangler.json
       - name: Deploy
         id: deploy
         shell: bash
