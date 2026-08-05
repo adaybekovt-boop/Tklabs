@@ -4,6 +4,7 @@ import {
   getClodexAccessStatus,
   redeemClodexAccess,
 } from "@/lib/account-access";
+import { isClodexEnabled } from "@/lib/feature-flags";
 import { parseJsonBody, RequestBodyTooLargeError } from "@/lib/request-body";
 import { isClodexPromoEligible, isPrivilegedAiEmail, privilegedAccessStatus } from "@/lib/privileged-access";
 import { isTrustedRequestOrigin } from "@/lib/request-security";
@@ -21,6 +22,13 @@ function unavailableResponse() {
   );
 }
 
+function disabledResponse() {
+  return Response.json(
+    { active: false, unlimited: false, limit: 0, windowMs: 0, remaining: 0, resetAt: null },
+    { headers: { "cache-control": "no-store" } },
+  );
+}
+
 async function getAuthenticatedEmail() {
   try {
     return sessionEmail(await auth());
@@ -31,6 +39,7 @@ async function getAuthenticatedEmail() {
 }
 
 export async function GET() {
+  if (!isClodexEnabled()) return disabledResponse();
   const email = await getAuthenticatedEmail();
   if (email === null) return unavailableResponse();
   if (!email) return Response.json({ error: "Authentication required." }, { status: 401, headers: { "cache-control": "no-store" } });
@@ -46,6 +55,7 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
+  if (!isClodexEnabled()) return Response.json({ error: "Clodex access is disabled." }, { status: 404, headers: { "cache-control": "no-store" } });
   if (!isTrustedRequestOrigin(request)) return Response.json({ error: "Request origin is not allowed." }, { status: 403, headers: { "cache-control": "no-store" } });
 
   const email = await getAuthenticatedEmail();

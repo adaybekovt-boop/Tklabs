@@ -8,7 +8,7 @@ type AccountAccessStub = {
   redeem(code: string): Promise<ClodexRedeemResult>;
   consume(): Promise<ClodexConsumeResult>;
   consumeDemo(): Promise<DemoConsumeResult>;
-  release(): Promise<ClodexReleaseResult>;
+  release(reservationId: string): Promise<ClodexReleaseResult>;
 };
 
 type AccountAccessNamespace = {
@@ -51,6 +51,6 @@ export async function consumeClodexAccess(email: string) {
   return (await getStub(email)).consume();
 }
 
-export async function releaseClodexAccess(email: string) {
-  return (await getStub(email)).release();
+export async function releaseClodexAccess(email: string, reservationId: string) {
+  return (await getStub(email)).release(reservationId);
 }

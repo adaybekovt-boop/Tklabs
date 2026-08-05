@@ -18,10 +18,12 @@ export type ClodexRedeemResult = ClodexAccessStatus & {
 
 export type ClodexConsumeResult = ClodexAccessStatus & {
   allowed: boolean;
+  reservationId?: string;
   error?: "access_required" | "limit_reached";
   retryAt?: number;
 };
 
 export type ClodexReleaseResult = ClodexAccessStatus & {
   released: boolean;
+  reservationId?: string;
 };

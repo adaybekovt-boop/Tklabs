@@ -8,6 +8,7 @@ import { StitchHeader } from "@/components/site/StitchHeader";
 import { ScrollReveal } from "@/components/ui/scroll-reveal";
 import { getDictionary } from "@/lib/i18n";
 import { getLocale } from "@/lib/locale";
+import { isClodexEnabled } from "@/lib/feature-flags";
 import { isClodexPromoEligible, isPrivilegedAiEmail } from "@/lib/privileged-access";
 import { PromoCodePanel } from "@/components/profile/PromoCodePanel";
 
@@ -17,7 +18,7 @@ export default async function ProfilePage() {
 
   const text = getDictionary(await getLocale());
   const unlimited = isPrivilegedAiEmail(session?.user?.email);
-  const promoEligible = isClodexPromoEligible(session?.user?.email);
+  const promoEligible = isClodexEnabled() && isClodexPromoEligible(session?.user?.email);
   const profileImage = session?.user?.image?.trim();
   const profileInitials = (session?.user?.name ?? session?.user?.email ?? "TK")
     .split(/\s+/)
