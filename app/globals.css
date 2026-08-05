@@ -79,7 +79,10 @@ button, input, textarea, select { font: inherit; }
 button, a { -webkit-tap-highlight-color: transparent; }
 button { cursor: pointer; }
 img, svg, video, canvas { max-width: 100%; }
-h1, h2, h3, h4, h5, h6, p, a, button, span, th, td { overflow-wrap: anywhere; }
+h1, h2, h3, h4, h5, h6, p, a, th, td { overflow-wrap: anywhere; }
+button, span { overflow-wrap: break-word; }
+
+.safe-area-bottom { padding-bottom: max(1.25rem, env(safe-area-inset-bottom, 0px)); }
 
 ::selection { background: var(--color-primary); color: var(--color-on-primary); }
 ::-webkit-scrollbar { width: 4px; height: 4px; }

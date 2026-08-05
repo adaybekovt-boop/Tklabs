@@ -136,6 +136,19 @@ export const dictionaries = {
       entries: [
         {
           date: "05 Aug 2026",
+          version: "v0.6.2",
+          title: "Mobile history & resilient chat streaming",
+          summary: "The workspace keeps conversations reachable on phones and saves streamed answers without losing the final tokens.",
+          changes: [
+            "Added a compact mobile history drawer so saved conversations remain accessible without the desktop sidebar.",
+            "Reworked stream parsing to accumulate tokens, flush the final SSE event, and persist the complete answer after generation finishes.",
+            "Saved interrupted generations with a clear stop marker instead of losing the conversation when the user cancels a request.",
+            "Replaced the nested attachment pseudo-button with separate accessible open and remove controls, including a visible touch target on mobile.",
+            "Added safe-area spacing to the composer and softened global wrapping rules so Russian controls stay readable on narrow screens.",
+          ],
+        },
+        {
+          date: "05 Aug 2026",
           version: "v0.6.1",
           title: "Cleaner response surfaces & mobile model picker",
           summary: "The chat now keeps the answer focused and makes model selection easier to use on narrow screens.",
@@ -547,6 +560,19 @@ export const dictionaries = {
       title: "What changed in TK LAB.",
       intro: "A public, English-language log of product, interface, and reliability updates. New releases will be added here as the system evolves.",
       entries: [
+        {
+          date: "05 Aug 2026",
+          version: "v0.6.2",
+          title: "Mobile history & resilient chat streaming",
+          summary: "The workspace keeps conversations reachable on phones and saves streamed answers without losing the final tokens.",
+          changes: [
+            "Added a compact mobile history drawer so saved conversations remain accessible without the desktop sidebar.",
+            "Reworked stream parsing to accumulate tokens, flush the final SSE event, and persist the complete answer after generation finishes.",
+            "Saved interrupted generations with a clear stop marker instead of losing the conversation when the user cancels a request.",
+            "Replaced the nested attachment pseudo-button with separate accessible open and remove controls, including a visible touch target on mobile.",
+            "Added safe-area spacing to the composer and softened global wrapping rules so Russian controls stay readable on narrow screens.",
+          ],
+        },
         {
           date: "05 Aug 2026",
           version: "v0.6.1",
