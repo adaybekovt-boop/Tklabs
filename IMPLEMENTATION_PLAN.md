@@ -64,3 +64,11 @@ Checks required before P3: `npm run typecheck`, `npm run lint`, `npm test`, `npm
 ## Verification and hand-off
 
 The final PR will be a single draft PR with small logical commits. It will not be merged automatically. The final report will list any checks that cannot run because of repository configuration, remaining risks, and the manual GitHub settings required to make `main` the default branch and protect it.
+
+## Implementation status
+
+- P0 and P1 are implemented in commits `954dda1`, `d123b81`, and `173d578`, with the follow-up response/terms hardening in `1b0f689` and `971e174`.
+- P2 is implemented: provider metadata and fallback notices are visible, the status page is live-only/no-store, the chat has one JSON contract, the archive is labeled as browser-local sessions, and attachment controls reject rather than silently truncate oversized files.
+- P3 is implemented: behavior tests and separated scripts are in `7e2622d`, CI/deploy checks are in `c35304b`, and documentation/security policy are in `7a308f6`.
+- The unused `examples/d1` sample was removed in `a05df5d`; the actual D1 layer remains because terms consent uses it.
+- The final `npm ci`, full check, production audit, secret scan, push, and draft PR creation remain release-gate tasks. No merge is planned.
