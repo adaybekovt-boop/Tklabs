@@ -1,6 +1,6 @@
 # Google OAuth setup
 
-The application uses Auth.js with the Google provider and an encrypted JWT session cookie. The first version does not require a database; chat history remains session-local and is not persisted.
+The application uses Auth.js with the Google provider and an encrypted JWT session cookie. Cloudflare D1 stores the authenticated account record and versioned terms consent; chat conversations remain bounded browser-local sessions and are not a server backup.
 
 ## Google Cloud Console
 
@@ -26,6 +26,7 @@ Copy .env.example to .env.local and set:
     AUTH_SECRET=...
     AUTH_GOOGLE_ID=...
     AUTH_GOOGLE_SECRET=...
+    RATE_LIMIT_SECRET=...
     NVIDIA_API_KEY_PRIMARY=...
     NVIDIA_API_KEY_SECONDARY=...
     ELEVENLABS_API_KEY=... (optional high-quality speech)
@@ -42,19 +43,22 @@ Never expose AUTH_GOOGLE_SECRET or AUTH_SECRET as NEXT_PUBLIC variables and neve
 
 The Validate workflow runs on pushes and pull requests. GitHub Pages is not used because this application has server-side OAuth routes.
 
-The Deploy Cloudflare Worker workflow is manual. Add these repository secrets before running it:
+The Deploy Cloudflare Worker workflow runs on pushes to `main` and can also be started manually. Add these repository secrets before enabling production deployment:
 
     CLOUDFLARE_API_TOKEN
     CLOUDFLARE_ACCOUNT_ID
     AUTH_SECRET
     AUTH_GOOGLE_ID
     AUTH_GOOGLE_SECRET
-    CLODEX_API_KEY (optional)
-    CLODEX_ACCESS_CODE (required for account-gated Clodex models; keep the actual code private)
-    NVIDIA_API_KEY_PRIMARY (recommended)
-    NVIDIA_API_KEY_SECONDARY (recommended)
+    RATE_LIMIT_SECRET (required HMAC key for public demo buckets)
+    NVIDIA_API_KEY_PRIMARY (required for Erma)
+    NVIDIA_API_KEY_SECONDARY (optional rotation key)
+    UNLIMITED_AI_EMAILS (optional comma-separated server-side allowlist)
+    CLODEX_API_KEY (only when the `CLODEX_ENABLED` Actions variable is `true`)
+    CLODEX_ACCESS_CODE (only when Clodex is enabled; keep the actual code private)
+    CLODEX_PROMO_EMAILS (optional comma-separated server-side allowlist)
     ELEVENLABS_API_KEY (optional high-quality speech)
     ELEVENLABS_VOICE_ID (required with the ElevenLabs key)
     ELEVENLABS_MODEL_ID (optional; defaults to eleven_multilingual_v2)
 
-The workflow builds the Vinext Worker, uploads runtime secrets to Cloudflare, and deploys the generated Worker configuration. A custom domain can be attached in Cloudflare later; then add its exact callback URL in Google Cloud Console.
+Set the non-secret Actions variable `CLODEX_ENABLED` to `true` only when the Clodex experiment is ready. `AUTH_URL` is a public Wrangler variable and should match the canonical site origin. The workflow builds the Vinext Worker, validates mandatory values, applies the D1 migration, uploads runtime secrets to Cloudflare, and deploys the generated Worker configuration. A custom domain can be attached in Cloudflare later; then add its exact callback URL in Google Cloud Console.
