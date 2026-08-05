@@ -56,6 +56,7 @@ jobs:
           test -n "$AUTH_GOOGLE_ID"
           test -n "$AUTH_GOOGLE_SECRET"
           test -n "$RATE_LIMIT_SECRET"
+          test -n "$NVIDIA_API_KEY_PRIMARY"
           if [ "$CLODEX_ENABLED" = "true" ]; then
             test -n "$CLODEX_API_KEY"
             test -n "$CLODEX_ACCESS_CODE"
