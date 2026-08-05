@@ -28,7 +28,7 @@ jobs:
       CLODEX_ACCESS_CODE: ${{ secrets.CLODEX_ACCESS_CODE }}
       NVIDIA_API_KEY_PRIMARY: ${{ secrets.NVIDIA_API_KEY_PRIMARY }}
       NVIDIA_API_KEY_SECONDARY: ${{ secrets.NVIDIA_API_KEY_SECONDARY }}
-      D1_DATABASE_ID: ${{ secrets.D1_DATABASE_ID }}
+      D1_DATABASE_ID: ${{ secrets.D1_DATABASE_ID || 'c4085a86-0fec-49f2-b2ed-5999190fcc30' }}
       CLODEX_PROMO_EMAILS: ${{ secrets.CLODEX_PROMO_EMAILS }}
     steps:
       - name: Checkout
@@ -46,7 +46,6 @@ jobs:
         run: |
           test -n "$CLOUDFLARE_API_TOKEN"
           test -n "$CLOUDFLARE_ACCOUNT_ID"
-          test -n "$D1_DATABASE_ID"
       - name: Upload runtime secrets
         run: |
           set -euo pipefail

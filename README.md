@@ -43,4 +43,4 @@ Agreement storage and deployment details are documented in [`docs/TERMS_CONSENT_
 
 ## Deployment
 
-Merges to `main` trigger the Cloudflare Worker deployment workflow. It can also be started manually from GitHub Actions. The workflow builds the Worker, requires `D1_DATABASE_ID`, applies the idempotent account schema, uploads configured secrets, and deploys using the generated Wrangler configuration.
+Merges to `main` trigger the Cloudflare Worker deployment workflow. It can also be started manually from GitHub Actions. The workflow builds the Worker with the production D1 binding, applies the idempotent account schema, uploads configured secrets, and deploys using the generated Wrangler configuration. `D1_DATABASE_ID` remains an optional override for another environment.

@@ -56,14 +56,14 @@ Accepts `{ "language": "ru" | "en", "version": "2026-08-05" }`. The route reject
 
 ## Deployment checklist
 
-1. Create or select the Cloudflare D1 database named `tklabs`.
-2. Set the GitHub Actions secret `D1_DATABASE_ID` to the database ID. The workflow passes it to the Cloudflare Worker binding `DB`.
+1. Use the Cloudflare D1 database named `tklabs` (`c4085a86-0fec-49f2-b2ed-5999190fcc30` in production).
+2. The production database ID is included as a non-secret build fallback so both GitHub Actions and Cloudflare Git integration emit the Worker binding `DB`. Set the optional `D1_DATABASE_ID` override only for another environment.
 3. Apply `drizzle/0000_nappy_gunslinger.sql` to the production database using the project’s approved Wrangler/D1 migration process.
 4. Deploy and verify an authenticated account with `GET /api/account/terms`.
 5. Accept both language variants in staging, confirm the stored timestamp/version, and confirm that a second request returns `required: false`.
 6. Change `CURRENT_TERMS_VERSION` only together with reviewed legal text, the Markdown document, and a new migration/release note when storage changes.
 
-The build can still run without `D1_DATABASE_ID` so public pages remain buildable, but the consent API correctly returns `503` until the production D1 binding exists. This should be treated as a deployment configuration error, not as an invitation to fall back to local storage.
+The build keeps a production D1 binding even when `D1_DATABASE_ID` is absent, so the consent API does not silently degrade on Cloudflare Git integration builds. A missing or invalid binding still returns `503`; the deployment check and live health verification should catch that configuration error.
 
 ## Admin review
 
