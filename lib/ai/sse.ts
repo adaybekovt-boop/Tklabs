@@ -1,7 +1,9 @@
+import type { AiResponseMeta } from "@/lib/ai/types";
+
 export type AiStreamEvent =
   | { type: "start"; requestId: string; contextMessages: number; contextCharacters: number; contextTruncated: boolean }
   | { type: "delta"; text: string }
-  | { type: "meta"; meta: unknown }
+  | { type: "meta"; meta: AiResponseMeta }
   | { type: "done" }
   | { type: "error"; error: string; requestId?: string; retryAfter?: number };
 
