@@ -11,6 +11,10 @@ function releaseId(version: string) {
   return `release-${version.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "")}`;
 }
 
+function desktopReleaseId(version: string) {
+  return `desktop-${releaseId(version)}`;
+}
+
 export function PatchNotesBrowser({ entries, locale }: { entries: PublicReleaseNote[]; locale: Locale }) {
   const [query, setQuery] = useState("");
   const [openVersion, setOpenVersion] = useState(entries[0]?.version ?? "");
@@ -64,7 +68,7 @@ export function PatchNotesBrowser({ entries, locale }: { entries: PublicReleaseN
     const id = releaseId(version);
     window.history.replaceState(window.history.state, "", `#${id}`);
     requestAnimationFrame(() => {
-      document.getElementById(id)?.scrollIntoView({
+      document.getElementById(desktopReleaseId(version))?.scrollIntoView({
         behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth",
         block: "start",
       });
@@ -83,7 +87,7 @@ export function PatchNotesBrowser({ entries, locale }: { entries: PublicReleaseN
   }
 
   return (
-    <div className="grid gap-6 lg:grid-cols-[220px_minmax(0,1fr)] lg:items-start lg:gap-8">
+    <div className="grid gap-6 lg:grid-cols-[220px_minmax(0,1fr)] lg:items-start lg:gap-8" data-desktop-release-browser>
       <aside className="space-y-4 lg:sticky lg:top-28">
         <label className="relative block">
           <Search className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-secondary" size={17} aria-hidden="true" />
@@ -149,10 +153,10 @@ export function PatchNotesBrowser({ entries, locale }: { entries: PublicReleaseN
           </div>
         ) : filteredEntries.map((entry, index) => {
           const open = openVersion === entry.version;
-          const contentId = `${releaseId(entry.version)}-content`;
+          const contentId = `${desktopReleaseId(entry.version)}-content`;
           return (
             <article
-              id={releaseId(entry.version)}
+              id={desktopReleaseId(entry.version)}
               key={entry.version}
               className={cn(
                 "scroll-mt-24 overflow-hidden rounded-3xl border bg-surface-container-lowest transition-[border-color,box-shadow] lg:scroll-mt-28",
