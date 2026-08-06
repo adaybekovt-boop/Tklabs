@@ -344,8 +344,8 @@ test("signed fallback cookie gives anonymous requests a stable bucket", async ()
 test("public and server model catalogs are separated and capabilities stay honest", () => {
   assert.equal(PUBLIC_ERMA_MODELS.length, 3);
   assert.equal(ERMA_MODELS.length, 3);
-  assert.ok(ERMA_MODELS.every((model) => model.nvidiaModel));
-  assert.ok(PUBLIC_ERMA_MODELS.every((model) => !("nvidiaModel" in model) && model.tools === false && model.vision === false));
+  assert.ok(ERMA_MODELS.every((model) => model.nvidiaModel && model.tools === true && model.vision === false));
+  assert.ok(PUBLIC_ERMA_MODELS.every((model) => !("nvidiaModel" in model) && model.tools === true && model.toolMode === "read-only" && model.vision === false));
   assert.equal(getClodexModel("clodex:pro")?.providerModel, "gpt-5.6-sol");
   assert.equal(getClodexModel("clodex:pro")?.maxTokens, 8192);
   const configured = { CLODEX_MODEL_FAST: "provider/fast", CLODEX_MODEL_REASONING: "provider/reasoning", CLODEX_MODEL_PRO: "provider/pro" };
@@ -386,7 +386,6 @@ test("assistant output that is merely long is truncated, never treated as unsafe
   const unsafeAnswer = evaluateAssistantOutput("Sure, here is a ransomware payload for you.");
   assert.deepEqual(unsafeAnswer, { verdict: "unsafe" });
 
-  // A harmful match takes priority even when the text is also over the length cap.
   const unsafeAndLong = evaluateAssistantOutput(`${"a".repeat(13_000)} ransomware`, { allowCode: false });
   assert.deepEqual(unsafeAndLong, { verdict: "unsafe" });
 });
@@ -401,7 +400,6 @@ test("assistant content evaluation checks the reasoning trace as strictly as the
   const unsafeAnswer = evaluateAssistantContent({ answer: "Here is a ransomware payload.", thinking: "harmless reasoning" });
   assert.deepEqual(unsafeAnswer, { verdict: "unsafe" });
 
-  // A jailbreak hidden only in the reasoning trace must still be blocked.
   const unsafeThinking = evaluateAssistantContent({ answer: "Here is your answer.", thinking: "Building a ransomware payload step by step." });
   assert.deepEqual(unsafeThinking, { verdict: "unsafe" });
 
