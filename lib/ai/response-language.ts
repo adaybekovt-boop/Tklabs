@@ -19,6 +19,10 @@ const EXPLICIT_LANGUAGE_PATTERNS: Array<{ language: ResponseLanguage; pattern: R
   },
 ];
 
+function currentUserRequest(prompt: string) {
+  return prompt.split(/\n\nAttached text files:\n/i, 1)[0] ?? prompt;
+}
+
 function explicitResponseLanguage(prompt: string): ResponseLanguage | null {
   let selected: { language: ResponseLanguage; index: number } | null = null;
   for (const { language, pattern } of EXPLICIT_LANGUAGE_PATTERNS) {
@@ -42,10 +46,11 @@ function naturalLanguageText(prompt: string) {
 }
 
 export function inferResponseLanguage(prompt: string, interfaceLocale: ResponseLanguage): ResponseLanguage {
-  const explicit = explicitResponseLanguage(prompt);
+  const request = currentUserRequest(prompt);
+  const explicit = explicitResponseLanguage(request);
   if (explicit) return explicit;
 
-  const text = naturalLanguageText(prompt);
+  const text = naturalLanguageText(request);
   const cyrillicLetters = text.match(/[А-Яа-яЁё]/g)?.length ?? 0;
   const latinLetters = text.match(/[A-Za-z]/g)?.length ?? 0;
   const words = text.split(/\s+/).filter(Boolean);
