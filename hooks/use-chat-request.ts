@@ -2,9 +2,10 @@ import { useEffect, useMemo, useReducer, useRef, useState } from "react";
 
 import { DEFAULT_CONTEXT_LIMIT_TOKENS, estimateMessagesTokens, type ChatContextMessage } from "@/lib/ai/context";
 import type { AiResponseMeta } from "@/lib/ai/types";
+import { chatResponseModeInstruction, type ChatResponseMode } from "@/lib/chat-modes";
 import type { Locale } from "@/lib/i18n";
 import { getDictionary } from "@/lib/i18n";
-import type { ArchivedMessage } from "@/lib/local-archive";
+import type { ArchivedMessage, ArchivedMessageVersion } from "@/lib/local-archive";
 import type { ChatInputSubmitMeta } from "@/components/ui/ai-chat-input";
 import type { ChatMessage } from "@/components/playground/MessageList";
 
@@ -29,14 +30,13 @@ type RequestAction =
   | { type: "stopped" }
   | { type: "reset" };
 
-type ActiveConversation = {
-  prompt: string;
-  model: string;
-  assistantId: string;
-  requestId: string;
-};
-
+type ActiveConversation = { prompt: string; model: string; assistantId: string; requestId: string };
 type StreamPayload = Record<string, unknown>;
+type RunConfiguration = {
+  historyOverride?: ChatMessage[];
+  reuseAssistantId?: string;
+  previousVersions?: ArchivedMessageVersion[];
+};
 
 function requestReducer(state: RequestState, action: RequestAction): RequestState {
   switch (action.type) {
@@ -63,9 +63,7 @@ function isResponseMeta(value: unknown): value is AiResponseMeta {
 
 function safeRetrySeconds(response: Response, payload: unknown) {
   const header = Number(response.headers.get("retry-after"));
-  const body = payload && typeof payload === "object" && "retryAfter" in payload
-    ? Number((payload as { retryAfter?: unknown }).retryAfter)
-    : 0;
+  const body = payload && typeof payload === "object" && "retryAfter" in payload ? Number((payload as { retryAfter?: unknown }).retryAfter) : 0;
   const value = Number.isFinite(header) && header > 0 ? header : body;
   return Number.isFinite(value) && value > 0 ? Math.min(3600, Math.max(1, Math.ceil(value))) : undefined;
 }
@@ -82,11 +80,7 @@ function parseEventBlock(block: string) {
     else if (line.startsWith("data:")) data.push(line.slice(5).trimStart());
   }
   if (!data.length) return null;
-  try {
-    return { event, payload: JSON.parse(data.join("\n")) as StreamPayload };
-  } catch {
-    return null;
-  }
+  try { return { event, payload: JSON.parse(data.join("\n")) as StreamPayload }; } catch { return null; }
 }
 
 function toContextMessages(messages: ChatMessage[]): ChatContextMessage[] {
@@ -98,24 +92,13 @@ function toContextMessages(messages: ChatMessage[]): ChatContextMessage[] {
 
 function contextStatsFromMessages(messages: ChatMessage[]): ChatContextStats {
   const contextMessages = toContextMessages(messages);
-  return {
-    estimatedTokens: estimateMessagesTokens(contextMessages),
-    messages: contextMessages.length,
-    attachments: 0,
-    limit: DEFAULT_CONTEXT_LIMIT_TOKENS,
-    compacted: false,
-  };
+  return { estimatedTokens: estimateMessagesTokens(contextMessages), messages: contextMessages.length, attachments: 0, limit: DEFAULT_CONTEXT_LIMIT_TOKENS, compacted: false };
 }
 
 function contextStatsFromPayload(payload: unknown): ChatContextStats | null {
   if (!payload || typeof payload !== "object") return null;
   const context = payload as Partial<ChatContextStats>;
-  if (
-    typeof context.estimatedTokens !== "number"
-    || typeof context.messages !== "number"
-    || typeof context.attachments !== "number"
-    || typeof context.limit !== "number"
-  ) return null;
+  if (typeof context.estimatedTokens !== "number" || typeof context.messages !== "number" || typeof context.attachments !== "number" || typeof context.limit !== "number") return null;
   return {
     estimatedTokens: Math.max(0, Math.round(context.estimatedTokens)),
     messages: Math.max(0, Math.round(context.messages)),
@@ -125,10 +108,28 @@ function contextStatsFromPayload(payload: unknown): ChatContextStats | null {
   };
 }
 
+function modeAttachments(attachments: ChatInputSubmitMeta["attachments"], mode: ChatResponseMode, locale: Locale) {
+  const instruction = chatResponseModeInstruction(mode, locale);
+  if (attachments.length === 0) return [{ name: ".tklabs-response-mode.txt", content: instruction }];
+  return attachments.map((attachment, index) => index === 0
+    ? { ...attachment, content: `${attachment.content}\n\n[TK LAB RESPONSE MODE]\n${instruction}` }
+    : attachment);
+}
+
+function responseSnapshot(message: ChatMessage): ArchivedMessageVersion {
+  return {
+    content: message.content,
+    createdAt: Date.now(),
+    ...(message.requestId ? { requestId: message.requestId } : {}),
+    ...(message.meta ? { meta: message.meta } : {}),
+  };
+}
+
 export function useChatRequest(options: {
   locale: Locale;
   tone: Tone;
   reasonEnabled: boolean;
+  responseMode: ChatResponseMode;
   promptLimit: number;
   currentModel: string;
   saveConversation: (prompt: string, model: string, messages: ArchivedMessage[]) => void;
@@ -145,9 +146,7 @@ export function useChatRequest(options: {
   const localContextStats = useMemo(() => contextStatsFromMessages(messages), [messages]);
   const contextStats = isPending && serverContextStats ? serverContextStats : localContextStats;
 
-  useEffect(() => {
-    messagesRef.current = messages;
-  }, [messages]);
+  useEffect(() => { messagesRef.current = messages; }, [messages]);
 
   function clearWatchdog() {
     if (watchdogRef.current) clearTimeout(watchdogRef.current);
@@ -168,8 +167,13 @@ export function useChatRequest(options: {
     });
   }
 
+  function saveCurrentMessages(next: ChatMessage[], model = options.currentModel) {
+    const firstPrompt = next.find((message) => message.role === "user")?.content ?? "Conversation";
+    options.saveConversation(firstPrompt, model, next as ArchivedMessage[]);
+  }
+
   function appendAssistant(assistantId: string, update: (message: ChatMessage) => ChatMessage) {
-    setMessages((current) => current.map((message) => (message.id === assistantId ? update(message) : message)));
+    setMessages((current) => current.map((message) => message.id === assistantId ? update(message) : message));
   }
 
   function armWatchdog(controller: AbortController, conversation: ActiveConversation) {
@@ -179,12 +183,7 @@ export function useChatRequest(options: {
       controller.abort();
       clearActiveRequest();
       saveUpdatedMessages(conversation, (current) => current.map((message) => message.id === conversation.assistantId
-        ? {
-            ...message,
-            content: message.content ? `${message.content}\n\n${text.chat.networkError}` : text.chat.networkError,
-            error: !message.content,
-            requestId: conversation.requestId,
-          }
+        ? { ...message, content: message.content ? `${message.content}\n\n${text.chat.networkError}` : text.chat.networkError, error: !message.content, requestId: conversation.requestId }
         : message));
       dispatch({ type: "error" });
     }, 120_000);
@@ -196,11 +195,7 @@ export function useChatRequest(options: {
     activeRequestRef.current?.abort();
     clearActiveRequest();
     saveUpdatedMessages(conversation, (current) => current.map((message) => message.id === conversation.assistantId
-      ? {
-          ...message,
-          content: message.content ? `${message.content}\n\n${text.chat.generationStopped}` : text.chat.generationStopped,
-          error: false,
-        }
+      ? { ...message, content: message.content || text.chat.generationStopped, error: false, stopped: true }
       : message));
     dispatch({ type: "stopped" });
   }
@@ -208,18 +203,10 @@ export function useChatRequest(options: {
   function applyMetaToContext(meta: AiResponseMeta) {
     if (typeof meta.inputTokens !== "number" && typeof meta.contextMessageCount !== "number") return;
     setServerContextStats((current) => ({
-      estimatedTokens: typeof meta.inputTokens === "number"
-        ? Math.max(0, Math.round(meta.inputTokens))
-        : current?.estimatedTokens ?? localContextStats.estimatedTokens,
-      messages: typeof meta.contextMessageCount === "number"
-        ? Math.max(0, Math.round(meta.contextMessageCount))
-        : current?.messages ?? localContextStats.messages,
-      attachments: typeof meta.contextAttachmentCount === "number"
-        ? Math.max(0, Math.round(meta.contextAttachmentCount))
-        : current?.attachments ?? 0,
-      limit: typeof meta.contextLimit === "number"
-        ? Math.max(1, Math.round(meta.contextLimit))
-        : current?.limit ?? DEFAULT_CONTEXT_LIMIT_TOKENS,
+      estimatedTokens: typeof meta.inputTokens === "number" ? Math.max(0, Math.round(meta.inputTokens)) : current?.estimatedTokens ?? localContextStats.estimatedTokens,
+      messages: typeof meta.contextMessageCount === "number" ? Math.max(0, Math.round(meta.contextMessageCount)) : current?.messages ?? localContextStats.messages,
+      attachments: typeof meta.contextAttachmentCount === "number" ? Math.max(0, Math.round(meta.contextAttachmentCount)) : current?.attachments ?? 0,
+      limit: typeof meta.contextLimit === "number" ? Math.max(1, Math.round(meta.contextLimit)) : current?.limit ?? DEFAULT_CONTEXT_LIMIT_TOKENS,
       compacted: meta.contextCompacted === true,
     }));
   }
@@ -238,12 +225,10 @@ export function useChatRequest(options: {
       buffer += decoder.decode(value ?? new Uint8Array(), { stream: !done });
       const blocks = buffer.split(/\r?\n\r?\n/);
       buffer = done ? "" : (blocks.pop() ?? "");
-
       for (const block of blocks) {
         const parsed = parseEventBlock(block);
         if (!parsed) continue;
         armWatchdog(controller, conversation);
-
         if (parsed.event === "start") {
           dispatch({ type: "connected" });
           const stats = contextStatsFromPayload(parsed.payload.context);
@@ -252,7 +237,6 @@ export function useChatRequest(options: {
           appendAssistant(conversation.assistantId, (message) => ({ ...message, requestId: providerRequestId }));
           continue;
         }
-
         if (parsed.event === "delta") {
           const delta = typeof parsed.payload.text === "string" ? parsed.payload.text : "";
           if (!delta) continue;
@@ -261,19 +245,13 @@ export function useChatRequest(options: {
           appendAssistant(conversation.assistantId, (message) => ({ ...message, content: `${message.content}${delta}` }));
           continue;
         }
-
         if (parsed.event === "meta" && isResponseMeta(parsed.payload)) {
           const meta = parsed.payload;
           appendAssistant(conversation.assistantId, (message) => ({ ...message, requestId: meta.requestId, meta }));
           applyMetaToContext(meta);
           continue;
         }
-
-        if (parsed.event === "error") {
-          streamError = typeof parsed.payload.error === "string" ? parsed.payload.error : text.chat.networkError;
-          continue;
-        }
-
+        if (parsed.event === "error") streamError = typeof parsed.payload.error === "string" ? parsed.payload.error : text.chat.networkError;
         if (parsed.event === "done") receivedDone = true;
       }
       if (done) break;
@@ -287,38 +265,21 @@ export function useChatRequest(options: {
     else dispatch({ type: "completed" });
   }
 
-  async function runRequest(
-    prompt: string,
-    submitMeta: ChatInputSubmitMeta,
-    preserveUserMessage = false,
-    historyOverride?: ChatMessage[],
-  ) {
+  async function runRequest(prompt: string, submitMeta: ChatInputSubmitMeta, configuration: RunConfiguration = {}) {
     const requestId = crypto.randomUUID();
-    const assistantId = crypto.randomUUID();
+    const assistantId = configuration.reuseAssistantId ?? crypto.randomUUID();
     const controller = new AbortController();
-    const history = toContextMessages(historyOverride ?? messagesRef.current);
+    const history = toContextMessages(configuration.historyOverride ?? messagesRef.current);
     const conversation: ActiveConversation = { prompt, model: submitMeta.model, assistantId, requestId };
 
     setServerContextStats(null);
-    if (preserveUserMessage) {
-      setMessages((current) => [...current, {
-        id: assistantId,
-        role: "assistant",
-        content: "",
-        requestId,
-        retryPrompt: prompt,
-        retryModel: submitMeta.model,
-      }]);
+    if (configuration.reuseAssistantId) {
+      setMessages((current) => current.map((message) => message.id === assistantId
+        ? { ...message, content: "", error: false, stopped: false, requestId, retryPrompt: prompt, retryModel: submitMeta.model, versions: configuration.previousVersions, comparison: undefined, meta: undefined }
+        : message));
     } else {
       const userMessage: ChatMessage = { id: crypto.randomUUID(), role: "user", content: prompt };
-      setMessages((current) => [...current, userMessage, {
-        id: assistantId,
-        role: "assistant",
-        content: "",
-        requestId,
-        retryPrompt: prompt,
-        retryModel: submitMeta.model,
-      }]);
+      setMessages((current) => [...current, userMessage, { id: assistantId, role: "assistant", content: "", requestId, retryPrompt: prompt, retryModel: submitMeta.model }]);
     }
 
     activeRequestRef.current = controller;
@@ -340,63 +301,37 @@ export function useChatRequest(options: {
           reasonEnabled: options.reasonEnabled,
           effort: submitMeta.effort,
           tone: options.tone,
-          attachments: submitMeta.attachments,
+          attachments: modeAttachments(submitMeta.attachments, options.responseMode, options.locale),
         }),
       });
       armWatchdog(controller, conversation);
 
       if (!response.ok) {
-        const payload = await response.json().catch(() => null) as {
-          error?: unknown;
-          requestId?: unknown;
-          retryAfter?: unknown;
-        } | null;
+        const payload = await response.json().catch(() => null) as { error?: unknown; requestId?: unknown; retryAfter?: unknown } | null;
         const fallback = response.status === 401 ? text.chat.authExpired : `${text.chat.apiError} ${response.status}`;
         const errorText = typeof payload?.error === "string" ? payload.error : fallback;
-        appendAssistant(assistantId, (message) => ({
-          ...message,
-          content: errorText,
-          error: true,
-          requestId: typeof payload?.requestId === "string" ? payload.requestId : requestId,
-          retryAfterSeconds: safeRetrySeconds(response, payload),
-        }));
+        appendAssistant(assistantId, (message) => ({ ...message, content: errorText, error: true, requestId: typeof payload?.requestId === "string" ? payload.requestId : requestId, retryAfterSeconds: safeRetrySeconds(response, payload) }));
         dispatch({ type: "error" });
         return;
       }
 
       const contentType = response.headers.get("content-type")?.toLowerCase() ?? "";
-      if (contentType.includes("text/event-stream")) {
-        await consumeEventStream(response, controller, conversation);
-        return;
-      }
+      if (contentType.includes("text/event-stream")) { await consumeEventStream(response, controller, conversation); return; }
 
       dispatch({ type: "connected" });
-      const payload = await response.json().catch(() => null) as {
-        answer?: unknown;
-        meta?: unknown;
-      } | null;
+      const payload = await response.json().catch(() => null) as { answer?: unknown; meta?: unknown } | null;
       const assistantContent = typeof payload?.answer === "string" ? payload.answer.trim() : "";
       if (!assistantContent) throw new Error("The AI response was empty.");
       const responseMeta = isResponseMeta(payload?.meta) ? payload.meta : undefined;
       if (responseMeta) applyMetaToContext(responseMeta);
       saveUpdatedMessages(conversation, (current) => current.map((message) => message.id === assistantId
-        ? {
-            ...message,
-            content: assistantContent,
-            requestId: responseMeta?.requestId ?? requestId,
-            ...(responseMeta ? { meta: responseMeta } : {}),
-          }
+        ? { ...message, content: assistantContent, requestId: responseMeta?.requestId ?? requestId, ...(responseMeta ? { meta: responseMeta } : {}) }
         : message));
       dispatch({ type: "completed" });
     } catch (error) {
       if (isAbortError(error)) return;
       saveUpdatedMessages(conversation, (current) => current.map((message) => message.id === assistantId
-        ? {
-            ...message,
-            content: message.content ? `${message.content}\n\n${text.chat.networkError}` : text.chat.networkError,
-            error: !message.content,
-            requestId,
-          }
+        ? { ...message, content: message.content ? `${message.content}\n\n${text.chat.networkError}` : text.chat.networkError, error: !message.content, requestId }
         : message));
       dispatch({ type: "error" });
     } finally {
@@ -418,18 +353,113 @@ export function useChatRequest(options: {
     const latest = history[history.length - 1];
     if (latest?.role === "user" && latest.content.trim() === message.retryPrompt.trim()) history = history.slice(0, -1);
     setMessages((entries) => entries.filter((entry) => entry.id !== message.id));
-    void runRequest(message.retryPrompt, { model: message.retryModel, effort: "medium", attachments: [] }, true, history);
+    void runRequest(message.retryPrompt, { model: message.retryModel, effort: "medium", attachments: [] }, { historyOverride: history });
+  }
+
+  function regenerateMessage(message: ChatMessage) {
+    if (isPending || message.role !== "assistant" || !message.content.trim()) return;
+    const current = messagesRef.current;
+    const assistantIndex = current.findIndex((entry) => entry.id === message.id);
+    if (assistantIndex < 0) return;
+    let userIndex = assistantIndex - 1;
+    while (userIndex >= 0 && current[userIndex].role !== "user") userIndex -= 1;
+    if (userIndex < 0) return;
+    const prompt = current[userIndex].content;
+    const versions = [...(message.versions ?? []), responseSnapshot(message)].slice(-5);
+    void runRequest(prompt, { model: message.retryModel ?? options.currentModel, effort: "medium", attachments: [] }, {
+      historyOverride: current.slice(0, userIndex),
+      reuseAssistantId: message.id,
+      previousVersions: versions,
+    });
+  }
+
+  function restorePreviousVersion(messageId: string) {
+    if (isPending) return;
+    setMessages((current) => {
+      const next = current.map((message) => {
+        if (message.id !== messageId || !message.versions?.length) return message;
+        const previous = message.versions[message.versions.length - 1];
+        return {
+          ...message,
+          content: previous.content,
+          requestId: previous.requestId,
+          meta: previous.meta,
+          versions: message.versions.slice(0, -1),
+          comparison: undefined,
+          stopped: false,
+        };
+      });
+      saveCurrentMessages(next);
+      return next;
+    });
+  }
+
+  async function compareMessage(messageId: string, model: string) {
+    if (isPending || !model) return;
+    const current = messagesRef.current;
+    const assistantIndex = current.findIndex((message) => message.id === messageId);
+    if (assistantIndex < 0) return;
+    let userIndex = assistantIndex - 1;
+    while (userIndex >= 0 && current[userIndex].role !== "user") userIndex -= 1;
+    if (userIndex < 0) return;
+    const prompt = current[userIndex].content;
+    const requestId = crypto.randomUUID();
+    setMessages((entries) => entries.map((message) => message.id === messageId ? { ...message, comparison: { model, content: "", requestId, pending: true } } : message));
+
+    try {
+      const endpoint = model.startsWith("clodex:") ? "/api/clodex" : "/api/demo";
+      const response = await fetch(endpoint, {
+        method: "POST",
+        headers: { "content-type": "application/json", accept: "application/json" },
+        body: JSON.stringify({
+          prompt,
+          messages: toContextMessages(current.slice(0, userIndex)),
+          model,
+          locale: options.locale,
+          reasonEnabled: options.reasonEnabled,
+          effort: "medium",
+          tone: options.tone,
+          attachments: modeAttachments([], options.responseMode, options.locale),
+        }),
+      });
+      const payload = await response.json().catch(() => null) as { answer?: unknown; error?: unknown; meta?: unknown; requestId?: unknown } | null;
+      const content = typeof payload?.answer === "string" ? payload.answer.trim() : typeof payload?.error === "string" ? payload.error : text.chat.networkError;
+      const meta = isResponseMeta(payload?.meta) ? payload.meta : undefined;
+      setMessages((entries) => {
+        const next = entries.map((message) => message.id === messageId ? {
+          ...message,
+          comparison: {
+            model,
+            content,
+            requestId: meta?.requestId ?? (typeof payload?.requestId === "string" ? payload.requestId : requestId),
+            ...(meta ? { meta } : {}),
+            ...(!response.ok ? { error: true } : {}),
+          },
+        } : message);
+        saveCurrentMessages(next);
+        return next;
+      });
+    } catch {
+      setMessages((entries) => {
+        const next = entries.map((message) => message.id === messageId ? { ...message, comparison: { model, content: text.chat.networkError, requestId, error: true } } : message);
+        saveCurrentMessages(next);
+        return next;
+      });
+    }
+  }
+
+  function messagesThrough(messageId: string) {
+    const current = messagesRef.current;
+    const index = current.findIndex((message) => message.id === messageId);
+    return index < 0 ? [] : current.slice(0, index + 1);
   }
 
   function toggleMessageContext(messageId: string) {
     if (isPending) return;
     setServerContextStats(null);
     setMessages((current) => {
-      const next = current.map((message) => message.id === messageId
-        ? { ...message, excludedFromContext: !message.excludedFromContext }
-        : message);
-      const firstPrompt = next.find((message) => message.role === "user")?.content ?? "Conversation";
-      options.saveConversation(firstPrompt, options.currentModel, next as ArchivedMessage[]);
+      const next = current.map((message) => message.id === messageId ? { ...message, excludedFromContext: !message.excludedFromContext } : message);
+      saveCurrentMessages(next);
       return next;
     });
   }
@@ -464,6 +494,10 @@ export function useChatRequest(options: {
     handleSubmit,
     stopGeneration,
     retryMessage,
+    regenerateMessage,
+    restorePreviousVersion,
+    compareMessage,
+    messagesThrough,
     toggleMessageContext,
     clearMessages,
   };
