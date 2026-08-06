@@ -14,7 +14,7 @@ test("PWA runtime is mounted globally and registers a versioned service worker",
   assert.match(layout, /<PwaRuntime\s*\/>/);
   assert.match(runtime, /serviceWorker\.register\("\/sw\.js"/);
   assert.match(runtime, /beforeinstallprompt/);
-  assert.match(worker, /CACHE_VERSION = "v0\.12\.0"/);
+  assert.match(worker, /CACHE_VERSION = "v0\.16\.4"/);
   assert.doesNotThrow(() => new Function(worker));
 });
 
