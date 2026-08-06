@@ -2,6 +2,7 @@ import { getErmaSystemPrompt, type ErmaModel, type ErmaTone } from "@/lib/models
 import { AI_PRIVILEGED_SYSTEM_PROMPT, AI_SAFETY_SYSTEM_PROMPT, evaluateAssistantContent } from "@/lib/ai-safety";
 import { fetchWithTimeout, PROVIDER_TIMEOUT_MS, withTimeout } from "@/lib/ai/provider-http";
 import { normalizeAiTextPair } from "@/lib/ai/reasoning";
+import { responseLanguageInstruction } from "@/lib/ai/response-language";
 
 export const NVIDIA_ENDPOINT = "https://integrate.api.nvidia.com/v1/chat/completions";
 const NVIDIA_KEY_COOLDOWN_MS = 15 * 60 * 1000;
@@ -57,8 +58,7 @@ function reasoningBudgetFor(model: ErmaModel, effort: ReasoningEffort) {
 }
 
 function systemPrompt(language: Language, model: ErmaModel, allowCode: boolean, tone: ErmaTone) {
-  const languageNote = language === "ru" ? "Отвечай на русском языке." : "Reply in English and keep the answer natural for the user's language.";
-  return `${getErmaSystemPrompt(model, tone)}\n\n${languageNote}\n\n${allowCode ? AI_PRIVILEGED_SYSTEM_PROMPT : AI_SAFETY_SYSTEM_PROMPT}`;
+  return `${getErmaSystemPrompt(model, tone)}\n\n${responseLanguageInstruction(language)}\n\n${allowCode ? AI_PRIVILEGED_SYSTEM_PROMPT : AI_SAFETY_SYSTEM_PROMPT}`;
 }
 
 export function buildNvidiaBody(prompt: string, language: Language, model: ErmaModel, requestedReasoning: boolean, effort: ReasoningEffort, allowCode: boolean, tone: ErmaTone) {
@@ -98,8 +98,6 @@ async function fetchWithKey(prompt: string, language: Language, model: ErmaModel
   const message = payload?.choices?.[0]?.message;
   const answer = message?.content ?? payload?.choices?.[0]?.text ?? "";
   if (typeof answer !== "string" || !answer.trim()) throw new Error("nvidia_empty_response");
-  // Nemotron reasoning models return their chain of thought in a separate
-  // `reasoning_content` field when `chat_template_kwargs.enable_thinking` is set.
   const thinking = typeof message?.reasoning_content === "string" ? message.reasoning_content.trim() : "";
   const normalized = normalizeAiTextPair({ answer: answer.trim(), thinking: thinking || undefined });
   if (!normalized.answer) throw new Error("nvidia_empty_response");
