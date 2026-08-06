@@ -15,6 +15,7 @@ export function MobileReleaseBrowser({ entries, locale }: { entries: PublicRelea
   const [query, setQuery] = useState("");
   const [selectedVersion, setSelectedVersion] = useState(entries[0]?.version ?? "");
   const [notice, setNotice] = useState("");
+  const [canShare, setCanShare] = useState(false);
   const labels = locale === "ru"
     ? {
         search: "Поиск по обновлениям",
@@ -42,6 +43,10 @@ export function MobileReleaseBrowser({ entries, locale }: { entries: PublicRelea
       };
 
   useEffect(() => {
+    // Browser share support is detected after hydration to keep server and client markup stable.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setCanShare(typeof navigator.share === "function");
+
     function readHash() {
       const hash = window.location.hash.replace(/^#/, "");
       const selected = entries.find((entry) => releaseId(entry.version) === hash);
@@ -80,7 +85,7 @@ export function MobileReleaseBrowser({ entries, locale }: { entries: PublicRelea
 
   async function shareRelease(entry: PublicReleaseNote) {
     const url = `${window.location.origin}${window.location.pathname}#${releaseId(entry.version)}`;
-    if (navigator.share) {
+    if (canShare) {
       try {
         await navigator.share({ title: `${entry.version} — ${entry.title}`, text: entry.summary, url });
         showNotice(labels.shared);
@@ -156,9 +161,9 @@ export function MobileReleaseBrowser({ entries, locale }: { entries: PublicRelea
                 type="button"
                 onClick={() => void shareRelease(selectedEntry)}
                 className="grid size-11 shrink-0 place-items-center rounded-full border border-outline-variant text-primary"
-                aria-label={navigator.share ? labels.share : labels.copy}
+                aria-label={canShare ? labels.share : labels.copy}
               >
-                {notice === labels.copied ? <Check size={17} aria-hidden="true" /> : navigator.share ? <Share2 size={17} aria-hidden="true" /> : <Link2 size={17} aria-hidden="true" />}
+                {notice === labels.copied ? <Check size={17} aria-hidden="true" /> : canShare ? <Share2 size={17} aria-hidden="true" /> : <Link2 size={17} aria-hidden="true" />}
               </button>
             </div>
 
