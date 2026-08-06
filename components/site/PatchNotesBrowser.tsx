@@ -51,6 +51,12 @@ export function PatchNotesBrowser({ entries, locale }: { entries: PublicReleaseN
     if (selected) {
       // eslint-disable-next-line react-hooks/set-state-in-effect
       setOpenVersion(selected.version);
+      requestAnimationFrame(() => {
+        document.getElementById(desktopReleaseId(selected.version))?.scrollIntoView({
+          behavior: "auto",
+          block: "start",
+        });
+      });
     }
   }, [entries]);
 
