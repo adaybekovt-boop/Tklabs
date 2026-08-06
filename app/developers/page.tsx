@@ -13,7 +13,9 @@ export const metadata: Metadata = {
 };
 
 export default async function DevelopersPage() {
-  const text = getDictionary(await getLocale());
+  const locale = await getLocale();
+  const text = getDictionary(locale);
+  const teamLabel = locale === "ru" ? "Команда" : "Team";
 
   return (
     <>
@@ -41,7 +43,7 @@ export default async function DevelopersPage() {
               <StaggerItem key={person.name}>
                 <article className="editorial-card bg-white p-8 md:p-10">
                   <div className="flex items-center justify-between border-b-[0.5px] border-primary pb-4">
-                    <span className="label-caps text-secondary">0{index + 1} / TK LAB</span>
+                    <span className="label-caps text-secondary">0{index + 1} / {teamLabel}</span>
                     <span className="label-caps text-secondary">{person.role}</span>
                   </div>
                   <div className="relative mt-10 aspect-[4/5] overflow-hidden rounded-2xl border border-outline-variant bg-surface-container-low">
