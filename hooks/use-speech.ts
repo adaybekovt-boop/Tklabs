@@ -19,6 +19,17 @@ function preferredBrowserVoice(locale: Locale) {
     })[0];
 }
 
+function toSpeechText(markdown: string) {
+  return markdown
+    .replace(/```[\s\S]*?```/g, " code block omitted ")
+    .replace(/`([^`]+)`/g, "$1")
+    .replace(/!\[([^\]]*)\]\([^)]*\)/g, "$1")
+    .replace(/\[([^\]]+)\]\([^)]*\)/g, "$1")
+    .replace(/[*_~>#-]/g, "")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
 export function useSpeech(locale: Locale, ttsAvailable: boolean, labels: { voiceUnsupported: string; speechFailed: string; copyFailed: string }) {
   const [speechMessageId, setSpeechMessageId] = useState<string | null>(null);
   const [speechNotice, setSpeechNotice] = useState("");
@@ -92,14 +103,15 @@ export function useSpeech(locale: Locale, ttsAvailable: boolean, labels: { voice
 
   async function speakMessage(message: ChatMessage) {
     setSpeechNotice("");
-    if (!message.content.trim()) return;
+    const speechText = toSpeechText(message.content);
+    if (!speechText) return;
     if (speechMessageId === message.id) {
       stopSpeech();
       return;
     }
     stopSpeech();
-    if (!ttsAvailable || message.content.length > TTS_MAX_TEXT_LENGTH) {
-      speakWithBrowser(message);
+    if (!ttsAvailable || speechText.length > TTS_MAX_TEXT_LENGTH) {
+      speakWithBrowser({ ...message, content: speechText });
       return;
     }
     setSpeechMessageId(message.id);
@@ -111,7 +123,7 @@ export function useSpeech(locale: Locale, ttsAvailable: boolean, labels: { voice
         headers: { "content-type": "application/json" },
         credentials: "same-origin",
         signal: controller.signal,
-        body: JSON.stringify({ text: message.content, locale }),
+        body: JSON.stringify({ text: speechText, locale }),
       });
       const contentType = response.headers.get("content-type") ?? "";
       if (response.ok && response.body && contentType.includes("audio/")) {
@@ -132,7 +144,7 @@ export function useSpeech(locale: Locale, ttsAvailable: boolean, labels: { voice
         audio.onerror = () => {
           if (audioRef.current !== audio) return;
           releaseAudio();
-          speakWithBrowser(message);
+          speakWithBrowser({ ...message, content: speechText });
         };
         try {
           await audio.play();
@@ -142,9 +154,9 @@ export function useSpeech(locale: Locale, ttsAvailable: boolean, labels: { voice
           if (controller.signal.aborted) return;
         }
       } else if (response.body) await response.body.cancel().catch(() => undefined);
-      if (!controller.signal.aborted) speakWithBrowser(message);
+      if (!controller.signal.aborted) speakWithBrowser({ ...message, content: speechText });
     } catch (error) {
-      if (!(error instanceof DOMException && error.name === "AbortError") && !controller.signal.aborted) speakWithBrowser(message);
+      if (!(error instanceof DOMException && error.name === "AbortError") && !controller.signal.aborted) speakWithBrowser({ ...message, content: speechText });
     } finally {
       if (ttsRequestRef.current === controller) ttsRequestRef.current = null;
     }

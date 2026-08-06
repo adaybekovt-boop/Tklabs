@@ -2,7 +2,9 @@
 
 import * as React from "react";
 import { ArrowUp, ChevronDown, FileText, Gauge, Mic, Plus, Square, X } from "lucide-react";
+import Image from "next/image";
 
+import { ChatOverlay } from "@/components/playground/ChatOverlay";
 import { cn } from "@/lib/utils";
 
 export type ChatEffort = "low" | "medium" | "high";
@@ -47,6 +49,7 @@ export type PromptInputLabels = {
   voiceDenied: string;
   listening: string;
   attachmentTooLarge: string;
+  stopGeneration: string;
 };
 type SpeechRecognitionResultLike = {
   isFinal: boolean;
@@ -80,7 +83,7 @@ function ModelMark({ model, active = false }: { model?: ChatInputModel; active?:
         active ? "border-primary bg-primary/10 shadow-sm" : "border-outline-variant bg-surface-container-low",
       )}
     >
-      <img src={model?.markSrc ?? "/images/models/model-mark.png"} alt="" className="size-full object-contain" />
+      <Image src={model?.markSrc ?? "/images/models/model-mark.png"} alt="" width={28} height={28} className="size-full object-contain" />
     </span>
   );
 }
@@ -107,6 +110,8 @@ export interface PromptInputProps {
   selectedModelId: string;
   onModelChange: (modelId: string) => void;
   disabled?: boolean;
+  busy?: boolean;
+  onStop?: () => void;
   placeholder?: string;
   maxLength?: number;
   attachmentsEnabled?: boolean;
@@ -126,6 +131,8 @@ export const PromptInput = React.forwardRef<HTMLDivElement, PromptInputProps>(fu
     selectedModelId,
     onModelChange,
     disabled = false,
+    busy = false,
+    onStop,
     placeholder = "",
     maxLength = 180,
     attachmentsEnabled = false,
@@ -161,7 +168,7 @@ export const PromptInput = React.forwardRef<HTMLDivElement, PromptInputProps>(fu
   const selectedModel = models.find((model) => model.id === selectedModelId) ?? models[0];
   const effort = efforts[effortIndex] ?? efforts[1];
   const expanded = focused || Boolean(value.trim()) || attachments.length > 0 || modelMenuOpen || isRecording;
-  const canSubmit = Boolean(value.trim()) && value.length <= maxLength && !disabled && !isRecording;
+  const canSubmit = Boolean(value.trim()) && value.length <= maxLength && !disabled && !busy && !isRecording;
 
   const groupedModels = React.useMemo(() => {
     const groups = new Map<string, ChatInputModel[]>();
@@ -213,6 +220,7 @@ export const PromptInput = React.forwardRef<HTMLDivElement, PromptInputProps>(fu
       effort: effort.id,
       attachments: attachments.map(({ name, content }) => ({ name, content })),
     });
+    onChange("");
     attachments.forEach((attachment) => URL.revokeObjectURL(attachment.url));
     setAttachments([]);
     setVoiceError("");
@@ -386,7 +394,9 @@ export const PromptInput = React.forwardRef<HTMLDivElement, PromptInputProps>(fu
           value={value}
           onChange={(event) => onChange(event.target.value.slice(0, maxLength))}
           onKeyDown={(event) => {
-            if (event.key === "Enter" && !event.shiftKey) {
+            const isComposing = event.nativeEvent.isComposing || event.keyCode === 229;
+            const desktopEnter = typeof window === "undefined" || window.matchMedia("(pointer: fine)").matches;
+            if (event.key === "Enter" && !event.shiftKey && !isComposing && desktopEnter) {
               event.preventDefault();
               submit();
             }
@@ -400,7 +410,7 @@ export const PromptInput = React.forwardRef<HTMLDivElement, PromptInputProps>(fu
           disabled={disabled || isRecording}
           rows={1}
           className={cn(
-            "block w-full resize-none overflow-y-auto bg-transparent px-4 text-[15px] leading-7 text-primary outline-none placeholder:text-on-secondary-container",
+            "block w-full resize-none overflow-y-auto bg-transparent px-4 text-[15px] leading-7 text-primary outline-none placeholder:text-on-secondary-container disabled:opacity-70",
             expanded ? "pb-16 pt-4" : "h-14 py-[13px] pr-14",
           )}
           aria-label={labels.request}
@@ -422,41 +432,23 @@ export const PromptInput = React.forwardRef<HTMLDivElement, PromptInputProps>(fu
                 <ChevronDown size={13} className={cn("transition-transform duration-300", modelMenuOpen && "rotate-180")} />
               </button>
 
-              <div
-                className={cn(
-                  "absolute bottom-full left-0 z-40 mb-3 max-h-[min(380px,72vh)] w-[min(340px,calc(100vw-2rem))] origin-bottom-left overflow-y-auto rounded-3xl border border-outline-variant bg-surface-container-lowest p-3 shadow-xl transition-[opacity,transform] duration-250 max-[420px]:fixed max-[420px]:inset-x-4 max-[420px]:bottom-28 max-[420px]:left-auto max-[420px]:top-auto max-[420px]:mb-0 max-[420px]:w-auto max-[420px]:origin-bottom",
-                  modelMenuOpen ? "pointer-events-auto translate-y-0 scale-100 opacity-100" : "pointer-events-none translate-y-2 scale-[0.98] opacity-0",
-                )}
-                role="listbox"
-                aria-label={labels.model}
-              >
-                {groupedModels.map(([tier, tierModels]) => (
-                  <div className="border-b border-outline-variant py-2 last:border-0" key={tier}>
-                    <p className="label-caps px-2 pb-2 text-on-secondary-container">{tier}</p>
-                    {tierModels.map((model) => (
-                      <button
-                        key={model.id}
-                        type="button"
-                        disabled={!model.available}
-                        className={cn(
-                          "my-1 flex min-h-12 w-full items-center gap-3 rounded-2xl px-3 py-2.5 text-left text-[13px] transition-[background-color,color,transform] hover:-translate-y-px hover:bg-surface-container-low disabled:opacity-35",
-                          selectedModelId === model.id && "bg-surface-container-low text-primary shadow-sm",
-                        )}
-                        role="option"
-                        aria-selected={selectedModelId === model.id}
-                        onClick={() => {
-                          onModelChange(model.id);
-                          setModelMenuOpen(false);
-                        }}
-                      >
-                        <ModelMark model={model} active={selectedModelId === model.id} />
-                        <span className="min-w-0 flex-1 truncate">{model.name}</span>
-                        {model.status && <span className="shrink-0 text-[10px] uppercase tracking-[0.08em] text-on-secondary-container max-[420px]:hidden">{model.status}</span>}
-                      </button>
-                    ))}
-                  </div>
-                ))}
-              </div>
+              <ChatOverlay open={modelMenuOpen} onClose={() => setModelMenuOpen(false)} labelledBy="chat-model-picker-title" position="responsive" className="p-3">
+                <div role="listbox" aria-label={labels.model} aria-labelledby="chat-model-picker-title">
+                  <p id="chat-model-picker-title" className="label-caps mb-2 px-2 text-on-secondary-container">{labels.model}</p>
+                  {groupedModels.map(([tier, tierModels]) => (
+                    <div className="border-b border-outline-variant py-2 last:border-0" key={tier}>
+                      <p className="label-caps px-2 pb-2 text-on-secondary-container">{tier}</p>
+                      {tierModels.map((model) => (
+                        <button key={model.id} type="button" disabled={!model.available} className={cn("my-1 flex min-h-12 w-full items-center gap-3 rounded-2xl px-3 py-2.5 text-left text-[13px] transition-[background-color,color,transform] hover:-translate-y-px hover:bg-surface-container-low disabled:opacity-35", selectedModelId === model.id && "bg-surface-container-low text-primary shadow-sm")} role="option" aria-selected={selectedModelId === model.id} onClick={() => { onModelChange(model.id); setModelMenuOpen(false); }}>
+                          <ModelMark model={model} active={selectedModelId === model.id} />
+                          <span className="min-w-0 flex-1 truncate">{model.name}</span>
+                          {model.status && <span className="shrink-0 text-[10px] uppercase tracking-[0.08em] text-on-secondary-container max-[420px]:hidden">{model.status}</span>}
+                        </button>
+                      ))}
+                    </div>
+                  ))}
+                </div>
+              </ChatOverlay>
             </div>
 
             <button
@@ -494,17 +486,18 @@ export const PromptInput = React.forwardRef<HTMLDivElement, PromptInputProps>(fu
 
         <button
           type="button"
-          className="absolute bottom-3 right-3 grid size-9 place-items-center rounded-full bg-primary text-on-primary shadow-lg transition-[opacity,transform] duration-200 hover:opacity-75 active:scale-90 disabled:opacity-25"
+          className="absolute bottom-3 right-3 grid size-11 place-items-center rounded-full bg-primary text-on-primary shadow-lg transition-[opacity,transform] duration-200 hover:opacity-75 active:scale-90 disabled:opacity-25"
           onClick={() => {
             if (isRecording) stopRecording();
+            else if (busy) onStop?.();
             else if (canSubmit) submit();
             else startRecording();
           }}
-          disabled={disabled}
-          aria-label={isRecording ? labels.stopRecording : canSubmit ? labels.send : labels.voiceInput}
+          disabled={disabled || (busy && !onStop)}
+          aria-label={isRecording ? labels.stopRecording : busy ? labels.stopGeneration : canSubmit ? labels.send : labels.voiceInput}
         >
-          <span className="prompt-action-icon" key={isRecording ? "stop" : canSubmit ? "send" : "mic"}>
-            {isRecording ? <Square size={12} fill="currentColor" /> : canSubmit ? <ArrowUp size={15} /> : <Mic size={15} />}
+          <span className="prompt-action-icon" key={isRecording ? "stop" : busy ? "generation-stop" : canSubmit ? "send" : "mic"}>
+            {isRecording || busy ? <Square size={13} fill="currentColor" /> : canSubmit ? <ArrowUp size={16} /> : <Mic size={16} />}
           </span>
         </button>
       </div>
@@ -515,17 +508,17 @@ export const PromptInput = React.forwardRef<HTMLDivElement, PromptInputProps>(fu
         <div className="mt-2 px-1 text-[11px] text-error" role="status">{attachmentError}</div>
       )}
 
-      {activeAttachment && (
-        <div className="prompt-preview fixed inset-0 z-[100] grid place-items-center bg-primary/85 p-6" role="dialog" aria-modal="true" onClick={() => setActiveAttachment(null)}>
-          <button type="button" className="absolute right-5 top-5 grid size-10 place-items-center rounded-full bg-white text-primary shadow-lg" onClick={() => setActiveAttachment(null)} aria-label={labels.close}>
-            <X size={17} />
-          </button>
-          <div className="max-h-[82vh] max-w-[86vw] overflow-auto rounded-3xl border border-on-primary/40 bg-surface p-6 text-primary shadow-2xl" onClick={(event) => event.stopPropagation()}>
-            <p className="mb-4 flex items-center gap-2 text-sm font-medium"><FileText size={16} /> {activeAttachment.name}</p>
-            <pre className="max-h-[68vh] whitespace-pre-wrap text-left text-[13px] leading-[1.7]">{activeAttachment.content}</pre>
-          </div>
-        </div>
-      )}
+      <ChatOverlay open={Boolean(activeAttachment)} onClose={() => setActiveAttachment(null)} labelledBy="attachment-preview-title" className="p-0">
+        {activeAttachment && (
+          <>
+            <div className="flex items-center justify-between gap-4 border-b border-outline-variant px-5 py-4">
+              <p id="attachment-preview-title" className="flex min-w-0 items-center gap-2 text-sm font-medium text-primary"><FileText size={16} /> <span className="truncate">{activeAttachment.name}</span></p>
+              <button type="button" className="grid size-11 shrink-0 place-items-center rounded-full text-primary hover:bg-surface-container-low" onClick={() => setActiveAttachment(null)} aria-label={labels.close}><X size={17} /></button>
+            </div>
+            <pre className="max-h-[68dvh] overflow-auto whitespace-pre-wrap px-5 py-5 text-left text-[13px] leading-[1.7] text-primary">{activeAttachment.content}</pre>
+          </>
+        )}
+      </ChatOverlay>
 
       <span className="sr-only"><Gauge /> {labels.effort}: {effort.label}</span>
     </div>

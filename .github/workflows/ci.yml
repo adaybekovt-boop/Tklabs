@@ -6,6 +6,7 @@ on:
       - main
       - "agent/**"
       - "fix/**"
+      - "feat/**"
       - "feature/**"
       - "codex/**"
   pull_request:
@@ -39,8 +40,10 @@ jobs:
         run: npm run typecheck
       - name: Lint
         run: npm run lint
-      - name: Tests
-        run: npm test
+      - name: Unit tests
+        run: npm run test:unit
+      - name: Integration tests
+        run: npm run test:integration
       - name: Production build
         run: npm run build
       - name: Upload validated Worker build

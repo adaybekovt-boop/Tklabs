@@ -16,7 +16,7 @@ export default async function PlaygroundPage() {
 
   return (
     <div className="flex h-[100dvh] flex-col overflow-hidden bg-surface">
-      <StitchHeader active="laboratory" />
+      <StitchHeader active="laboratory" chatMode />
       <main className="playground-shell flex min-h-0 flex-1 flex-col overflow-hidden bg-background">
           <Suspense fallback={null}>
             <PlaygroundChat locale={locale} />
