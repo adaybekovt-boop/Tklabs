@@ -46,6 +46,8 @@ jobs:
         run: npm run test:integration
       - name: Production build
         run: npm run build
+      - name: Performance budget
+        run: npm run perf:budget
       - name: Upload validated Worker build
         uses: actions/upload-artifact@v4
         with:
