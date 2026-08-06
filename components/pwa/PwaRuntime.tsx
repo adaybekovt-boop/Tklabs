@@ -1,5 +1,7 @@
 "use client";
 
+/* eslint-disable react-hooks/set-state-in-effect */
+
 import { Download, X } from "lucide-react";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
@@ -98,14 +100,14 @@ export function PwaRuntime() {
   const labels = locale === "ru"
     ? {
         offline: "Нет сети",
-        offlineDescription: "Открытые страницы доступны, но AI-запросы требуют подключения.",
+        offlineDescription: "Статический интерфейс доступен, но AI-запросы требуют подключения.",
         install: "Установить приложение",
         installDescription: "Открывайте TK Lab с главного экрана в отдельном окне.",
         dismiss: "Скрыть предложение установки",
       }
     : {
         offline: "Offline",
-        offlineDescription: "Open pages remain available, but AI requests require a connection.",
+        offlineDescription: "The static interface remains available, but AI requests require a connection.",
         install: "Install app",
         installDescription: "Open TK Lab from the home screen in its own window.",
         dismiss: "Dismiss install suggestion",
