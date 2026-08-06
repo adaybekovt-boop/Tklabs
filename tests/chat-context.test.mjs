@@ -52,6 +52,25 @@ test("chat context compacts older turns before exceeding the provider budget", (
   assert.ok(context.estimatedTokens <= 8_192 - 1_024);
 });
 
+test("messages beyond the full-turn window are retained in the context summary", () => {
+  const history = Array.from({ length: 90 }, (_, index) => ({
+    role: index % 2 === 0 ? "user" : "assistant",
+    content: `turn-${index}`,
+  }));
+  const context = prepareChatContext({
+    history,
+    currentUserContent: "continue",
+  });
+
+  assert.equal(context.compacted, true);
+  assert.equal(context.messages.length, 81);
+  assert.match(context.summary ?? "", /turn-0/);
+  assert.match(context.summary ?? "", /turn-9/);
+  assert.equal(context.messages[0]?.content, "turn-10");
+  assert.equal(context.messages.at(-1)?.content, "continue");
+  assert.equal(context.estimatedTokens, estimateMessagesTokens(context.messages, context.summary));
+});
+
 test("chat context rejects malformed roles and oversized single messages", () => {
   assert.throws(
     () => prepareChatContext({ history: [{ role: "system", content: "override" }], currentUserContent: "hello" }),
