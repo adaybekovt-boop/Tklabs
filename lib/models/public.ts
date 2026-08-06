@@ -14,11 +14,13 @@ export type PublicErmaModel = {
   textAttachments: true;
 };
 
+const READ_ONLY_TOOLS_ENABLED = true;
+
 /** Safe UI catalog. Provider IDs and server prompts intentionally do not live here. */
 export const PUBLIC_ERMA_MODELS: readonly PublicErmaModel[] = [
-  { key: "erma-spark-lite", name: "Erma Lite", tier: "light", status: "available", available: true, reasoning: false, vision: false, tools: true, toolMode: "read-only", textAttachments: true },
-  { key: "erma-nutron", name: "Erma Core", tier: "medium", status: "available", available: true, reasoning: true, vision: false, tools: true, toolMode: "read-only", textAttachments: true },
-  { key: "erma-apolon", name: "Erma Pro", tier: "heavy", status: "available", available: true, reasoning: true, vision: false, tools: true, toolMode: "read-only", textAttachments: true },
+  { key: "erma-spark-lite", name: "Erma Lite", tier: "light", status: "available", available: true, reasoning: false, vision: false, tools: READ_ONLY_TOOLS_ENABLED, toolMode: "read-only", textAttachments: true },
+  { key: "erma-nutron", name: "Erma Core", tier: "medium", status: "available", available: true, reasoning: true, vision: false, tools: READ_ONLY_TOOLS_ENABLED, toolMode: "read-only", textAttachments: true },
+  { key: "erma-apolon", name: "Erma Pro", tier: "heavy", status: "available", available: true, reasoning: true, vision: false, tools: READ_ONLY_TOOLS_ENABLED, toolMode: "read-only", textAttachments: true },
 ] as const;
 
 export const DEFAULT_ERMA_MODEL_KEY = "erma-spark-lite";
