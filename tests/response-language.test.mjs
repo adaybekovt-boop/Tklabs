@@ -17,6 +17,11 @@ test("technical English tokens and fenced code do not force a Russian request in
   assert.equal(inferResponseLanguage(prompt, "en"), "ru");
 });
 
+test("attachment bodies cannot override the language of the current request", () => {
+  const prompt = "Кратко перескажи приложенный документ.\n\nAttached text files:\n[report.txt]\nThis report is written entirely in English and contains a large amount of English prose.";
+  assert.equal(inferResponseLanguage(prompt, "en"), "ru");
+});
+
 test("the latest explicit response-language request wins", () => {
   assert.equal(inferResponseLanguage("Опиши решение, но ответь на английском языке", "ru"), "en");
   assert.equal(inferResponseLanguage("Explain the fix, but answer in Russian", "en"), "ru");
@@ -27,7 +32,7 @@ test("non-linguistic prompts fall back to the interface locale", () => {
   assert.equal(inferResponseLanguage("```json\n{\"ok\":true}\n```", "en"), "en");
 });
 
-test("provider language instructions are explicit and do not expose interface-locale behavior", () => {
+test("provider language instructions are explicit and do not expose interface-locale behavior", async () => {
   assert.match(responseLanguageInstruction("ru"), /полностью на русском языке/i);
   assert.match(responseLanguageInstruction("en"), /Reply fully in English/i);
 
