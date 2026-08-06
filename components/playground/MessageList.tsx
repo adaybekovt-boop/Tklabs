@@ -116,10 +116,9 @@ export function MessageList({
   const [actionMessage, setActionMessage] = useState<ChatMessage | null>(null);
   const holdTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastMessage = messages[messages.length - 1];
-  const lastUserMessageId = [...messages].reverse().find((message) => message.role === "user")?.id;
   const ui = locale === "ru"
-    ? { details: "Подробности", branch: "Ответвить", regenerate: "Новая версия", previous: "Предыдущая версия", compare: "Сравнить модели", stopped: "Генерация остановлена. Частичный ответ сохранён.", versions: "версий", close: "Закрыть действия", original: "Основная модель", comparison: "Сравнение", technical: "Технические данные" }
-    : { details: "Details", branch: "Branch", regenerate: "New version", previous: "Previous version", compare: "Compare models", stopped: "Generation stopped. The partial answer was preserved.", versions: "versions", close: "Close actions", original: "Primary model", comparison: "Comparison", technical: "Technical details" };
+    ? { details: "Подробности", branch: "Ответвить", regenerate: "Повторить / новая версия", previous: "Предыдущая версия", compare: "Сравнить модели", stopped: "Генерация остановлена. Частичный ответ сохранён.", versions: "версий", close: "Закрыть действия", original: "Основная модель", comparison: "Сравнение", technical: "Технические данные" }
+    : { details: "Details", branch: "Branch", regenerate: "Retry / new version", previous: "Previous version", compare: "Compare models", stopped: "Generation stopped. The partial answer was preserved.", versions: "versions", close: "Close actions", original: "Primary model", comparison: "Comparison", technical: "Technical details" };
 
   function clearHoldTimer() {
     if (holdTimerRef.current) clearTimeout(holdTimerRef.current);
@@ -163,7 +162,7 @@ export function MessageList({
               <p className="whitespace-pre-wrap text-[15px] leading-[1.7] text-primary">{message.content}</p>
               {(onEdit || onToggleContext || onBranch) && !isPending && (
                 <div className="mt-2 hidden flex-wrap items-center gap-1 text-[11px] text-on-secondary-container sm:flex">
-                  {onEdit && message.id === lastUserMessageId && <button type="button" onClick={() => onEdit(message)} className="inline-flex min-h-9 items-center gap-1.5 rounded-full px-2.5 transition-colors hover:bg-surface-container hover:text-primary"><Pencil size={13} /> {text.chat.edit}</button>}
+                  {onEdit && <button type="button" onClick={() => onEdit(message)} className="inline-flex min-h-9 items-center gap-1.5 rounded-full px-2.5 transition-colors hover:bg-surface-container hover:text-primary"><Pencil size={13} /> {text.chat.edit}</button>}
                   {onBranch && <button type="button" onClick={() => onBranch(message)} className="inline-flex min-h-9 items-center gap-1.5 rounded-full px-2.5 transition-colors hover:bg-surface-container hover:text-primary"><GitBranch size={13} /> {ui.branch}</button>}
                   {onToggleContext && <ContextButton message={message} locale={locale} onToggle={onToggleContext} compact />}
                 </div>
@@ -235,7 +234,7 @@ export function MessageList({
             <div className="mb-3 flex items-center justify-between gap-3 border-b border-outline-variant pb-3"><h2 id="mobile-message-actions-title" className="text-lg font-medium text-primary">{actionMessage.role === "user" ? (locale === "ru" ? "Действия с сообщением" : "Message actions") : (locale === "ru" ? "Действия с ответом" : "Answer actions")}</h2><button type="button" onClick={closeActions} className="grid size-10 place-items-center rounded-full text-primary hover:bg-surface-container-low" aria-label={ui.close}><X size={16} /></button></div>
             <div className="grid gap-2">
               <button type="button" onClick={() => runMobileAction(() => onCopy(actionMessage))} className="flex min-h-12 items-center gap-3 rounded-2xl border border-outline-variant px-4 text-left text-sm text-primary"><Copy size={16} />{text.chat.copy}</button>
-              {actionMessage.role === "user" && onEdit && actionMessage.id === lastUserMessageId && <button type="button" onClick={() => runMobileAction(() => onEdit(actionMessage))} className="flex min-h-12 items-center gap-3 rounded-2xl border border-outline-variant px-4 text-left text-sm text-primary"><Pencil size={16} />{text.chat.edit}</button>}
+              {actionMessage.role === "user" && onEdit && <button type="button" onClick={() => runMobileAction(() => onEdit(actionMessage))} className="flex min-h-12 items-center gap-3 rounded-2xl border border-outline-variant px-4 text-left text-sm text-primary"><Pencil size={16} />{text.chat.edit}</button>}
               {actionMessage.role === "assistant" && onRegenerate && <button type="button" onClick={() => runMobileAction(() => onRegenerate(actionMessage))} className="flex min-h-12 items-center gap-3 rounded-2xl border border-outline-variant px-4 text-left text-sm text-primary"><RefreshCw size={16} />{ui.regenerate}</button>}
               {actionMessage.role === "assistant" && onRestorePrevious && actionMessage.versions?.length ? <button type="button" onClick={() => runMobileAction(() => onRestorePrevious(actionMessage))} className="flex min-h-12 items-center gap-3 rounded-2xl border border-outline-variant px-4 text-left text-sm text-primary"><RotateCcw size={16} />{ui.previous}</button> : null}
               {onBranch && <button type="button" onClick={() => runMobileAction(() => onBranch(actionMessage))} className="flex min-h-12 items-center gap-3 rounded-2xl border border-outline-variant px-4 text-left text-sm text-primary"><GitBranch size={16} />{ui.branch}</button>}
