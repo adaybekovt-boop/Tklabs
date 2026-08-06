@@ -1,5 +1,10 @@
 import type { Locale } from "@/lib/i18n";
-import type { PublicReleaseNote } from "@/lib/latest-release";
+import {
+  CURRENT_RELEASE_CHANNEL,
+  CURRENT_RELEASE_CODENAME,
+  CURRENT_RELEASE_VERSION,
+} from "@/lib/release-version";
+import type { PublicReleaseNote } from "@/lib/releases/types";
 
 export interface PreviewReleaseNote extends PublicReleaseNote {
   channel: "preview";
@@ -13,58 +18,58 @@ export interface PreviewReleaseNote extends PublicReleaseNote {
 const PREVIEW_RELEASE: Record<Locale, PreviewReleaseNote> = {
   ru: {
     date: "06 авг. 2026",
-    version: "v0.16.0-beta.2",
-    title: "ERMA NOVA — Architecture Foundation",
-    summary: "КРУПНОЕ ОБНОВЛЕНИЕ · ПРЕДВАРИТЕЛЬНАЯ ВЕРСИЯ. Архитектурный фундамент для дальнейшего роста Erma Nova: разделённый AI orchestration, единый quota lifecycle и автоматические границы против повторного появления монолитного route.",
+    version: CURRENT_RELEASE_VERSION,
+    title: "ERMA NOVA — Interface Reliability",
+    summary: "КРУПНОЕ ОБНОВЛЕНИЕ · ПРЕДВАРИТЕЛЬНАЯ ВЕРСИЯ. Исправлена рассинхронизация версии на главной странице, устранены мобильные пересечения элементов и улучшена работа Artifact Studio на небольших экранах.",
     changes: [
-      "AI demo route разделён на contracts, HTTP mapping, quota lifecycle и provider fallback policy.",
-      "Публичные и привилегированные запросы теперь используют единый идемпотентный интерфейс commit/release.",
-      "Основной route сокращён примерно с 558 до 405 строк без изменения JSON и SSE контрактов.",
-      "Добавлены architecture contract tests и лимит в 450 строк для orchestration route.",
-      "Опубликована архитектурная документация с invariants и безопасной последовательностью следующих рефакторингов.",
-      "Сохранены Erma Nova Workspace, локальный Artifact Studio и Agent Run Protocol 2.0 из beta.1.",
+      "Главная страница, Patch Notes и Erma Nova Workspace теперь используют единый источник текущей версии.",
+      "Устранены устаревшие подписи v0.15.0 и beta.1 в актуальных интерфейсах.",
+      "Переключатель RU/EN встроен в workspace header и больше не перекрывает навигацию на телефоне.",
+      "Workspace tabs получили корректные tab roles, aria-controls и безопасное восстановление состояния.",
+      "Artifact Studio получил мобильный выбор артефактов и доступ к истории версий без desktop-панелей.",
+      "Локальные настройки языка и workspace не ломают интерфейс, если browser storage недоступен.",
     ],
-    channel: "preview",
+    channel: CURRENT_RELEASE_CHANNEL,
     majorUpdate: true,
-    codename: "Erma Nova",
+    codename: CURRENT_RELEASE_CODENAME,
     stability: "beta",
     knownIssues: [
       "Agent Run timeline остаётся foundation surface; live wiring расширяется в следующих beta-патчах.",
       "Артефакты хранятся только на текущем устройстве.",
-      "Browser-level Playwright suite ещё не подключён; текущий контур покрывает unit, integration и production build.",
+      "Browser-level Playwright suite ещё не подключён; UI-инварианты защищены integration contracts и production build.",
     ],
     migrationNotes: [
-      "Диалоги, проекты, черновики и артефакты beta.1 сохраняются без изменений.",
+      "Диалоги, проекты, черновики и артефакты beta.1–beta.2 сохраняются без изменений.",
       "Публичные JSON и SSE контракты `/api/demo` не изменены.",
-      "Provider keys, fallback configuration и quota persistence остаются server-only.",
+      "Новый source of truth версии не меняет формат истории стабильных релизов.",
     ],
   },
   en: {
     date: "06 Aug 2026",
-    version: "v0.16.0-beta.2",
-    title: "ERMA NOVA — Architecture Foundation",
-    summary: "MAJOR UPDATE · PRE-RELEASE. The architecture foundation for continued Erma Nova growth: separated AI orchestration, one quota lifecycle, and automated boundaries that prevent the demo route from becoming monolithic again.",
+    version: CURRENT_RELEASE_VERSION,
+    title: "ERMA NOVA — Interface Reliability",
+    summary: "MAJOR UPDATE · PRE-RELEASE. Fixed the stale version on the home page, removed mobile control collisions, and improved Artifact Studio on smaller screens.",
     changes: [
-      "Split the AI demo route into contracts, HTTP mapping, quota lifecycle, and provider fallback policy.",
-      "Public and privileged requests now share one idempotent commit/release interface.",
-      "Reduced the main route from roughly 558 to 405 lines without changing JSON or SSE contracts.",
-      "Added architecture contract tests and a 450-line budget for the orchestration route.",
-      "Published architecture documentation with invariants and the safe sequence for the next refactors.",
-      "Retained the Erma Nova Workspace, local Artifact Studio, and Agent Run Protocol 2.0 from beta.1.",
+      "The home page, Patch Notes, and Erma Nova Workspace now share one current-release source of truth.",
+      "Removed stale v0.15.0 and beta.1 labels from current product surfaces.",
+      "Moved the RU/EN control into the workspace header so it no longer overlaps mobile navigation.",
+      "Added correct tab roles, aria-controls, and storage-safe workspace state restoration.",
+      "Added mobile artifact selection and version-history access without desktop side panels.",
+      "Language and workspace controls remain usable when browser storage is unavailable.",
     ],
-    channel: "preview",
+    channel: CURRENT_RELEASE_CHANNEL,
     majorUpdate: true,
-    codename: "Erma Nova",
+    codename: CURRENT_RELEASE_CODENAME,
     stability: "beta",
     knownIssues: [
       "The Agent Run timeline remains a foundation surface; live wiring expands in later beta patches.",
       "Artifacts remain on the current device.",
-      "A browser-level Playwright suite is not connected yet; the current gate covers unit, integration, and production build checks.",
+      "A browser-level Playwright suite is not connected yet; UI invariants are protected by integration contracts and the production build.",
     ],
     migrationNotes: [
-      "beta.1 conversations, projects, drafts, and artifacts remain unchanged.",
+      "beta.1–beta.2 conversations, projects, drafts, and artifacts remain unchanged.",
       "The public `/api/demo` JSON and SSE contracts are unchanged.",
-      "Provider keys, fallback configuration, and quota persistence remain server-only.",
+      "The current-release source of truth does not change stable release-history data.",
     ],
   },
 };
