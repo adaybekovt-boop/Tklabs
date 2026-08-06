@@ -29,6 +29,13 @@ type RequestAction =
   | { type: "stopped" }
   | { type: "reset" };
 
+type ActiveConversation = {
+  prompt: string;
+  model: string;
+  assistantId: string;
+  requestId: string;
+};
+
 type StreamPayload = Record<string, unknown>;
 
 function requestReducer(state: RequestState, action: RequestAction): RequestState {
@@ -131,17 +138,12 @@ export function useChatRequest(options: {
   const [serverContextStats, setServerContextStats] = useState<ChatContextStats | null>(null);
   const [requestState, dispatch] = useReducer(requestReducer, { status: "idle", requestId: null, assistantId: null });
   const activeRequestRef = useRef<AbortController | null>(null);
+  const activeConversationRef = useRef<ActiveConversation | null>(null);
   const messagesRef = useRef<ChatMessage[]>([]);
-  const activeConversationRef = useRef<{
-    prompt: string;
-    model: string;
-    assistantId: string;
-    requestId: string;
-  } | null>(null);
   const watchdogRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isPending = requestState.status === "connecting" || requestState.status === "analyzing" || requestState.status === "generating";
   const localContextStats = useMemo(() => contextStatsFromMessages(messages), [messages]);
-  const contextStats = serverContextStats ?? localContextStats;
+  const contextStats = isPending && serverContextStats ? serverContextStats : localContextStats;
 
   useEffect(() => {
     messagesRef.current = messages;
@@ -152,63 +154,77 @@ export function useChatRequest(options: {
     watchdogRef.current = null;
   }
 
-  function armWatchdog(controller: AbortController, assistantId: string, requestId: string) {
-    clearWatchdog();
-    watchdogRef.current = setTimeout(() => {
-      if (activeRequestRef.current !== controller) return;
-      controller.abort();
-      activeRequestRef.current = null;
-      activeConversationRef.current = null;
-      setMessages((current) => current.map((message) => message.id === assistantId
-        ? {
-            ...message,
-            content: message.content ? `${message.content}\n\n${text.chat.networkError}` : text.chat.networkError,
-            error: !message.content,
-            requestId,
-          }
-        : message));
-      dispatch({ type: "error" });
-    }, 120_000);
-  }
-
   function clearActiveRequest() {
     activeRequestRef.current = null;
     activeConversationRef.current = null;
     clearWatchdog();
   }
 
+  function saveUpdatedMessages(conversation: ActiveConversation, update: (messages: ChatMessage[]) => ChatMessage[]) {
+    setMessages((current) => {
+      const next = update(current);
+      options.saveConversation(conversation.prompt, conversation.model, next as ArchivedMessage[]);
+      return next;
+    });
+  }
+
   function appendAssistant(assistantId: string, update: (message: ChatMessage) => ChatMessage) {
     setMessages((current) => current.map((message) => (message.id === assistantId ? update(message) : message)));
   }
 
-  function stopGeneration() {
-    const activeConversation = activeConversationRef.current;
-    if (!activeConversation) return;
-    activeRequestRef.current?.abort();
-    clearActiveRequest();
-    setMessages((current) => {
-      const next = current.map((message) => message.id === activeConversation.assistantId
+  function armWatchdog(controller: AbortController, conversation: ActiveConversation) {
+    clearWatchdog();
+    watchdogRef.current = setTimeout(() => {
+      if (activeRequestRef.current !== controller) return;
+      controller.abort();
+      clearActiveRequest();
+      saveUpdatedMessages(conversation, (current) => current.map((message) => message.id === conversation.assistantId
         ? {
             ...message,
-            content: message.content
-              ? `${message.content}\n\n${text.chat.generationStopped}`
-              : text.chat.generationStopped,
-            error: false,
+            content: message.content ? `${message.content}\n\n${text.chat.networkError}` : text.chat.networkError,
+            error: !message.content,
+            requestId: conversation.requestId,
           }
-        : message);
-      options.saveConversation(activeConversation.prompt, activeConversation.model, next as ArchivedMessage[]);
-      return next;
-    });
+        : message));
+      dispatch({ type: "error" });
+    }, 120_000);
+  }
+
+  function stopGeneration() {
+    const conversation = activeConversationRef.current;
+    if (!conversation) return;
+    activeRequestRef.current?.abort();
+    clearActiveRequest();
+    saveUpdatedMessages(conversation, (current) => current.map((message) => message.id === conversation.assistantId
+      ? {
+          ...message,
+          content: message.content ? `${message.content}\n\n${text.chat.generationStopped}` : text.chat.generationStopped,
+          error: false,
+        }
+      : message));
     dispatch({ type: "stopped" });
   }
 
-  async function consumeEventStream(response: Response, input: {
-    controller: AbortController;
-    assistantId: string;
-    requestId: string;
-    prompt: string;
-    model: string;
-  }) {
+  function applyMetaToContext(meta: AiResponseMeta) {
+    if (typeof meta.inputTokens !== "number" && typeof meta.contextMessageCount !== "number") return;
+    setServerContextStats((current) => ({
+      estimatedTokens: typeof meta.inputTokens === "number"
+        ? Math.max(0, Math.round(meta.inputTokens))
+        : current?.estimatedTokens ?? localContextStats.estimatedTokens,
+      messages: typeof meta.contextMessageCount === "number"
+        ? Math.max(0, Math.round(meta.contextMessageCount))
+        : current?.messages ?? localContextStats.messages,
+      attachments: typeof meta.contextAttachmentCount === "number"
+        ? Math.max(0, Math.round(meta.contextAttachmentCount))
+        : current?.attachments ?? 0,
+      limit: typeof meta.contextLimit === "number"
+        ? Math.max(1, Math.round(meta.contextLimit))
+        : current?.limit ?? DEFAULT_CONTEXT_LIMIT_TOKENS,
+      compacted: meta.contextCompacted === true,
+    }));
+  }
+
+  async function consumeEventStream(response: Response, controller: AbortController, conversation: ActiveConversation) {
     if (!response.body) throw new Error("The streaming response has no body.");
     const reader = response.body.getReader();
     const decoder = new TextDecoder();
@@ -226,14 +242,14 @@ export function useChatRequest(options: {
       for (const block of blocks) {
         const parsed = parseEventBlock(block);
         if (!parsed) continue;
-        armWatchdog(input.controller, input.assistantId, input.requestId);
+        armWatchdog(controller, conversation);
 
         if (parsed.event === "start") {
           dispatch({ type: "connected" });
           const stats = contextStatsFromPayload(parsed.payload.context);
           if (stats) setServerContextStats(stats);
-          const providerRequestId = typeof parsed.payload.requestId === "string" ? parsed.payload.requestId : input.requestId;
-          appendAssistant(input.assistantId, (message) => ({ ...message, requestId: providerRequestId }));
+          const providerRequestId = typeof parsed.payload.requestId === "string" ? parsed.payload.requestId : conversation.requestId;
+          appendAssistant(conversation.assistantId, (message) => ({ ...message, requestId: providerRequestId }));
           continue;
         }
 
@@ -242,37 +258,14 @@ export function useChatRequest(options: {
           if (!delta) continue;
           receivedContent = true;
           dispatch({ type: "delta" });
-          appendAssistant(input.assistantId, (message) => ({ ...message, content: `${message.content}${delta}` }));
+          appendAssistant(conversation.assistantId, (message) => ({ ...message, content: `${message.content}${delta}` }));
           continue;
         }
 
-        if (parsed.event === "meta") {
-          if (!isResponseMeta(parsed.payload)) continue;
-          appendAssistant(input.assistantId, (message) => ({
-            ...message,
-            requestId: parsed.payload.requestId,
-            meta: parsed.payload,
-          }));
-          if (
-            typeof parsed.payload.inputTokens === "number"
-            || typeof parsed.payload.contextMessageCount === "number"
-          ) {
-            setServerContextStats((current) => ({
-              estimatedTokens: typeof parsed.payload.inputTokens === "number"
-                ? Math.max(0, Math.round(parsed.payload.inputTokens))
-                : current?.estimatedTokens ?? localContextStats.estimatedTokens,
-              messages: typeof parsed.payload.contextMessageCount === "number"
-                ? Math.max(0, Math.round(parsed.payload.contextMessageCount))
-                : current?.messages ?? localContextStats.messages,
-              attachments: typeof parsed.payload.contextAttachmentCount === "number"
-                ? Math.max(0, Math.round(parsed.payload.contextAttachmentCount))
-                : current?.attachments ?? 0,
-              limit: typeof parsed.payload.contextLimit === "number"
-                ? Math.max(1, Math.round(parsed.payload.contextLimit))
-                : current?.limit ?? DEFAULT_CONTEXT_LIMIT_TOKENS,
-              compacted: parsed.payload.contextCompacted === true,
-            }));
-          }
+        if (parsed.event === "meta" && isResponseMeta(parsed.payload)) {
+          const meta = parsed.payload;
+          appendAssistant(conversation.assistantId, (message) => ({ ...message, requestId: meta.requestId, meta }));
+          applyMetaToContext(meta);
           continue;
         }
 
@@ -281,21 +274,15 @@ export function useChatRequest(options: {
           continue;
         }
 
-        if (parsed.event === "done") {
-          receivedDone = true;
-        }
+        if (parsed.event === "done") receivedDone = true;
       }
       if (done) break;
     }
 
     if (!receivedContent) throw new Error("The AI response was empty.");
-    setMessages((current) => {
-      const next = current.map((message) => message.id === input.assistantId && streamError
-        ? { ...message, content: `${message.content}\n\n${streamError}`, error: false }
-        : message);
-      options.saveConversation(input.prompt, input.model, next as ArchivedMessage[]);
-      return next;
-    });
+    saveUpdatedMessages(conversation, (current) => current.map((message) => message.id === conversation.assistantId && streamError
+      ? { ...message, content: `${message.content}\n\n${streamError}`, error: false }
+      : message));
     if (!receivedDone || streamError) dispatch({ type: "error" });
     else dispatch({ type: "completed" });
   }
@@ -310,7 +297,7 @@ export function useChatRequest(options: {
     const assistantId = crypto.randomUUID();
     const controller = new AbortController();
     const history = toContextMessages(historyOverride ?? messagesRef.current);
-    const conversation = { prompt, model: submitMeta.model, assistantId, requestId };
+    const conversation: ActiveConversation = { prompt, model: submitMeta.model, assistantId, requestId };
 
     setServerContextStats(null);
     if (preserveUserMessage) {
@@ -337,7 +324,7 @@ export function useChatRequest(options: {
     activeRequestRef.current = controller;
     activeConversationRef.current = conversation;
     dispatch({ type: "start", requestId, assistantId });
-    armWatchdog(controller, assistantId, requestId);
+    armWatchdog(controller, conversation);
 
     try {
       const endpoint = submitMeta.model.startsWith("clodex:") ? "/api/clodex" : "/api/demo";
@@ -356,7 +343,7 @@ export function useChatRequest(options: {
           attachments: submitMeta.attachments,
         }),
       });
-      armWatchdog(controller, assistantId, requestId);
+      armWatchdog(controller, conversation);
 
       if (!response.ok) {
         const payload = await response.json().catch(() => null) as {
@@ -379,49 +366,38 @@ export function useChatRequest(options: {
 
       const contentType = response.headers.get("content-type")?.toLowerCase() ?? "";
       if (contentType.includes("text/event-stream")) {
-        await consumeEventStream(response, { controller, assistantId, requestId, prompt, model: submitMeta.model });
+        await consumeEventStream(response, controller, conversation);
         return;
       }
 
-      dispatch({ type: "analyzing" } as never);
+      dispatch({ type: "connected" });
       const payload = await response.json().catch(() => null) as {
         answer?: unknown;
         meta?: unknown;
-        error?: unknown;
-        requestId?: unknown;
       } | null;
       const assistantContent = typeof payload?.answer === "string" ? payload.answer.trim() : "";
       if (!assistantContent) throw new Error("The AI response was empty.");
       const responseMeta = isResponseMeta(payload?.meta) ? payload.meta : undefined;
-      setMessages((current) => {
-        const next = current.map((message) => message.id === assistantId
-          ? {
-              ...message,
-              content: assistantContent,
-              requestId: responseMeta?.requestId ?? requestId,
-              ...(responseMeta ? { meta: responseMeta } : {}),
-            }
-          : message);
-        options.saveConversation(prompt, submitMeta.model, next as ArchivedMessage[]);
-        return next;
-      });
+      if (responseMeta) applyMetaToContext(responseMeta);
+      saveUpdatedMessages(conversation, (current) => current.map((message) => message.id === assistantId
+        ? {
+            ...message,
+            content: assistantContent,
+            requestId: responseMeta?.requestId ?? requestId,
+            ...(responseMeta ? { meta: responseMeta } : {}),
+          }
+        : message));
       dispatch({ type: "completed" });
     } catch (error) {
       if (isAbortError(error)) return;
-      setMessages((current) => {
-        const target = current.find((message) => message.id === assistantId);
-        const hasPartial = Boolean(target?.content);
-        const next = current.map((message) => message.id === assistantId
-          ? {
-              ...message,
-              content: message.content ? `${message.content}\n\n${text.chat.networkError}` : text.chat.networkError,
-              error: !message.content,
-              requestId,
-            }
-          : message);
-        if (hasPartial) options.saveConversation(prompt, submitMeta.model, next as ArchivedMessage[]);
-        return next;
-      });
+      saveUpdatedMessages(conversation, (current) => current.map((message) => message.id === assistantId
+        ? {
+            ...message,
+            content: message.content ? `${message.content}\n\n${text.chat.networkError}` : text.chat.networkError,
+            error: !message.content,
+            requestId,
+          }
+        : message));
       dispatch({ type: "error" });
     } finally {
       if (activeRequestRef.current === controller) clearActiveRequest();
