@@ -1,10 +1,12 @@
 import type { Metadata } from "next";
 
+import { PatchNotesBrowser } from "@/components/site/PatchNotesBrowser";
 import { StitchFooter } from "@/components/site/StitchFooter";
 import { StitchHeader } from "@/components/site/StitchHeader";
 import { FlowButton } from "@/components/ui/flow-button";
-import { ScrollReveal, StaggerContainer, StaggerItem } from "@/components/ui/scroll-reveal";
+import { ScrollReveal } from "@/components/ui/scroll-reveal";
 import { getDictionary } from "@/lib/i18n";
+import { getLatestRelease } from "@/lib/latest-release";
 import { getLocale } from "@/lib/locale";
 
 export const metadata: Metadata = {
@@ -13,57 +15,59 @@ export const metadata: Metadata = {
 };
 
 export default async function PatchNotesPage() {
-  const text = getDictionary(await getLocale());
+  const locale = await getLocale();
+  const text = getDictionary(locale);
+  const latestRelease = getLatestRelease(locale);
+  const entries = [latestRelease, ...text.patchNotes.entries.filter((entry) => entry.version !== latestRelease.version)];
+  const ui = locale === "ru"
+    ? {
+        latest: "Актуальная версия",
+        browse: "Ищите по словам, выбирайте версию слева и раскрывайте только нужные изменения.",
+        openChat: "Открыть AI-чат",
+      }
+    : {
+        latest: "Current release",
+        browse: "Search by keyword, choose a version, and expand only the changes you need.",
+        openChat: "Open AI chat",
+      };
 
   return (
     <>
       <StitchHeader active="patch-notes" />
       <main className="stitch-container pb-section-gap pt-16">
-        <section className="mb-section-gap grid gap-12 border-b-[0.5px] border-primary pb-16 md:grid-cols-12">
+        <section className="mb-14 grid gap-10 border-b-[0.5px] border-primary pb-14 md:grid-cols-12">
           <ScrollReveal className="md:col-span-8">
-            <p className="label-caps mb-7 text-secondary">{text.patchNotes.eyebrow}</p>
+            <p className="label-caps mb-6 text-secondary">{text.patchNotes.eyebrow}</p>
             <h1 className="display-title">{text.patchNotes.title}</h1>
+            <div className="mt-8 inline-flex items-center gap-3 rounded-full border border-outline-variant bg-surface-container-low px-4 py-2 text-sm">
+              <span className="size-2 rounded-full bg-primary" aria-hidden="true" />
+              <span className="text-secondary">{ui.latest}</span>
+              <strong>{latestRelease.version}</strong>
+            </div>
           </ScrollReveal>
-          <ScrollReveal delay={0.15} className="border-l border-primary pl-7 text-[18px] leading-[1.7] text-on-surface-variant md:col-span-4 md:col-start-9">
-            {text.patchNotes.intro}
+          <ScrollReveal delay={0.12} className="space-y-5 border-l border-primary pl-7 text-[17px] leading-[1.7] text-on-surface-variant md:col-span-4 md:col-start-9">
+            <p>{text.patchNotes.intro}</p>
+            <p className="text-sm text-secondary">{ui.browse}</p>
           </ScrollReveal>
         </section>
 
         <section aria-labelledby="patch-notes-list-title">
           <ScrollReveal>
-            <div className="mb-10 flex items-end justify-between border-b-[0.5px] border-primary pb-6">
+            <div className="mb-8 flex flex-col gap-3 border-b-[0.5px] border-primary pb-6 sm:flex-row sm:items-end sm:justify-between">
               <h2 id="patch-notes-list-title" className="headline-title">{text.patchNotes.historyTitle}</h2>
-              <span className="label-caps text-secondary">{text.patchNotes.entries.length} {text.patchNotes.releaseCount}</span>
+              <span className="label-caps text-secondary">{entries.length} {text.patchNotes.releaseCount}</span>
             </div>
           </ScrollReveal>
-          <StaggerContainer className="border-t-[0.5px] border-primary">
-            {text.patchNotes.entries.map((entry) => (
-              <StaggerItem key={entry.version}>
-                <article className="grid gap-8 border-b-[0.5px] border-primary py-10 md:grid-cols-12 md:gap-6">
-                  <div className="md:col-span-3">
-                    <p className="label-caps text-secondary">{entry.date}</p>
-                    <p className="mt-3 font-serif text-[25px]">{entry.version}</p>
-                  </div>
-                  <div className="md:col-span-8 md:col-start-5">
-                    <h3 className="font-serif text-[30px] leading-[1.2]">{entry.title}</h3>
-                    <p className="mt-4 max-w-2xl leading-[1.7] text-on-surface-variant">{entry.summary}</p>
-                    <ul className="mt-7 space-y-3 border-l border-primary pl-5 text-[15px] leading-[1.7]">
-                      {entry.changes.map((change) => <li key={change}>{change}</li>)}
-                    </ul>
-                  </div>
-                </article>
-              </StaggerItem>
-            ))}
-          </StaggerContainer>
+          <PatchNotesBrowser entries={entries} locale={locale} />
         </section>
 
         <ScrollReveal>
-          <section className="mt-section-gap flex flex-col items-start justify-between gap-6 overflow-hidden rounded-3xl border border-primary bg-white p-8 md:flex-row md:items-center md:p-10">
+          <section className="mt-section-gap flex flex-col items-start justify-between gap-6 overflow-hidden rounded-3xl border border-outline-variant bg-surface-container-low p-8 md:flex-row md:items-center md:p-10">
             <div>
-              <p className="label-caps text-secondary">{text.patchNotes.workspaceLabel}</p>
-              <p className="mt-3 font-serif text-[26px]">{text.patchNotes.workspaceTitle}</p>
+              <p className="label-caps text-secondary">{latestRelease.version}</p>
+              <p className="mt-3 max-w-xl font-serif text-[26px]">{text.patchNotes.workspaceTitle}</p>
             </div>
-            <FlowButton href="/playground" text={text.patchNotes.openLaboratory} dark />
+            <FlowButton href="/playground" text={ui.openChat} dark />
           </section>
         </ScrollReveal>
       </main>
