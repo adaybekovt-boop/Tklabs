@@ -30,6 +30,7 @@ export function ConversationArchive({ locale, onNavigate, headingId = "conversat
   const searchParams = useSearchParams();
   const [sessions, setSessions] = useState<ArchivedSession[]>([]);
   const [query, setQuery] = useState("");
+  const [projectFilter, setProjectFilter] = useState("all");
   const [editingId, setEditingId] = useState<string | null>(null);
   const [titleDraft, setTitleDraft] = useState("");
   const [clearArmed, setClearArmed] = useState(false);
@@ -48,6 +49,8 @@ export function ConversationArchive({ locale, onNavigate, headingId = "conversat
         save: "Сохранить название",
         remove: "Удалить диалог",
         pinned: "Закреплён",
+        projects: "Проекты",
+        allProjects: "Все",
         noProject: "Без проекта",
         copySuffix: "копия",
       }
@@ -64,6 +67,8 @@ export function ConversationArchive({ locale, onNavigate, headingId = "conversat
         save: "Save title",
         remove: "Delete conversation",
         pinned: "Pinned",
+        projects: "Projects",
+        allProjects: "All",
         noProject: "No project",
         copySuffix: "copy",
       };
@@ -81,9 +86,20 @@ export function ConversationArchive({ locale, onNavigate, headingId = "conversat
 
   const activeSession = searchParams.get("session");
   const normalizedQuery = query.trim().toLocaleLowerCase(locale === "ru" ? "ru-RU" : "en-US");
+  const projects = useMemo(
+    () => [...new Set(sessions.flatMap((session) => session.project ? [session.project] : []))].sort((left, right) => left.localeCompare(right, locale === "ru" ? "ru" : "en")),
+    [locale, sessions],
+  );
   const filteredSessions = useMemo(
-    () => sessions.filter((session) => `${session.title} ${session.model} ${session.project ?? ""}`.toLocaleLowerCase(locale === "ru" ? "ru-RU" : "en-US").includes(normalizedQuery)),
-    [locale, normalizedQuery, sessions],
+    () => sessions.filter((session) => {
+      const matchesProject = projectFilter === "all"
+        || (projectFilter === "none" ? !session.project : session.project === projectFilter);
+      if (!matchesProject) return false;
+      return `${session.title} ${session.model} ${session.project ?? ""}`
+        .toLocaleLowerCase(locale === "ru" ? "ru-RU" : "en-US")
+        .includes(normalizedQuery);
+    }),
+    [locale, normalizedQuery, projectFilter, sessions],
   );
   const dateFormatter = useMemo(
     () => new Intl.DateTimeFormat(locale === "ru" ? "ru-RU" : "en-US", { day: "2-digit", month: "short" }),
@@ -138,10 +154,22 @@ export function ConversationArchive({ locale, onNavigate, headingId = "conversat
       </div>
 
       {sessions.length > 0 && (
-        <label className="relative mb-3 block">
-          <Search size={14} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-on-secondary-container" aria-hidden="true" />
-          <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder={ui.search} aria-label={ui.search} className="h-11 w-full rounded-2xl border border-outline-variant bg-surface-container-low pl-9 pr-3 text-[13px] text-primary outline-none focus:border-primary" />
-        </label>
+        <>
+          <label className="relative mb-3 block">
+            <Search size={14} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-on-secondary-container" aria-hidden="true" />
+            <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder={ui.search} aria-label={ui.search} className="h-11 w-full rounded-2xl border border-outline-variant bg-surface-container-low pl-9 pr-3 text-[13px] text-primary outline-none focus:border-primary" />
+          </label>
+          <div className="mb-3" data-chat-project-navigation>
+            <p className="label-caps mb-2 px-2 text-on-secondary-container">{ui.projects}</p>
+            <div className="flex gap-1.5 overflow-x-auto pb-1">
+              <button type="button" onClick={() => setProjectFilter("all")} aria-pressed={projectFilter === "all"} className={cn("min-h-9 shrink-0 rounded-full border px-3 text-[10px]", projectFilter === "all" ? "border-primary bg-primary text-on-primary" : "border-outline-variant bg-surface text-on-secondary-container")}>{ui.allProjects}</button>
+              <button type="button" onClick={() => setProjectFilter("none")} aria-pressed={projectFilter === "none"} className={cn("min-h-9 shrink-0 rounded-full border px-3 text-[10px]", projectFilter === "none" ? "border-primary bg-primary text-on-primary" : "border-outline-variant bg-surface text-on-secondary-container")}>{ui.noProject}</button>
+              {projects.map((project) => (
+                <button key={project} type="button" onClick={() => setProjectFilter(project)} aria-pressed={projectFilter === project} className={cn("inline-flex min-h-9 max-w-40 shrink-0 items-center gap-1.5 rounded-full border px-3 text-[10px]", projectFilter === project ? "border-primary bg-primary text-on-primary" : "border-outline-variant bg-surface text-on-secondary-container")}><FolderKanban size={11} /><span className="truncate">{project}</span></button>
+              ))}
+            </div>
+          </div>
+        </>
       )}
 
       {sessions.length === 0 ? (
@@ -149,7 +177,7 @@ export function ConversationArchive({ locale, onNavigate, headingId = "conversat
       ) : filteredSessions.length === 0 ? (
         <p className="rounded-2xl bg-surface-container-low px-3 py-4 text-[13px] leading-[1.6] text-on-surface-variant">{ui.emptySearch}</p>
       ) : (
-        <div className="flex max-h-[min(58vh,520px)] flex-col gap-1 overflow-y-auto pr-1">
+        <div className="flex max-h-[min(50vh,460px)] flex-col gap-1 overflow-y-auto pr-1">
           {filteredSessions.map((session) => {
             const active = session.id === activeSession;
             const editing = session.id === editingId;
