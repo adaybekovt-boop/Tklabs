@@ -20,6 +20,7 @@ import { useConversationArchive } from "@/hooks/use-conversation-archive";
 import { useSpeech } from "@/hooks/use-speech";
 import { useVisualViewport } from "@/hooks/use-visual-viewport";
 import type { ClodexAccessStatus } from "@/lib/clodex-access";
+import { readChatDraft, writeChatDraft } from "@/lib/chat-draft";
 import { isNearBottom } from "@/lib/chat-scroll";
 import { getDictionary, type Locale } from "@/lib/i18n";
 import { getSession, loadSettings } from "@/lib/local-archive";
@@ -160,6 +161,18 @@ export function PlaygroundChat({ locale }: { locale: Locale }) {
   }, [searchParams]);
 
   useEffect(() => {
+    const restoredDraft = readChatDraft(archive.sessionId);
+    // Draft restoration intentionally follows the selected local conversation.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setInput(restoredDraft);
+  }, [archive.sessionId]);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => writeChatDraft(archive.sessionId, input), 180);
+    return () => window.clearTimeout(timer);
+  }, [archive.sessionId, input]);
+
+  useEffect(() => {
     const node = scrollRef.current;
     if (!node || !shouldFollowRef.current) return;
     const frame = requestAnimationFrame(() => node.scrollTo({ top: node.scrollHeight, behavior: "auto" }));
@@ -224,19 +237,19 @@ export function PlaygroundChat({ locale }: { locale: Locale }) {
             </Link>
             <div className="lg:hidden"><HistoryDropdown locale={locale} /></div>
             <div className="min-w-0">
-              <p className="label-caps hidden text-on-secondary-container sm:block">TK LAB · AI CHAT</p>
+              <p className="label-caps hidden text-on-secondary-container sm:block">AI CHAT</p>
               <div className="flex items-center gap-2">
                 <span className={cn("chat-status-dot size-2 rounded-full bg-primary", chat.isPending && "animate-pulse")} />
                 <span className="truncate text-[12px] text-on-secondary-container sm:text-[13px]">
-                  {chat.isPending ? text.chat.generating : clodexAccess?.active || localPreview ? text.chat.clodexReady : text.chat.ready}
+                  {chat.isPending ? text.chat.generating : selectedModel?.name ?? (clodexAccess?.active || localPreview ? text.chat.clodexReady : text.chat.ready)}
                 </span>
               </div>
             </div>
           </div>
 
           <div className="flex shrink-0 items-center gap-1 sm:gap-2">
-            <ThemeToggle lightLabel={text.nav.themeLight} darkLabel={text.nav.themeDark} />
-            <LanguageToggle locale={locale} label={text.nav.language} />
+            <span className="hidden sm:block"><ThemeToggle lightLabel={text.nav.themeLight} darkLabel={text.nav.themeDark} /></span>
+            <span className="hidden sm:block"><LanguageToggle locale={locale} label={text.nav.language} /></span>
             <Link href="/profile" className="hidden min-h-10 items-center rounded-full px-3 text-[12px] text-on-secondary-container hover:bg-surface-container-low hover:text-primary sm:inline-flex">
               {text.nav.profile}
             </Link>
@@ -296,35 +309,37 @@ export function PlaygroundChat({ locale }: { locale: Locale }) {
             <button
               type="button"
               onClick={jumpLatest}
-              className="absolute bottom-4 left-1/2 z-20 flex min-h-11 -translate-x-1/2 items-center gap-2 rounded-full border border-outline-variant bg-surface-container-lowest px-4 text-[12px] font-medium text-primary shadow-lg"
+              className="absolute bottom-3 left-1/2 z-20 flex min-h-11 -translate-x-1/2 items-center gap-2 rounded-full border border-outline-variant bg-surface-container-lowest px-4 text-[12px] font-medium text-primary shadow-lg sm:bottom-4"
             >
               <ArrowDown size={14} /> {locale === "ru" ? "К последнему" : "Jump to latest"}
             </button>
           )}
         </div>
 
-        <div className="chat-composer-area hairline-t safe-area-bottom w-full shrink-0 bg-surface/96 px-3 pt-3 backdrop-blur-md sm:px-5 md:px-8">
-          <ChatToolbar
-            text={text}
-            suggestionKind={suggestionKind}
-            reasonEnabled={reasonEnabled}
-            tone={tone}
-            onSuggestion={(kind) => setSuggestionKind((current) => current === kind ? null : kind)}
-            onReason={() => setReasonEnabled((enabled) => !enabled)}
-            onTone={() => setTone((current) => NEXT_TONE[current])}
-          />
-          {suggestionKind && (
-            <SuggestionPanel
+        <div className="chat-composer-area hairline-t safe-area-bottom w-full shrink-0 bg-surface/96 px-3 pt-2 backdrop-blur-md sm:px-5 sm:pt-3 md:px-8">
+          <div className={cn(chat.messages.length > 0 && "hidden sm:block")}>
+            <ChatToolbar
               text={text}
-              kind={suggestionKind}
-              onClose={() => setSuggestionKind(null)}
-              onChoose={(suggestion) => {
-                setInput(suggestion);
-                setSuggestionKind(null);
-                focusComposer();
-              }}
+              suggestionKind={suggestionKind}
+              reasonEnabled={reasonEnabled}
+              tone={tone}
+              onSuggestion={(kind) => setSuggestionKind((current) => current === kind ? null : kind)}
+              onReason={() => setReasonEnabled((enabled) => !enabled)}
+              onTone={() => setTone((current) => NEXT_TONE[current])}
             />
-          )}
+            {suggestionKind && (
+              <SuggestionPanel
+                text={text}
+                kind={suggestionKind}
+                onClose={() => setSuggestionKind(null)}
+                onChoose={(suggestion) => {
+                  setInput(suggestion);
+                  setSuggestionKind(null);
+                  focusComposer();
+                }}
+              />
+            )}
+          </div>
           <PromptInput
             ref={promptRef}
             value={input}

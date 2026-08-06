@@ -1,4 +1,4 @@
-import { useRef } from "react";
+import { useRef, useState } from "react";
 
 import { saveSession, type ArchivedMessage } from "@/lib/local-archive";
 
@@ -13,14 +13,19 @@ function titleFrom(prompt: string) {
 }
 
 export function useConversationArchive() {
-  const sessionIdRef = useRef(uid());
+  const [sessionId, setSessionIdState] = useState(uid);
+  const sessionIdRef = useRef(sessionId);
 
   function reset() {
-    sessionIdRef.current = uid();
+    const id = uid();
+    sessionIdRef.current = id;
+    setSessionIdState(id);
+    return id;
   }
 
   function setSessionId(id: string) {
     sessionIdRef.current = id;
+    setSessionIdState(id);
   }
 
   function save(prompt: string, model: string, messages: ArchivedMessage[]) {
@@ -33,5 +38,5 @@ export function useConversationArchive() {
     });
   }
 
-  return { sessionIdRef, reset, setSessionId, save };
+  return { sessionId, sessionIdRef, reset, setSessionId, save };
 }
