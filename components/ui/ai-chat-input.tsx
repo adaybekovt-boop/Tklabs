@@ -2,7 +2,18 @@
 
 import * as React from "react";
 import Image from "next/image";
-import { ArrowUp, ChevronDown, FileText, Gauge, Mic, Plus, Square, X } from "lucide-react";
+import {
+  ArrowUp,
+  ChevronDown,
+  FileText,
+  Gauge,
+  Mic,
+  Plus,
+  SlidersHorizontal,
+  Square,
+  WifiOff,
+  X,
+} from "lucide-react";
 
 import { ChatOverlay } from "@/components/playground/ChatOverlay";
 import { cn } from "@/lib/utils";
@@ -151,6 +162,7 @@ export const PromptInput = React.forwardRef<HTMLDivElement, PromptInputProps>(fu
   const [attachments, setAttachments] = React.useState<ChatInputAttachment[]>([]);
   const [activeAttachment, setActiveAttachment] = React.useState<ChatInputAttachment | null>(null);
   const [isRecording, setIsRecording] = React.useState(false);
+  const [isOnline, setIsOnline] = React.useState(true);
   const [voiceError, setVoiceError] = React.useState("");
   const [attachmentError, setAttachmentError] = React.useState("");
 
@@ -163,7 +175,11 @@ export const PromptInput = React.forwardRef<HTMLDivElement, PromptInputProps>(fu
 
   const selectedModel = models.find((model) => model.id === selectedModelId) ?? models[0];
   const effort = efforts[effortIndex] ?? efforts[1];
-  const canSubmit = Boolean(value.trim()) && value.length <= maxLength && !disabled && !busy && !isRecording;
+  const canSubmit = Boolean(value.trim()) && value.length <= maxLength && !disabled && !busy && !isRecording && isOnline;
+  const offlineLabel = voiceLanguage.toLowerCase().startsWith("ru")
+    ? "Нет сети. Черновик сохранён на устройстве."
+    : "You are offline. The draft is saved on this device.";
+  const settingsLabel = voiceLanguage.toLowerCase().startsWith("ru") ? "Модель и параметры" : "Model and settings";
 
   const groupedModels = React.useMemo(() => {
     const groups = new Map<string, ChatInputModel[]>();
@@ -178,6 +194,19 @@ export const PromptInput = React.forwardRef<HTMLDivElement, PromptInputProps>(fu
   React.useEffect(() => {
     attachmentsRef.current = attachments;
   }, [attachments]);
+
+  React.useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setIsOnline(navigator.onLine);
+    const online = () => setIsOnline(true);
+    const offline = () => setIsOnline(false);
+    window.addEventListener("online", online);
+    window.addEventListener("offline", offline);
+    return () => {
+      window.removeEventListener("online", online);
+      window.removeEventListener("offline", offline);
+    };
+  }, []);
 
   React.useEffect(() => {
     return () => {
@@ -341,7 +370,7 @@ export const PromptInput = React.forwardRef<HTMLDivElement, PromptInputProps>(fu
         />
       )}
 
-      <div className="overflow-hidden rounded-[1.5rem] border border-outline-variant bg-surface-container-lowest shadow-[0_8px_28px_color-mix(in_srgb,var(--color-primary)_6%,transparent)] focus-within:border-primary">
+      <div className="overflow-hidden rounded-[1.35rem] border border-outline-variant bg-surface-container-lowest shadow-[0_8px_28px_color-mix(in_srgb,var(--color-primary)_6%,transparent)] focus-within:border-primary sm:rounded-[1.5rem]">
         {attachments.length > 0 && (
           <div className="flex gap-2 overflow-x-auto border-b border-outline-variant px-3 py-3">
             {attachments.map((attachment) => (
@@ -387,16 +416,22 @@ export const PromptInput = React.forwardRef<HTMLDivElement, PromptInputProps>(fu
           placeholder={placeholder}
           disabled={disabled}
           rows={1}
+          enterKeyHint="enter"
           className="block min-h-11 max-h-40 w-full resize-none overflow-y-auto bg-transparent px-4 pb-2 pt-3 text-[15px] leading-7 text-primary outline-none placeholder:text-on-secondary-container disabled:opacity-60"
           aria-label={labels.request}
         />
 
         {isRecording && <div className="px-4 pb-2 text-[11px] font-medium text-primary" role="status">{labels.listening}</div>}
+        {!isOnline && (
+          <div className="flex items-center gap-2 px-4 pb-2 text-[11px] text-error" role="status">
+            <WifiOff size={13} aria-hidden="true" /> {offlineLabel}
+          </div>
+        )}
 
         <div className="flex min-w-0 items-center gap-1.5 px-2 pb-2 sm:gap-2">
           <button
             type="button"
-            className="flex h-10 min-w-0 flex-1 items-center gap-2 rounded-xl bg-surface-container-low px-2.5 text-left text-[12px] font-medium text-on-surface-variant hover:bg-surface-container hover:text-primary sm:max-w-[280px]"
+            className="hidden h-10 min-w-0 flex-1 items-center gap-2 rounded-xl bg-surface-container-low px-2.5 text-left text-[12px] font-medium text-on-surface-variant hover:bg-surface-container hover:text-primary sm:flex sm:max-w-[280px]"
             onClick={() => setModelMenuOpen(true)}
             aria-expanded={modelMenuOpen}
             aria-haspopup="listbox"
@@ -409,13 +444,26 @@ export const PromptInput = React.forwardRef<HTMLDivElement, PromptInputProps>(fu
 
           <button
             type="button"
-            className="flex size-10 shrink-0 items-center justify-center gap-1 rounded-xl text-on-surface-variant hover:bg-surface-container hover:text-primary sm:w-auto sm:px-3"
+            className="hidden size-10 shrink-0 items-center justify-center gap-1 rounded-xl text-on-surface-variant hover:bg-surface-container hover:text-primary sm:flex sm:w-auto sm:px-3"
             onClick={() => setEffortIndex((index) => (index + 1) % efforts.length)}
             title={`${labels.effort}: ${effort.label}`}
             aria-label={`${labels.effort}: ${effort.label}`}
           >
             <EffortBars count={effort.bars} />
-            <span className="hidden text-[11px] sm:inline">{effort.label}</span>
+            <span className="hidden text-[11px] md:inline">{effort.label}</span>
+          </button>
+
+          <button
+            type="button"
+            className="flex h-10 min-w-0 flex-1 items-center gap-2 rounded-xl bg-surface-container-low px-3 text-left text-[11px] font-medium text-on-surface-variant sm:hidden"
+            onClick={() => setModelMenuOpen(true)}
+            aria-expanded={modelMenuOpen}
+            aria-haspopup="dialog"
+            aria-label={settingsLabel}
+          >
+            <SlidersHorizontal size={15} className="shrink-0" />
+            <span className="min-w-0 flex-1 truncate">{selectedModel?.name ?? labels.model}</span>
+            <span className="shrink-0 text-[10px] text-on-secondary-container">{effort.label}</span>
           </button>
 
           {attachmentsEnabled && (
@@ -460,34 +508,58 @@ export const PromptInput = React.forwardRef<HTMLDivElement, PromptInputProps>(fu
       {attachmentError && <div className="mt-2 px-1 text-[11px] text-error" role="status">{attachmentError}</div>}
 
       <ChatOverlay open={modelMenuOpen} onClose={() => setModelMenuOpen(false)} labelledBy="chat-model-picker-title" position="responsive" className="p-3" closeLabel={labels.close}>
-        <div role="listbox" aria-label={labels.model} aria-labelledby="chat-model-picker-title">
-          <p id="chat-model-picker-title" className="label-caps mb-2 px-2 text-on-secondary-container">{labels.model}</p>
-          {groupedModels.map(([tier, tierModels]) => (
-            <div className="border-b border-outline-variant py-2 last:border-0" key={tier}>
-              <p className="label-caps px-2 pb-2 text-on-secondary-container">{tier}</p>
-              {tierModels.map((model) => (
+        <div>
+          <div className="mb-3 border-b border-outline-variant px-2 pb-3 sm:hidden">
+            <p className="label-caps mb-3 text-on-secondary-container">{labels.effort}</p>
+            <div className="grid grid-cols-3 gap-2">
+              {efforts.map((entry, index) => (
                 <button
-                  key={model.id}
+                  key={entry.id}
                   type="button"
-                  disabled={!model.available}
+                  onClick={() => setEffortIndex(index)}
+                  aria-pressed={effortIndex === index}
                   className={cn(
-                    "my-1 flex min-h-12 w-full items-center gap-3 rounded-2xl px-3 py-2.5 text-left text-[13px] hover:bg-surface-container-low disabled:opacity-35",
-                    selectedModelId === model.id && "bg-surface-container-low text-primary",
+                    "flex min-h-11 items-center justify-center gap-2 rounded-xl border text-[11px]",
+                    effortIndex === index
+                      ? "border-primary bg-primary text-on-primary"
+                      : "border-outline-variant bg-surface",
                   )}
-                  role="option"
-                  aria-selected={selectedModelId === model.id}
-                  onClick={() => {
-                    onModelChange(model.id);
-                    setModelMenuOpen(false);
-                  }}
                 >
-                  <ModelMark model={model} active={selectedModelId === model.id} />
-                  <span className="min-w-0 flex-1 truncate">{model.name}</span>
-                  {model.status && <span className="shrink-0 text-[10px] uppercase tracking-[0.08em] text-on-secondary-container">{model.status}</span>}
+                  <EffortBars count={entry.bars} /> {entry.label}
                 </button>
               ))}
             </div>
-          ))}
+          </div>
+
+          <div role="listbox" aria-label={labels.model} aria-labelledby="chat-model-picker-title">
+            <p id="chat-model-picker-title" className="label-caps mb-2 px-2 text-on-secondary-container">{labels.model}</p>
+            {groupedModels.map(([tier, tierModels]) => (
+              <div className="border-b border-outline-variant py-2 last:border-0" key={tier}>
+                <p className="label-caps px-2 pb-2 text-on-secondary-container">{tier}</p>
+                {tierModels.map((model) => (
+                  <button
+                    key={model.id}
+                    type="button"
+                    disabled={!model.available}
+                    className={cn(
+                      "my-1 flex min-h-12 w-full items-center gap-3 rounded-2xl px-3 py-2.5 text-left text-[13px] hover:bg-surface-container-low disabled:opacity-35",
+                      selectedModelId === model.id && "bg-surface-container-low text-primary",
+                    )}
+                    role="option"
+                    aria-selected={selectedModelId === model.id}
+                    onClick={() => {
+                      onModelChange(model.id);
+                      setModelMenuOpen(false);
+                    }}
+                  >
+                    <ModelMark model={model} active={selectedModelId === model.id} />
+                    <span className="min-w-0 flex-1 truncate">{model.name}</span>
+                    {model.status && <span className="shrink-0 text-[10px] uppercase tracking-[0.08em] text-on-secondary-container">{model.status}</span>}
+                  </button>
+                ))}
+              </div>
+            ))}
+          </div>
         </div>
       </ChatOverlay>
 
