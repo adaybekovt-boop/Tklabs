@@ -448,7 +448,10 @@ export function useChatRequest(options: {
     return () => {
       window.removeEventListener("pagehide", stopOnPageHide);
       activeRequestRef.current?.abort();
-      clearActiveRequest();
+      activeRequestRef.current = null;
+      activeConversationRef.current = null;
+      if (watchdogRef.current) clearTimeout(watchdogRef.current);
+      watchdogRef.current = null;
     };
   }, []);
 
