@@ -1,6 +1,6 @@
 "use client";
 
-import type { AiResponseMeta } from "@/lib/ai/types";
+import type { AiResponseMeta, AiToolCallTrace, AiToolName } from "@/lib/ai/types";
 
 // Everything here is stored only in this browser's localStorage. Nothing is
 // sent to or read from a TK LAB server — see the privacy notes on /truth.
@@ -57,6 +57,15 @@ const MAX_MESSAGES_PER_SESSION = 80;
 const MAX_MESSAGE_CONTENT_LENGTH = 12_000;
 const MAX_ARCHIVE_JSON_LENGTH = 1_500_000;
 const MAX_MESSAGE_VERSIONS = 5;
+const MAX_TOOL_CALLS_PER_MESSAGE = 4;
+const AI_TOOL_NAMES = new Set<AiToolName>([
+  "search_documentation",
+  "search_patch_notes",
+  "get_service_status",
+  "calculate",
+  "search_local_archive",
+  "get_model_capabilities",
+]);
 let archiveCache: ArchivedSession[] | null = null;
 let pendingArchivePayload: string | null = null;
 let archiveWriteTimer: ReturnType<typeof setTimeout> | null = null;
@@ -67,6 +76,43 @@ function isBrowser() {
 
 function optionalNumber(value: unknown) {
   return typeof value === "number" && Number.isFinite(value) ? Math.max(0, Math.round(value)) : undefined;
+}
+
+function sanitizeToolCalls(value: unknown): AiToolCallTrace[] | undefined {
+  if (!Array.isArray(value)) return undefined;
+  const traces = value.flatMap((entry) => {
+    if (!entry || typeof entry !== "object") return [];
+    const trace = entry as Partial<AiToolCallTrace>;
+    if (
+      typeof trace.id !== "string"
+      || typeof trace.name !== "string"
+      || !AI_TOOL_NAMES.has(trace.name as AiToolName)
+      || (trace.status !== "success" && trace.status !== "error" && trace.status !== "timeout" && trace.status !== "blocked")
+      || typeof trace.summary !== "string"
+    ) return [];
+    const links = Array.isArray(trace.links)
+      ? trace.links.flatMap((link) => {
+          if (!link || typeof link !== "object") return [];
+          const candidate = link as { label?: unknown; href?: unknown };
+          if (
+            typeof candidate.label !== "string"
+            || typeof candidate.href !== "string"
+            || !candidate.href.startsWith("/")
+            || candidate.href.startsWith("//")
+          ) return [];
+          return [{ label: candidate.label.slice(0, 120), href: candidate.href.slice(0, 240) }];
+        }).slice(0, 5)
+      : [];
+    return [{
+      id: trace.id.slice(0, 120),
+      name: trace.name as AiToolName,
+      status: trace.status,
+      durationMs: optionalNumber(trace.durationMs) ?? 0,
+      summary: trace.summary.slice(0, 180),
+      ...(links.length ? { links } : {}),
+    }];
+  }).slice(0, MAX_TOOL_CALLS_PER_MESSAGE);
+  return traces.length ? traces : undefined;
 }
 
 function createSessionId() {
@@ -98,6 +144,7 @@ function sanitizeMeta(value: unknown): AiResponseMeta | undefined {
   const contextMessageCount = optionalNumber(meta.contextMessageCount);
   const contextAttachmentCount = optionalNumber(meta.contextAttachmentCount);
   const contextLimit = optionalNumber(meta.contextLimit);
+  const toolCalls = sanitizeToolCalls(meta.toolCalls);
   return {
     requestId: meta.requestId.slice(0, 120),
     requestedModel: meta.requestedModel.slice(0, 120),
@@ -114,6 +161,7 @@ function sanitizeMeta(value: unknown): AiResponseMeta | undefined {
     ...(contextAttachmentCount !== undefined ? { contextAttachmentCount } : {}),
     ...(contextLimit !== undefined ? { contextLimit } : {}),
     ...(meta.contextCompacted === true ? { contextCompacted: true } : {}),
+    ...(toolCalls ? { toolCalls } : {}),
   };
 }
 
