@@ -186,15 +186,16 @@ export function loadArchive(): ArchivedSession[] {
       if (!value || typeof value !== "object") return [];
       const session = value as Partial<ArchivedSession>;
       if (typeof session.id !== "string" || !Array.isArray(session.messages)) return [];
+      const normalizedSessionId = session.id.slice(0, 120);
       const messages = session.messages.flatMap((value) => {
         if (value && typeof value === "object" && Object.prototype.hasOwnProperty.call(value, "thinking")) removedLegacyReasoning = true;
-        const sanitized = sanitizeMessage(value, session.id);
+        const sanitized = sanitizeMessage(value, normalizedSessionId);
         return sanitized ? [sanitized] : [];
       }).slice(-MAX_MESSAGES_PER_SESSION);
       const updatedAt = typeof session.updatedAt === "number" && Number.isFinite(session.updatedAt) ? session.updatedAt : 0;
       const createdAt = typeof session.createdAt === "number" && Number.isFinite(session.createdAt) ? session.createdAt : updatedAt;
       return [{
-        id: session.id.slice(0, 120),
+        id: normalizedSessionId,
         title: typeof session.title === "string" ? session.title.slice(0, 120) : "Untitled conversation",
         model: typeof session.model === "string" ? session.model.slice(0, 120) : "",
         createdAt,
@@ -276,6 +277,9 @@ export function saveSession(session: ArchivedSession) {
     const sanitized = sanitizeMessage(message, session.id);
     return sanitized ? [sanitized] : [];
   });
+  const project = existing?.project ?? session.project;
+  const parentSessionId = existing?.parentSessionId ?? session.parentSessionId;
+  const branchedFromMessageId = existing?.branchedFromMessageId ?? session.branchedFromMessageId;
   const safeSession: ArchivedSession = {
     id: session.id.slice(0, 120),
     title: existing?.customTitle ? existing.title : generatedTitle,
@@ -284,9 +288,9 @@ export function saveSession(session: ArchivedSession) {
     updatedAt: Number.isFinite(session.updatedAt) ? session.updatedAt : now,
     ...(existing?.pinned === true || session.pinned === true ? { pinned: true } : {}),
     ...(existing?.customTitle === true || session.customTitle === true ? { customTitle: true } : {}),
-    ...((existing?.project ?? session.project)?.trim() ? { project: (existing?.project ?? session.project)?.trim().slice(0, 80) } : {}),
-    ...(existing?.parentSessionId || session.parentSessionId ? { parentSessionId: (existing?.parentSessionId ?? session.parentSessionId)?.slice(0, 120) } : {}),
-    ...(existing?.branchedFromMessageId || session.branchedFromMessageId ? { branchedFromMessageId: (existing?.branchedFromMessageId ?? session.branchedFromMessageId)?.slice(0, 120) } : {}),
+    ...(project?.trim() ? { project: project.trim().slice(0, 80) } : {}),
+    ...(parentSessionId ? { parentSessionId: parentSessionId.slice(0, 120) } : {}),
+    ...(branchedFromMessageId ? { branchedFromMessageId: branchedFromMessageId.slice(0, 120) } : {}),
     messages: safeMessages,
   };
   try {
@@ -308,11 +312,12 @@ export function toggleSessionPinned(id: string) {
 
 export function setSessionProject(id: string, project: string) {
   const normalized = project.trim().replace(/\s+/g, " ").slice(0, 80);
-  return updateSession(id, (session) => ({
-    ...session,
-    ...(normalized ? { project: normalized } : { project: undefined }),
-    updatedAt: Date.now(),
-  }));
+  return updateSession(id, (session) => {
+    const next = { ...session, updatedAt: Date.now() };
+    if (normalized) next.project = normalized;
+    else delete next.project;
+    return next;
+  });
 }
 
 export function duplicateSession(id: string, title?: string) {
@@ -328,9 +333,9 @@ export function duplicateSession(id: string, title?: string) {
     createdAt: now,
     updatedAt: now,
     parentSessionId: source.id,
-    branchedFromMessageId: undefined,
     messages: source.messages.map((message) => ({ ...message, id: createSessionId() })),
   };
+  delete duplicate.branchedFromMessageId;
   persistArchive([duplicate, ...loadArchive()]);
   return duplicate;
 }
