@@ -203,6 +203,7 @@ export async function POST(request: Request) {
           allowCode: privilegedAccount,
           tone,
           history: context.messages,
+          stream: true,
           signal: request.signal,
         });
         const evaluation = evaluateAssistantContent({ answer: result.answer }, { allowCode: privilegedAccount });
