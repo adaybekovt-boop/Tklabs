@@ -43,7 +43,9 @@ function isResponseMeta(value: unknown): value is AiResponseMeta {
 
 function safeRetrySeconds(response: Response, payload: unknown) {
   const header = Number(response.headers.get("retry-after"));
-  const body = payload && typeof payload === "object" && "retryAfter" in payload ? Number((payload as { retryAfter?: unknown }).retryAfter) : 0;
+  const body = payload && typeof payload === "object" && "retryAfter" in payload
+    ? Number((payload as { retryAfter?: unknown }).retryAfter)
+    : 0;
   const value = Number.isFinite(header) && header > 0 ? header : body;
   return Number.isFinite(value) && value > 0 ? Math.min(3600, Math.max(1, Math.ceil(value))) : undefined;
 }
@@ -63,7 +65,14 @@ export function useChatRequest(options: {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [requestState, dispatch] = useReducer(requestReducer, { status: "idle", requestId: null, assistantId: null });
   const activeRequestRef = useRef<AbortController | null>(null);
-  const activeConversationRef = useRef<{ prompt: string; model: string; effort: ChatInputSubmitMeta["effort"]; attachments: ChatInputSubmitMeta["attachments"]; assistantId: string; requestId: string } | null>(null);
+  const activeConversationRef = useRef<{
+    prompt: string;
+    model: string;
+    effort: ChatInputSubmitMeta["effort"];
+    attachments: ChatInputSubmitMeta["attachments"];
+    assistantId: string;
+    requestId: string;
+  } | null>(null);
   const watchdogRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isPending = requestState.status === "preparing" || requestState.status === "generating";
 
@@ -99,13 +108,36 @@ export function useChatRequest(options: {
     const requestId = crypto.randomUUID();
     const assistantId = crypto.randomUUID();
     const controller = new AbortController();
-    const conversation = { prompt, model: submitMeta.model, effort: submitMeta.effort, attachments: submitMeta.attachments, assistantId, requestId };
+    const conversation = {
+      prompt,
+      model: submitMeta.model,
+      effort: submitMeta.effort,
+      attachments: submitMeta.attachments,
+      assistantId,
+      requestId,
+    };
+
     if (preserveUserMessage) {
-      setMessages((current) => [...current, { id: assistantId, role: "assistant", content: "", requestId, retryPrompt: prompt, retryModel: submitMeta.model }]);
+      setMessages((current) => [...current, {
+        id: assistantId,
+        role: "assistant",
+        content: "",
+        requestId,
+        retryPrompt: prompt,
+        retryModel: submitMeta.model,
+      }]);
     } else {
       const userMessage: ChatMessage = { id: crypto.randomUUID(), role: "user", content: prompt };
-      setMessages((current) => [...current, userMessage, { id: assistantId, role: "assistant", content: "", requestId, retryPrompt: prompt, retryModel: submitMeta.model }]);
+      setMessages((current) => [...current, userMessage, {
+        id: assistantId,
+        role: "assistant",
+        content: "",
+        requestId,
+        retryPrompt: prompt,
+        retryModel: submitMeta.model,
+      }]);
     }
+
     activeRequestRef.current = controller;
     activeConversationRef.current = conversation;
     dispatch({ type: "start", requestId, assistantId });
@@ -119,26 +151,55 @@ export function useChatRequest(options: {
 
     try {
       const endpoint = submitMeta.model.startsWith("clodex:") ? "/api/clodex" : "/api/demo";
+      dispatch({ type: "generating" });
       const response = await fetch(endpoint, {
         method: "POST",
         headers: { "content-type": "application/json" },
         signal: controller.signal,
-        body: JSON.stringify({ prompt, model: submitMeta.model, locale: options.locale, reasonEnabled: options.reasonEnabled, effort: submitMeta.effort, tone: options.tone, attachments: submitMeta.attachments }),
+        body: JSON.stringify({
+          prompt,
+          model: submitMeta.model,
+          locale: options.locale,
+          reasonEnabled: options.reasonEnabled,
+          effort: submitMeta.effort,
+          tone: options.tone,
+          attachments: submitMeta.attachments,
+        }),
       });
-      dispatch({ type: "generating" });
-      const payload = await response.json().catch(() => null) as { answer?: unknown; meta?: unknown; error?: unknown; requestId?: unknown; retryAfter?: unknown } | null;
+      const payload = await response.json().catch(() => null) as {
+        answer?: unknown;
+        meta?: unknown;
+        error?: unknown;
+        requestId?: unknown;
+        retryAfter?: unknown;
+      } | null;
+
       if (!response.ok) {
         const fallback = response.status === 401 ? text.chat.authExpired : `${text.chat.apiError} ${response.status}`;
         const errorText = typeof payload?.error === "string" ? payload.error : fallback;
-        appendAssistant(assistantId, (message) => ({ ...message, content: errorText, error: true, requestId: typeof payload?.requestId === "string" ? payload.requestId : requestId, retryAfterSeconds: safeRetrySeconds(response, payload) }));
+        appendAssistant(assistantId, (message) => ({
+          ...message,
+          content: errorText,
+          error: true,
+          requestId: typeof payload?.requestId === "string" ? payload.requestId : requestId,
+          retryAfterSeconds: safeRetrySeconds(response, payload),
+        }));
         dispatch({ type: "error" });
         return;
       }
+
       const assistantContent = typeof payload?.answer === "string" ? payload.answer.trim() : "";
       if (!assistantContent) throw new Error("The AI response was empty.");
       const responseMeta = isResponseMeta(payload?.meta) ? payload.meta : undefined;
       setMessages((current) => {
-        const next = current.map((message) => message.id === assistantId ? { ...message, content: assistantContent, requestId: responseMeta?.requestId ?? requestId, ...(responseMeta ? { meta: responseMeta } : {}) } : message);
+        const next = current.map((message) => message.id === assistantId
+          ? {
+              ...message,
+              content: assistantContent,
+              requestId: responseMeta?.requestId ?? requestId,
+              ...(responseMeta ? { meta: responseMeta } : {}),
+            }
+          : message);
         options.saveConversation(prompt, submitMeta.model, next as ArchivedMessage[]);
         return next;
       });
@@ -148,16 +209,14 @@ export function useChatRequest(options: {
       appendAssistant(assistantId, (message) => ({ ...message, content: text.chat.networkError, error: true, requestId }));
       dispatch({ type: "error" });
     } finally {
-      if (activeRequestRef.current === controller) {
-        clearActiveRequest();
-        if (requestState.status === "preparing" || requestState.status === "generating") dispatch({ type: "reset" });
-      }
+      if (activeRequestRef.current === controller) clearActiveRequest();
     }
   }
 
-  async function handleSubmit(prompt: string, submitMeta: ChatInputSubmitMeta) {
-    if (!prompt || prompt.length > options.promptLimit || isPending) return;
-    await runRequest(prompt, submitMeta);
+  function handleSubmit(prompt: string, submitMeta: ChatInputSubmitMeta): boolean {
+    if (!prompt || prompt.length > options.promptLimit || isPending) return false;
+    void runRequest(prompt, submitMeta);
+    return true;
   }
 
   function retryMessage(message: ChatMessage) {
@@ -183,5 +242,14 @@ export function useChatRequest(options: {
     };
   }, []);
 
-  return { messages, setMessages, isPending, requestStatus: requestState.status, handleSubmit, stopGeneration, retryMessage, clearMessages };
+  return {
+    messages,
+    setMessages,
+    isPending,
+    requestStatus: requestState.status,
+    handleSubmit,
+    stopGeneration,
+    retryMessage,
+    clearMessages,
+  };
 }
