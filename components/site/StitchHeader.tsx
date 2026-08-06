@@ -120,13 +120,18 @@ export async function StitchHeader({ active, chatMode = false }: StitchHeaderPro
                 </Link>
               </div>
 
-              <Link
-                href={signedIn ? "/profile" : "/login"}
-                className="grid size-11 shrink-0 place-items-center rounded-full border border-outline-variant text-primary lg:hidden"
-                aria-label={signedIn ? text.nav.profile : text.nav.login}
-              >
-                <UserRound size={18} aria-hidden="true" />
-              </Link>
+              <div className="flex shrink-0 items-center gap-2 lg:hidden">
+                <div className="flex min-h-11 items-center rounded-full border border-outline-variant bg-surface-container-lowest px-3">
+                  <LanguageToggle locale={locale} label={text.nav.language} />
+                </div>
+                <Link
+                  href={signedIn ? "/profile" : "/login"}
+                  className="grid size-11 shrink-0 place-items-center rounded-full border border-outline-variant text-primary"
+                  aria-label={signedIn ? text.nav.profile : text.nav.login}
+                >
+                  <UserRound size={18} aria-hidden="true" />
+                </Link>
+              </div>
             </div>
           </header>
           <MobileNavigation locale={locale} signedIn={signedIn} labels={mobileLabels} />
