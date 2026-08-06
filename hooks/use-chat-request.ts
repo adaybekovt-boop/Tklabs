@@ -1,5 +1,6 @@
-import { useEffect, useReducer, useRef, useState } from "react";
+import { useEffect, useMemo, useReducer, useRef, useState } from "react";
 
+import { DEFAULT_CONTEXT_LIMIT_TOKENS, estimateMessagesTokens, type ChatContextMessage } from "@/lib/ai/context";
 import type { AiResponseMeta } from "@/lib/ai/types";
 import type { Locale } from "@/lib/i18n";
 import { getDictionary } from "@/lib/i18n";
@@ -8,21 +9,33 @@ import type { ChatInputSubmitMeta } from "@/components/ui/ai-chat-input";
 import type { ChatMessage } from "@/components/playground/MessageList";
 
 type Tone = "professional" | "character" | "erma";
-export type ChatRequestStatus = "idle" | "preparing" | "generating" | "completed" | "error" | "stopped";
+export type ChatRequestStatus = "idle" | "connecting" | "analyzing" | "generating" | "completed" | "error" | "stopped";
+
+export type ChatContextStats = {
+  estimatedTokens: number;
+  messages: number;
+  attachments: number;
+  limit: number;
+  compacted: boolean;
+};
 
 type RequestState = { status: ChatRequestStatus; requestId: string | null; assistantId: string | null };
 type RequestAction =
   | { type: "start"; requestId: string; assistantId: string }
-  | { type: "generating" }
+  | { type: "connected" }
+  | { type: "delta" }
   | { type: "completed" }
   | { type: "error" }
   | { type: "stopped" }
   | { type: "reset" };
 
+type StreamPayload = Record<string, unknown>;
+
 function requestReducer(state: RequestState, action: RequestAction): RequestState {
   switch (action.type) {
-    case "start": return { status: "preparing", requestId: action.requestId, assistantId: action.assistantId };
-    case "generating": return { ...state, status: "generating" };
+    case "start": return { status: "connecting", requestId: action.requestId, assistantId: action.assistantId };
+    case "connected": return { ...state, status: "analyzing" };
+    case "delta": return { ...state, status: "generating" };
     case "completed": return { ...state, status: "completed", requestId: null, assistantId: null };
     case "error": return { ...state, status: "error", requestId: null, assistantId: null };
     case "stopped": return { ...state, status: "stopped", requestId: null, assistantId: null };
@@ -54,33 +67,114 @@ function isAbortError(error: unknown) {
   return error instanceof DOMException && error.name === "AbortError";
 }
 
+function parseEventBlock(block: string) {
+  let event = "message";
+  const data: string[] = [];
+  for (const line of block.split(/\r?\n/)) {
+    if (line.startsWith("event:")) event = line.slice(6).trim();
+    else if (line.startsWith("data:")) data.push(line.slice(5).trimStart());
+  }
+  if (!data.length) return null;
+  try {
+    return { event, payload: JSON.parse(data.join("\n")) as StreamPayload };
+  } catch {
+    return null;
+  }
+}
+
+function toContextMessages(messages: ChatMessage[]): ChatContextMessage[] {
+  return messages.flatMap((message) => {
+    if (message.error || message.excludedFromContext || !message.content.trim()) return [];
+    return [{ role: message.role, content: message.content.trim() }];
+  });
+}
+
+function contextStatsFromMessages(messages: ChatMessage[]): ChatContextStats {
+  const contextMessages = toContextMessages(messages);
+  return {
+    estimatedTokens: estimateMessagesTokens(contextMessages),
+    messages: contextMessages.length,
+    attachments: 0,
+    limit: DEFAULT_CONTEXT_LIMIT_TOKENS,
+    compacted: false,
+  };
+}
+
+function contextStatsFromPayload(payload: unknown): ChatContextStats | null {
+  if (!payload || typeof payload !== "object") return null;
+  const context = payload as Partial<ChatContextStats>;
+  if (
+    typeof context.estimatedTokens !== "number"
+    || typeof context.messages !== "number"
+    || typeof context.attachments !== "number"
+    || typeof context.limit !== "number"
+  ) return null;
+  return {
+    estimatedTokens: Math.max(0, Math.round(context.estimatedTokens)),
+    messages: Math.max(0, Math.round(context.messages)),
+    attachments: Math.max(0, Math.round(context.attachments)),
+    limit: Math.max(1, Math.round(context.limit)),
+    compacted: context.compacted === true,
+  };
+}
+
 export function useChatRequest(options: {
   locale: Locale;
   tone: Tone;
   reasonEnabled: boolean;
   promptLimit: number;
+  currentModel: string;
   saveConversation: (prompt: string, model: string, messages: ArchivedMessage[]) => void;
 }) {
   const text = getDictionary(options.locale);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [serverContextStats, setServerContextStats] = useState<ChatContextStats | null>(null);
   const [requestState, dispatch] = useReducer(requestReducer, { status: "idle", requestId: null, assistantId: null });
   const activeRequestRef = useRef<AbortController | null>(null);
+  const messagesRef = useRef<ChatMessage[]>([]);
   const activeConversationRef = useRef<{
     prompt: string;
     model: string;
-    effort: ChatInputSubmitMeta["effort"];
-    attachments: ChatInputSubmitMeta["attachments"];
     assistantId: string;
     requestId: string;
   } | null>(null);
   const watchdogRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const isPending = requestState.status === "preparing" || requestState.status === "generating";
+  const isPending = requestState.status === "connecting" || requestState.status === "analyzing" || requestState.status === "generating";
+  const localContextStats = useMemo(() => contextStatsFromMessages(messages), [messages]);
+  const contextStats = serverContextStats ?? localContextStats;
+
+  useEffect(() => {
+    messagesRef.current = messages;
+  }, [messages]);
+
+  function clearWatchdog() {
+    if (watchdogRef.current) clearTimeout(watchdogRef.current);
+    watchdogRef.current = null;
+  }
+
+  function armWatchdog(controller: AbortController, assistantId: string, requestId: string) {
+    clearWatchdog();
+    watchdogRef.current = setTimeout(() => {
+      if (activeRequestRef.current !== controller) return;
+      controller.abort();
+      activeRequestRef.current = null;
+      activeConversationRef.current = null;
+      setMessages((current) => current.map((message) => message.id === assistantId
+        ? {
+            ...message,
+            content: message.content ? `${message.content}\n\n${text.chat.networkError}` : text.chat.networkError,
+            error: !message.content,
+            requestId,
+          }
+        : message));
+      dispatch({ type: "error" });
+    }, 120_000);
+  }
 
   function clearActiveRequest() {
     activeRequestRef.current = null;
     activeConversationRef.current = null;
-    if (watchdogRef.current) clearTimeout(watchdogRef.current);
-    watchdogRef.current = null;
+    clearWatchdog();
   }
 
   function appendAssistant(assistantId: string, update: (message: ChatMessage) => ChatMessage) {
@@ -92,31 +186,133 @@ export function useChatRequest(options: {
     if (!activeConversation) return;
     activeRequestRef.current?.abort();
     clearActiveRequest();
-    appendAssistant(activeConversation.assistantId, (message) => ({
-      ...message,
-      content: message.content ? `${message.content}\n\n${text.chat.generationStopped}` : text.chat.generationStopped,
-      error: false,
-    }));
     setMessages((current) => {
-      options.saveConversation(activeConversation.prompt, activeConversation.model, current as ArchivedMessage[]);
-      return current;
+      const next = current.map((message) => message.id === activeConversation.assistantId
+        ? {
+            ...message,
+            content: message.content
+              ? `${message.content}\n\n${text.chat.generationStopped}`
+              : text.chat.generationStopped,
+            error: false,
+          }
+        : message);
+      options.saveConversation(activeConversation.prompt, activeConversation.model, next as ArchivedMessage[]);
+      return next;
     });
     dispatch({ type: "stopped" });
   }
 
-  async function runRequest(prompt: string, submitMeta: ChatInputSubmitMeta, preserveUserMessage = false) {
+  async function consumeEventStream(response: Response, input: {
+    controller: AbortController;
+    assistantId: string;
+    requestId: string;
+    prompt: string;
+    model: string;
+  }) {
+    if (!response.body) throw new Error("The streaming response has no body.");
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = "";
+    let receivedDone = false;
+    let receivedContent = false;
+    let streamError = "";
+
+    while (true) {
+      const { done, value } = await reader.read();
+      buffer += decoder.decode(value ?? new Uint8Array(), { stream: !done });
+      const blocks = buffer.split(/\r?\n\r?\n/);
+      buffer = done ? "" : (blocks.pop() ?? "");
+
+      for (const block of blocks) {
+        const parsed = parseEventBlock(block);
+        if (!parsed) continue;
+        armWatchdog(input.controller, input.assistantId, input.requestId);
+
+        if (parsed.event === "start") {
+          dispatch({ type: "connected" });
+          const stats = contextStatsFromPayload(parsed.payload.context);
+          if (stats) setServerContextStats(stats);
+          const providerRequestId = typeof parsed.payload.requestId === "string" ? parsed.payload.requestId : input.requestId;
+          appendAssistant(input.assistantId, (message) => ({ ...message, requestId: providerRequestId }));
+          continue;
+        }
+
+        if (parsed.event === "delta") {
+          const delta = typeof parsed.payload.text === "string" ? parsed.payload.text : "";
+          if (!delta) continue;
+          receivedContent = true;
+          dispatch({ type: "delta" });
+          appendAssistant(input.assistantId, (message) => ({ ...message, content: `${message.content}${delta}` }));
+          continue;
+        }
+
+        if (parsed.event === "meta") {
+          if (!isResponseMeta(parsed.payload)) continue;
+          appendAssistant(input.assistantId, (message) => ({
+            ...message,
+            requestId: parsed.payload.requestId,
+            meta: parsed.payload,
+          }));
+          if (
+            typeof parsed.payload.inputTokens === "number"
+            || typeof parsed.payload.contextMessageCount === "number"
+          ) {
+            setServerContextStats((current) => ({
+              estimatedTokens: typeof parsed.payload.inputTokens === "number"
+                ? Math.max(0, Math.round(parsed.payload.inputTokens))
+                : current?.estimatedTokens ?? localContextStats.estimatedTokens,
+              messages: typeof parsed.payload.contextMessageCount === "number"
+                ? Math.max(0, Math.round(parsed.payload.contextMessageCount))
+                : current?.messages ?? localContextStats.messages,
+              attachments: typeof parsed.payload.contextAttachmentCount === "number"
+                ? Math.max(0, Math.round(parsed.payload.contextAttachmentCount))
+                : current?.attachments ?? 0,
+              limit: typeof parsed.payload.contextLimit === "number"
+                ? Math.max(1, Math.round(parsed.payload.contextLimit))
+                : current?.limit ?? DEFAULT_CONTEXT_LIMIT_TOKENS,
+              compacted: parsed.payload.contextCompacted === true,
+            }));
+          }
+          continue;
+        }
+
+        if (parsed.event === "error") {
+          streamError = typeof parsed.payload.error === "string" ? parsed.payload.error : text.chat.networkError;
+          continue;
+        }
+
+        if (parsed.event === "done") {
+          receivedDone = true;
+        }
+      }
+      if (done) break;
+    }
+
+    if (!receivedContent) throw new Error("The AI response was empty.");
+    setMessages((current) => {
+      const next = current.map((message) => message.id === input.assistantId && streamError
+        ? { ...message, content: `${message.content}\n\n${streamError}`, error: false }
+        : message);
+      options.saveConversation(input.prompt, input.model, next as ArchivedMessage[]);
+      return next;
+    });
+    if (!receivedDone || streamError) dispatch({ type: "error" });
+    else dispatch({ type: "completed" });
+  }
+
+  async function runRequest(
+    prompt: string,
+    submitMeta: ChatInputSubmitMeta,
+    preserveUserMessage = false,
+    historyOverride?: ChatMessage[],
+  ) {
     const requestId = crypto.randomUUID();
     const assistantId = crypto.randomUUID();
     const controller = new AbortController();
-    const conversation = {
-      prompt,
-      model: submitMeta.model,
-      effort: submitMeta.effort,
-      attachments: submitMeta.attachments,
-      assistantId,
-      requestId,
-    };
+    const history = toContextMessages(historyOverride ?? messagesRef.current);
+    const conversation = { prompt, model: submitMeta.model, assistantId, requestId };
 
+    setServerContextStats(null);
     if (preserveUserMessage) {
       setMessages((current) => [...current, {
         id: assistantId,
@@ -141,23 +337,17 @@ export function useChatRequest(options: {
     activeRequestRef.current = controller;
     activeConversationRef.current = conversation;
     dispatch({ type: "start", requestId, assistantId });
-    watchdogRef.current = setTimeout(() => {
-      if (activeRequestRef.current !== controller) return;
-      controller.abort();
-      clearActiveRequest();
-      appendAssistant(assistantId, (message) => ({ ...message, content: text.chat.networkError, error: true, requestId }));
-      dispatch({ type: "error" });
-    }, 120_000);
+    armWatchdog(controller, assistantId, requestId);
 
     try {
       const endpoint = submitMeta.model.startsWith("clodex:") ? "/api/clodex" : "/api/demo";
-      dispatch({ type: "generating" });
       const response = await fetch(endpoint, {
         method: "POST",
-        headers: { "content-type": "application/json" },
+        headers: { "content-type": "application/json", accept: "text/event-stream, application/json" },
         signal: controller.signal,
         body: JSON.stringify({
           prompt,
+          messages: history,
           model: submitMeta.model,
           locale: options.locale,
           reasonEnabled: options.reasonEnabled,
@@ -166,15 +356,14 @@ export function useChatRequest(options: {
           attachments: submitMeta.attachments,
         }),
       });
-      const payload = await response.json().catch(() => null) as {
-        answer?: unknown;
-        meta?: unknown;
-        error?: unknown;
-        requestId?: unknown;
-        retryAfter?: unknown;
-      } | null;
+      armWatchdog(controller, assistantId, requestId);
 
       if (!response.ok) {
+        const payload = await response.json().catch(() => null) as {
+          error?: unknown;
+          requestId?: unknown;
+          retryAfter?: unknown;
+        } | null;
         const fallback = response.status === 401 ? text.chat.authExpired : `${text.chat.apiError} ${response.status}`;
         const errorText = typeof payload?.error === "string" ? payload.error : fallback;
         appendAssistant(assistantId, (message) => ({
@@ -188,6 +377,19 @@ export function useChatRequest(options: {
         return;
       }
 
+      const contentType = response.headers.get("content-type")?.toLowerCase() ?? "";
+      if (contentType.includes("text/event-stream")) {
+        await consumeEventStream(response, { controller, assistantId, requestId, prompt, model: submitMeta.model });
+        return;
+      }
+
+      dispatch({ type: "analyzing" } as never);
+      const payload = await response.json().catch(() => null) as {
+        answer?: unknown;
+        meta?: unknown;
+        error?: unknown;
+        requestId?: unknown;
+      } | null;
       const assistantContent = typeof payload?.answer === "string" ? payload.answer.trim() : "";
       if (!assistantContent) throw new Error("The AI response was empty.");
       const responseMeta = isResponseMeta(payload?.meta) ? payload.meta : undefined;
@@ -206,7 +408,20 @@ export function useChatRequest(options: {
       dispatch({ type: "completed" });
     } catch (error) {
       if (isAbortError(error)) return;
-      appendAssistant(assistantId, (message) => ({ ...message, content: text.chat.networkError, error: true, requestId }));
+      setMessages((current) => {
+        const target = current.find((message) => message.id === assistantId);
+        const hasPartial = Boolean(target?.content);
+        const next = current.map((message) => message.id === assistantId
+          ? {
+              ...message,
+              content: message.content ? `${message.content}\n\n${text.chat.networkError}` : text.chat.networkError,
+              error: !message.content,
+              requestId,
+            }
+          : message);
+        if (hasPartial) options.saveConversation(prompt, submitMeta.model, next as ArchivedMessage[]);
+        return next;
+      });
       dispatch({ type: "error" });
     } finally {
       if (activeRequestRef.current === controller) clearActiveRequest();
@@ -221,14 +436,33 @@ export function useChatRequest(options: {
 
   function retryMessage(message: ChatMessage) {
     if (isPending || !message.retryPrompt || !message.retryModel) return;
-    setMessages((current) => current.filter((entry) => entry.id !== message.id));
-    void runRequest(message.retryPrompt, { model: message.retryModel, effort: "medium", attachments: [] }, true);
+    const current = messagesRef.current;
+    const assistantIndex = current.findIndex((entry) => entry.id === message.id);
+    let history = assistantIndex >= 0 ? current.slice(0, assistantIndex) : current.filter((entry) => entry.id !== message.id);
+    const latest = history[history.length - 1];
+    if (latest?.role === "user" && latest.content.trim() === message.retryPrompt.trim()) history = history.slice(0, -1);
+    setMessages((entries) => entries.filter((entry) => entry.id !== message.id));
+    void runRequest(message.retryPrompt, { model: message.retryModel, effort: "medium", attachments: [] }, true, history);
+  }
+
+  function toggleMessageContext(messageId: string) {
+    if (isPending) return;
+    setServerContextStats(null);
+    setMessages((current) => {
+      const next = current.map((message) => message.id === messageId
+        ? { ...message, excludedFromContext: !message.excludedFromContext }
+        : message);
+      const firstPrompt = next.find((message) => message.role === "user")?.content ?? "Conversation";
+      options.saveConversation(firstPrompt, options.currentModel, next as ArchivedMessage[]);
+      return next;
+    });
   }
 
   function clearMessages() {
     activeRequestRef.current?.abort();
     clearActiveRequest();
     dispatch({ type: "reset" });
+    setServerContextStats(null);
     setMessages([]);
   }
 
@@ -247,9 +481,11 @@ export function useChatRequest(options: {
     setMessages,
     isPending,
     requestStatus: requestState.status,
+    contextStats,
     handleSubmit,
     stopGeneration,
     retryMessage,
+    toggleMessageContext,
     clearMessages,
   };
 }
