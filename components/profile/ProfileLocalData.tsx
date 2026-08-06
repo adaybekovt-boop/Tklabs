@@ -58,7 +58,6 @@ export function ProfileLocalData({ locale }: { locale: "ru" | "en" }) {
 
   useEffect(() => {
     function refresh() {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
       setStats(readStats());
     }
     refresh();
