@@ -4,6 +4,7 @@ import { Activity, CheckCircle2, Circle, ShieldCheck, Workflow } from "lucide-re
 
 import { AGENT_RUN_PROTOCOL_VERSION } from "@/lib/ai/agent-run";
 import type { Locale } from "@/lib/i18n";
+import { CURRENT_RELEASE_BADGE } from "@/lib/release-version";
 
 export function AgentRunPanel({ locale }: { locale: Locale }) {
   const ru = locale === "ru";
@@ -23,7 +24,8 @@ export function AgentRunPanel({ locale }: { locale: Locale }) {
             <p className="mt-4 max-w-xl text-[15px] leading-7 text-on-surface-variant">{ru ? "Erma Nova показывает только полезный рабочий прогресс: план, этап, инструменты, источники и итог. Скрытые рассуждения модели не публикуются." : "Erma Nova exposes useful work progress only: plan, stage, tools, references, and outcome. Hidden model reasoning is never published."}</p>
           </div>
           <div className="rounded-2xl border border-outline-variant bg-surface p-4 text-sm leading-6 text-on-surface-variant md:w-72">
-            <div className="flex items-center gap-2 font-medium text-on-surface"><ShieldCheck className="size-4 text-primary" />{ru ? "Границы beta.1" : "beta.1 boundaries"}</div>
+            <div className="flex items-center gap-2 font-medium text-on-surface"><ShieldCheck className="size-4 text-primary" />{ru ? "Границы preview" : "Preview boundaries"}</div>
+            <p className="mt-1 text-xs font-medium uppercase tracking-[0.12em] text-secondary">{CURRENT_RELEASE_BADGE}</p>
             <p className="mt-2">{ru ? "До шести шагов, последовательное выполнение, Stop на любом этапе, без shell, eval и произвольного filesystem." : "Up to six steps, sequential execution, Stop at any stage, with no shell, eval, or arbitrary filesystem access."}</p>
           </div>
         </div>
@@ -44,7 +46,7 @@ export function AgentRunPanel({ locale }: { locale: Locale }) {
             <p className="label-caps text-secondary">{ru ? "Состояние" : "Status"}</p>
             <div className="mt-4 rounded-2xl border border-dashed border-outline-variant bg-surface p-5 text-sm leading-6 text-on-surface-variant">
               <p className="font-medium text-on-surface">{ru ? "Нет активного запуска" : "No active run"}</p>
-              <p className="mt-2">{ru ? "В beta.1 опубликованы протокол, границы и рабочая поверхность. Live timeline будет подключаться к сложным запросам поэтапно." : "beta.1 publishes the protocol, boundaries, and workspace surface. Live timeline wiring will roll out to complex requests incrementally."}</p>
+              <p className="mt-2">{ru ? "В текущей preview опубликованы протокол, границы и рабочая поверхность. Live timeline будет подключаться к сложным запросам поэтапно." : "The current preview publishes the protocol, boundaries, and workspace surface. Live timeline wiring will roll out to complex requests incrementally."}</p>
             </div>
           </aside>
         </div>
