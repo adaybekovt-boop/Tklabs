@@ -78,7 +78,6 @@ export function ErmaNovaWorkspace({ locale }: { locale: Locale }) {
                 onClick={() => selectTab(id)}
                 aria-selected={tab === id}
                 aria-controls={`workspace-panel-${id}`}
-                tabIndex={tab === id ? 0 : -1}
                 className={cn(
                   "inline-flex h-9 shrink-0 items-center gap-2 rounded-full px-3 text-xs font-medium transition-colors sm:px-4",
                   tab === id ? "bg-primary text-on-primary shadow-sm" : "text-on-surface-variant hover:bg-surface",
