@@ -9,7 +9,15 @@ function uid() {
 }
 
 function titleFrom(prompt: string) {
-  return prompt.length > 48 ? prompt.slice(0, 48) + "…" : prompt;
+  const normalized = prompt
+    .replace(/```[\s\S]*?```/g, " code ")
+    .replace(/https?:\/\/\S+/g, " link ")
+    .replace(/[#>*_`~\[\](){}]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  const firstSentence = normalized.split(/(?<=[.!?])\s/)[0]?.trim() || normalized;
+  const title = firstSentence.slice(0, 56).trim();
+  return title.length < firstSentence.length ? `${title}…` : title || "New conversation";
 }
 
 export function useConversationArchive() {
