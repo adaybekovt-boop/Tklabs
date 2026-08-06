@@ -3,6 +3,19 @@ import { readFile } from "node:fs/promises";
 import test from "node:test";
 
 import { inferResponseLanguage, responseLanguageInstruction } from "../lib/ai/response-language.ts";
+import { buildNvidiaBody } from "../lib/ai/providers/nvidia.ts";
+
+const TEST_MODEL = {
+  key: "language-test",
+  name: "Language Test",
+  tier: "light",
+  nvidiaModel: "test/model",
+  status: "available",
+  available: true,
+  reasoning: false,
+  vision: false,
+  tools: false,
+};
 
 test("Russian prompt overrides an English interface locale", () => {
   assert.equal(inferResponseLanguage("Объясни, почему поле ввода не работает на телефоне", "en"), "ru");
@@ -30,6 +43,16 @@ test("the latest explicit response-language request wins", () => {
 test("non-linguistic prompts fall back to the interface locale", () => {
   assert.equal(inferResponseLanguage("12345 + 67890", "ru"), "ru");
   assert.equal(inferResponseLanguage("```json\n{\"ok\":true}\n```", "en"), "en");
+});
+
+test("NVIDIA request body follows the prompt language instead of the interface language", () => {
+  const russianBody = buildNvidiaBody("Почему AI отвечает не на том языке?", "en", TEST_MODEL, false, "medium", false, "professional");
+  const englishBody = buildNvidiaBody("Why is the AI using the wrong language?", "ru", TEST_MODEL, false, "medium", false, "professional");
+  const russianSystem = russianBody.messages[0].content;
+  const englishSystem = englishBody.messages[0].content;
+  assert.match(russianSystem, /Ответь полностью на русском языке/);
+  assert.doesNotMatch(russianSystem, /Reply fully in English/);
+  assert.match(englishSystem, /Reply fully in English/);
 });
 
 test("provider language instructions are explicit and do not expose interface-locale behavior", async () => {
