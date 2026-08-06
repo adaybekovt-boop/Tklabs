@@ -88,6 +88,12 @@ export function PlaygroundChat({ locale }: { locale: Locale }) {
   const models = useMemo(() => clodexAccess?.active || localPreview ? [...ermaOptions, ...clodexOptions] : ermaOptions, [clodexAccess?.active, clodexOptions, ermaOptions, localPreview]);
   const promptLimit = clodexAccess?.unlimited || localPreview ? PRIVILEGED_MAX_PROMPT_LENGTH : PUBLIC_MAX_PROMPT_LENGTH;
   const selectedModel = models.find((model) => model.id === modelKey) ?? models[0];
+  const fallbackCompareModel = models.find((model) => model.available && model.id !== selectedModel?.id)?.id ?? selectedModel?.id ?? "";
+  const effectiveCompareModel = compareModel
+    && compareModel !== selectedModel?.id
+    && models.some((model) => model.id === compareModel && model.available)
+    ? compareModel
+    : fallbackCompareModel;
   const archive = useConversationArchive();
   const chat = useChatRequest({
     locale,
@@ -166,17 +172,6 @@ export function PlaygroundChat({ locale }: { locale: Locale }) {
   }, [searchParams]);
 
   useEffect(() => {
-    const next = models.find((model) => model.available && model.id !== selectedModel?.id)?.id ?? selectedModel?.id ?? "";
-    if (!compareModel || compareModel === selectedModel?.id || !models.some((model) => model.id === compareModel && model.available)) setCompareModel(next);
-  }, [compareModel, models, selectedModel?.id]);
-
-  useEffect(() => {
-    if (!composerAttachments.length || window.innerWidth < 1280) return;
-    setDrawerTab("files");
-    setDrawerOpen(true);
-  }, [composerAttachments.length]);
-
-  useEffect(() => {
     const restoredDraft = readChatDraft(archive.sessionId);
     // Draft restoration intentionally follows the selected local conversation.
     // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -240,6 +235,15 @@ export function PlaygroundChat({ locale }: { locale: Locale }) {
     setDrawerOpen(true);
   }
 
+  function handleAttachmentsChange(attachments: ChatInputAttachment[]) {
+    const addedFile = attachments.length > composerAttachments.length;
+    setComposerAttachments(attachments);
+    if (addedFile && window.innerWidth >= 1280) {
+      setDrawerTab("files");
+      setDrawerOpen(true);
+    }
+  }
+
   function branchFromMessage(message: ChatMessage) {
     if (chat.isPending) return;
     const firstPrompt = chat.messages.find((entry) => entry.role === "user")?.content ?? "Conversation";
@@ -258,8 +262,8 @@ export function PlaygroundChat({ locale }: { locale: Locale }) {
     const target = compareTargetId
       ? chat.messages.find((message) => message.id === compareTargetId)
       : [...chat.messages].reverse().find((message) => message.role === "assistant" && message.content && !message.error);
-    if (!target || !compareModel) return;
-    void chat.compareMessage(target.id, compareModel);
+    if (!target || !effectiveCompareModel) return;
+    void chat.compareMessage(target.id, effectiveCompareModel);
   }
 
   function updateProject(project: string) {
@@ -377,7 +381,7 @@ export function PlaygroundChat({ locale }: { locale: Locale }) {
             onResponseModeChange={setResponseMode}
             reasonEnabled={reasonEnabled}
             onReasonEnabledChange={setReasonEnabled}
-            onAttachmentsChange={setComposerAttachments}
+            onAttachmentsChange={handleAttachmentsChange}
             onOpenWorkspace={() => openWorkspace(undefined, "settings")}
             busy={chat.isPending}
             onStop={chat.stopGeneration}
@@ -401,7 +405,7 @@ export function PlaygroundChat({ locale }: { locale: Locale }) {
         contextStats={chat.contextStats}
         attachments={composerAttachments}
         models={models}
-        compareModel={compareModel}
+        compareModel={effectiveCompareModel}
         responseMode={responseMode}
         reasonEnabled={reasonEnabled}
         project={currentProject}
