@@ -12,6 +12,22 @@ const RELEASES: Record<Locale, PublicReleaseNote[]> = {
   ru: [
     {
       date: "06 авг. 2026",
+      version: "v0.14.0",
+      title: "NVIDIA Tools и безопасные Agent Actions",
+      summary: "Erma-модели получили ограниченный read-only tool calling: AI может искать документацию и релизы, проверять статус сервисов, выполнять вычисления, искать в локальном архиве и объяснять возможности моделей.",
+      changes: [
+        "Добавлена серверная матрица возможностей для каждой Erma-модели; provider ID, ограничения и правила thinking не раскрываются клиенту.",
+        "NVIDIA planner использует tools и tool_choice только для подходящих запросов, выполняет не более четырёх вызовов за три раунда и запрещает parallel tool calls.",
+        "Tool planning для Nemotron и DeepSeek выполняется с отключённым detailed thinking; финальная генерация сохраняет выбранный пользователем режим reasoning.",
+        "Доступны только шесть серверных read-only инструментов: документация, Patch Notes, статус сервисов, вычисления, локальный архив и возможности моделей.",
+        "Аргументы каждого инструмента проверяются по закрытой JSON Schema; произвольные URL, shell-команды, filesystem и универсальное выполнение кода отсутствуют.",
+        "Каждый инструмент имеет отдельный timeout, а журнал содержит только request ID, имя, статус и длительность без аргументов, результатов и секретов.",
+        "Локальный архив передаётся только как временный ограниченный индекс из текущего браузера и не сохраняется на сервере.",
+        "Под ответом отображается отдельная карточка «AI использовал инструмент» со статусом, временем и безопасными внутренними ссылками.",
+      ],
+    },
+    {
+      date: "06 авг. 2026",
       version: "v0.13.1",
       title: "Chat Workspace и полная история обновлений",
       summary: "AI-чат стал удобнее для постоянной работы с локальными диалогами, переключатель RU/EN снова доступен прямо на мобильных экранах, а вкладка «Что нового» теперь отражает каждый релиз.",
@@ -92,6 +108,22 @@ const RELEASES: Record<Locale, PublicReleaseNote[]> = {
     },
   ],
   en: [
+    {
+      date: "06 Aug 2026",
+      version: "v0.14.0",
+      title: "NVIDIA Tools and safe Agent Actions",
+      summary: "Erma models now support bounded read-only tool calling for documentation and release search, service status, calculations, local archive search, and model capability lookup.",
+      changes: [
+        "A server-side capability matrix now controls each Erma model; provider IDs, loop limits, and thinking rules remain private.",
+        "The NVIDIA planner supplies tools and tool_choice only for relevant prompts, permits at most four calls over three rounds, and disables parallel tool calls.",
+        "Tool planning for Nemotron and DeepSeek runs with detailed thinking disabled, while final synthesis preserves the user's selected reasoning mode.",
+        "Only six server-allowlisted read-only tools are available: documentation, Patch Notes, service status, calculation, local archive, and model capabilities.",
+        "Every tool uses a closed JSON Schema; arbitrary URLs, shell commands, filesystem access, and universal code execution are absent.",
+        "Each tool has its own timeout, and logs contain only request ID, tool name, status, and duration—never arguments, results, or secrets.",
+        "The local archive is sent only as a temporary bounded index from the current browser and is not stored by the server.",
+        "Responses show a separate 'AI used a tool' card with status, duration, and safe internal links.",
+      ],
+    },
     {
       date: "06 Aug 2026",
       version: "v0.13.1",
@@ -186,6 +218,10 @@ export function getReleaseHistory(locale: Locale): PublicReleaseNote[] {
 }
 
 export function getLatestRelease(locale: Locale): PublicReleaseNote {
+  return getRelease(locale, "v0.14.0");
+}
+
+export function getPreviousReleaseV0131(locale: Locale): PublicReleaseNote {
   return getRelease(locale, "v0.13.1");
 }
 
