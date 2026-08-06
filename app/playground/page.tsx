@@ -2,7 +2,7 @@ import { Suspense } from "react";
 import { redirect } from "next/navigation";
 
 import { auth } from "@/auth";
-import { PlaygroundChat } from "@/components/playground/PlaygroundChat";
+import { ErmaNovaWorkspace } from "@/components/playground/ErmaNovaWorkspace";
 import { LanguageToggle } from "@/components/site/LanguageToggle";
 import { StitchHeader } from "@/components/site/StitchHeader";
 import { getDictionary } from "@/lib/i18n";
@@ -25,7 +25,7 @@ export default async function PlaygroundPage() {
       </div>
       <main className="playground-shell flex min-h-0 flex-1 flex-col overflow-hidden bg-background">
         <Suspense fallback={null}>
-          <PlaygroundChat locale={locale} />
+          <ErmaNovaWorkspace locale={locale} />
         </Suspense>
       </main>
     </div>
