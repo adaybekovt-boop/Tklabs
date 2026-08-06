@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 
 import "@/app/globals.css";
 import { getLocale } from "@/lib/locale";
@@ -14,6 +14,16 @@ const SITE_ICONS = {
   apple: "/images/brand/tk-logo.png",
 };
 
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "#f9f9f9" },
+    { media: "(prefers-color-scheme: dark)", color: "#101010" },
+  ],
+};
+
 export async function generateMetadata(): Promise<Metadata> {
   const locale = await getLocale();
   return locale === "en"
@@ -21,11 +31,15 @@ export async function generateMetadata(): Promise<Metadata> {
         title: "TK Lab — Quiet Luxury",
         description: "A calm, precise AI laboratory for focused work.",
         icons: SITE_ICONS,
+        manifest: "/manifest.webmanifest",
+        appleWebApp: { capable: true, title: "TK Lab", statusBarStyle: "black-translucent" },
       }
     : {
         title: "TK Lab — Тихая точность",
         description: "Спокойная AI-лаборатория для сосредоточенной работы.",
         icons: SITE_ICONS,
+        manifest: "/manifest.webmanifest",
+        appleWebApp: { capable: true, title: "TK Lab", statusBarStyle: "black-translucent" },
       };
 }
 
