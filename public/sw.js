@@ -1,3 +1,5 @@
+/* global self, caches, Request, Response, fetch, URL */
+
 const CACHE_PREFIX = "tklabs";
 const CACHE_VERSION = "v0.12.0";
 const STATIC_CACHE = `${CACHE_PREFIX}-${CACHE_VERSION}-static`;
