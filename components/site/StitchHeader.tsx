@@ -25,32 +25,16 @@ export async function StitchHeader({ active, chatMode = false }: StitchHeaderPro
   try {
     signedIn = Boolean((await auth())?.user);
   } catch {
-    // Public pages should remain available while authentication is being configured.
+    // Public pages remain available while optional authentication is unavailable.
   }
 
   const sectionLabels: Record<ActiveSection, string> = locale === "ru"
-    ? {
-        home: "Главная",
-        models: "Модели",
-        access: "Доступ",
-        laboratory: "AI-чат",
-        status: "Статус",
-        documentation: "Документация",
-        developers: "Команда",
-        "patch-notes": "Обновления",
-        truth: "Принципы",
-      }
-    : {
-        home: "Home",
-        models: "Models",
-        access: "Access",
-        laboratory: "AI chat",
-        status: "Status",
-        documentation: "Documentation",
-        developers: "Team",
-        "patch-notes": "Updates",
-        truth: "Principles",
-      };
+    ? { home: "Главная", models: "Модели", access: "Модели", laboratory: "AI-чат", status: "Статус", documentation: "Документация", developers: "Команда", "patch-notes": "Обновления", truth: "Принципы" }
+    : { home: "Home", models: "Models", access: "Models", laboratory: "AI chat", status: "Status", documentation: "Documentation", developers: "Team", "patch-notes": "Updates", truth: "Principles" };
+
+  const navLabels = locale === "ru"
+    ? { chat: "AI-чат", models: "Модели", updates: "Обновления", status: "Статус" }
+    : { chat: "AI chat", models: "Models", updates: "Updates", status: "Status" };
 
   const mobileLabels = locale === "ru"
     ? {
@@ -59,7 +43,7 @@ export async function StitchHeader({ active, chatMode = false }: StitchHeaderPro
         updates: "Обновления",
         profile: "Профиль",
         more: "Ещё",
-        menuTitle: "Все разделы",
+        menuTitle: "Ресурсы",
         close: "Закрыть меню",
         models: text.footer.models,
         access: text.footer.access,
@@ -78,7 +62,7 @@ export async function StitchHeader({ active, chatMode = false }: StitchHeaderPro
         updates: "Updates",
         profile: "Profile",
         more: "More",
-        menuTitle: "All sections",
+        menuTitle: "Resources",
         close: "Close menu",
         models: text.footer.models,
         access: text.footer.access,
@@ -108,29 +92,17 @@ export async function StitchHeader({ active, chatMode = false }: StitchHeaderPro
                 </span>
               </div>
 
-              <div className="hidden lg:block">
-                <GlowNav active={active} />
-              </div>
+              <div className="hidden lg:block"><GlowNav active={active} labels={navLabels} /></div>
 
               <div className="hidden items-center gap-4 lg:flex">
                 <ThemeToggle lightLabel={text.nav.themeLight} darkLabel={text.nav.themeDark} />
                 <LanguageToggle locale={locale} label={text.nav.language} />
-                <Link href={signedIn ? "/profile" : "/login"} className="quiet-button min-h-10 px-5 text-[12px]">
-                  {signedIn ? text.nav.profile : text.nav.login}
-                </Link>
+                <Link href={signedIn ? "/profile" : "/login"} className="quiet-button min-h-10 px-5 text-[12px]">{signedIn ? text.nav.profile : text.nav.login}</Link>
               </div>
 
               <div className="flex shrink-0 items-center gap-2 lg:hidden">
-                <div className="flex min-h-11 items-center rounded-full border border-outline-variant bg-surface-container-lowest px-3">
-                  <LanguageToggle locale={locale} label={text.nav.language} />
-                </div>
-                <Link
-                  href={signedIn ? "/profile" : "/login"}
-                  className="grid size-11 shrink-0 place-items-center rounded-full border border-outline-variant text-primary"
-                  aria-label={signedIn ? text.nav.profile : text.nav.login}
-                >
-                  <UserRound size={18} aria-hidden="true" />
-                </Link>
+                <div className="flex min-h-11 items-center rounded-full border border-outline-variant bg-surface-container-lowest px-3"><LanguageToggle locale={locale} label={text.nav.language} /></div>
+                <Link href={signedIn ? "/profile" : "/login"} className="grid size-11 shrink-0 place-items-center rounded-full border border-outline-variant text-primary" aria-label={signedIn ? text.nav.profile : text.nav.login}><UserRound size={18} aria-hidden="true" /></Link>
               </div>
             </div>
           </header>
