@@ -1,5 +1,7 @@
 "use client";
 
+/* eslint-disable react-hooks/set-state-in-effect -- viewport state hydrates from matchMedia after mount. */
+
 import { lazy, Suspense, useEffect, useRef, useState } from "react";
 import { Check, Copy, Eye, EyeOff, GitBranch, GitCompareArrows, MoreHorizontal, Pencil, RefreshCw, RotateCcw, Volume2, X } from "lucide-react";
 
@@ -99,7 +101,9 @@ function MobileMessageList(props: ResponsiveMessageListProps) {
     action();
   }
 
-  useEffect(() => () => cancelLongPress(), []);
+  useEffect(() => () => {
+    if (pressTimerRef.current) window.clearTimeout(pressTimerRef.current);
+  }, []);
 
   return (
     <>
