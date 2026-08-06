@@ -11,12 +11,14 @@ test("v0.15.0 publishes Erma Auto and calm system prompts", async () => {
   assert.match(publicModels, /AUTO_ERMA_MODEL_KEY = "erma-auto"/);
   assert.match(publicModels, /name: "Erma · Auto"/);
   assert.match(publicModels, /DEFAULT_ERMA_MODEL_KEY = AUTO_ERMA_MODEL_KEY/);
+  assert.match(publicModels, /resolveAutoErmaModelKey/);
   assert.match(server, /selectErmaModel/);
   assert.match(server, /complexityScore/);
   assert.doesNotMatch(server, /думай вслух/i);
   assert.doesNotMatch(server, /нет абсолютно никаких ограничений/i);
   assert.doesNotMatch(server, /Я нормально всё написал/i);
-  assert.doesNotMatch(server, /обязательн(?:ый|ые).*catchphrase/i);
+  assert.doesNotMatch(server, /естественный речевой паразит/i);
+  assert.doesNotMatch(server, /показывая ход мыслей/i);
 });
 
 test("predictable read-only requests bypass the planner", async () => {
@@ -44,6 +46,15 @@ test("ambiguous tool planning uses the bounded Lite planner", async () => {
   assert.match(registry, /MAX_AI_TOOL_ROUNDS = 1/);
   assert.match(registry, /DEFAULT_AI_TOOL_CALLS = 2/);
   assert.match(registry, /MAX_AI_TOOL_CALLS = 4/);
+});
+
+test("local archive data is attached only to explicit history requests", async () => {
+  const hook = await text("hooks/use-chat-request.ts");
+  const intents = await text("lib/ai/tools/intents.ts");
+
+  assert.match(intents, /shouldIncludeLocalArchive/);
+  assert.match(hook, /shouldIncludeLocalArchive\(prompt\) \? buildLocalArchiveSearchIndex\(\) : \[\]/);
+  assert.match(hook, /endpoint === "\/api\/demo" && localArchive\.length/);
 });
 
 test("normal chat UI hides provider diagnostics and uses compact action menus", async () => {
