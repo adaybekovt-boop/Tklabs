@@ -65,14 +65,14 @@ test("NVIDIA request body follows the prompt language instead of the interface l
   assert.doesNotMatch(spanishSystem, /current user request is detected as English/);
 });
 
-test("provider language instructions are explicit and do not expose interface-locale behavior", async () => {
+test("provider language instructions are explicit and follow the latest user turn", async () => {
   assert.match(responseLanguageInstruction("ru"), /полностью на русском языке/i);
   assert.match(responseLanguageInstruction("en"), /Reply fully in English/i);
   assert.match(responseLanguageInstruction("same-as-request"), /regardless of the interface locale/i);
 
   const nvidia = await readFile(new URL("../lib/ai/providers/nvidia.ts", import.meta.url), "utf8");
   const clodex = await readFile(new URL("../lib/ai/providers/clodex.ts", import.meta.url), "utf8");
-  assert.match(nvidia, /inferResponseLanguage\(prompt, interfaceLanguage\)/);
-  assert.match(clodex, /inferResponseLanguage\(prompt, interfaceLanguage\)/);
+  assert.match(nvidia, /inferResponseLanguage\(latestUserPrompt\(messages\), interfaceLanguage\)/);
+  assert.match(clodex, /inferResponseLanguage\(latestUserContent\(providerMessages, prompt\), interfaceLanguage\)/);
   assert.doesNotMatch(nvidia, /Reply in English and keep the answer natural for the user's language/);
 });

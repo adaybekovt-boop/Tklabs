@@ -3,7 +3,7 @@
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { lazy, Suspense, useEffect, useState } from "react";
-import { Check, Copy, Pencil, RefreshCw, Volume2 } from "lucide-react";
+import { Check, Copy, Eye, EyeOff, Pencil, RefreshCw, Volume2 } from "lucide-react";
 
 import AIThinkingBlock from "@/components/ui/ai-thinking-block";
 import type { AiResponseMeta } from "@/lib/ai/types";
@@ -17,6 +17,7 @@ export type ChatMessage = {
   role: "user" | "assistant";
   content: string;
   error?: boolean;
+  excludedFromContext?: boolean;
   meta?: AiResponseMeta;
   requestId?: string;
   retryAfterSeconds?: number;
@@ -35,6 +36,33 @@ function RetryCountdown({ seconds, label }: { seconds: number; label: string }) 
   return remaining > 0 ? <span className="text-error">{label} {remaining}s</span> : null;
 }
 
+function ContextButton({
+  message,
+  locale,
+  onToggle,
+}: {
+  message: ChatMessage;
+  locale: Locale;
+  onToggle: (message: ChatMessage) => void;
+}) {
+  const excluded = message.excludedFromContext === true;
+  const label = locale === "ru"
+    ? excluded ? "Вернуть в контекст" : "Исключить из контекста"
+    : excluded ? "Include in context" : "Exclude from context";
+  return (
+    <button
+      type="button"
+      onClick={() => onToggle(message)}
+      aria-pressed={excluded}
+      className="inline-flex min-h-9 items-center gap-1.5 rounded-full px-2.5 py-1.5 transition-colors hover:bg-surface-container-low hover:text-primary"
+      title={label}
+    >
+      {excluded ? <Eye size={13} /> : <EyeOff size={13} />}
+      {label}
+    </button>
+  );
+}
+
 export function MessageList({
   messages,
   isPending,
@@ -48,6 +76,7 @@ export function MessageList({
   onRetry,
   onEdit,
   onCopyRequestId,
+  onToggleContext,
 }: {
   messages: ChatMessage[];
   isPending: boolean;
@@ -61,6 +90,7 @@ export function MessageList({
   onRetry?: (message: ChatMessage) => void;
   onEdit?: (message: ChatMessage) => void;
   onCopyRequestId?: (message: ChatMessage) => void;
+  onToggleContext?: (message: ChatMessage) => void;
 }) {
   const router = useRouter();
   const lastMessage = messages[messages.length - 1];
@@ -69,18 +99,23 @@ export function MessageList({
     <div className="mx-auto flex w-full max-w-3xl flex-col gap-8 pb-10 md:gap-10 md:pb-8" role="log" aria-label={text.chat.currentSession} lang={locale}>
       {messages.map((message) =>
         message.role === "user" ? (
-          <article key={message.id} className="chat-message-enter flex justify-end">
+          <article key={message.id} className={cn("chat-message-enter flex justify-end", message.excludedFromContext && "opacity-60")}>
             <div className="max-w-[94%] rounded-3xl border border-outline-variant bg-surface-container-low px-5 py-4 shadow-[0_14px_40px_color-mix(in_srgb,var(--color-primary)_5%,transparent)] sm:max-w-[82%] sm:px-6">
               <p className="whitespace-pre-wrap text-[15px] leading-[1.7] text-primary">{message.content}</p>
-              {onEdit && message.id === lastUserMessageId && !isPending && (
-                <button type="button" onClick={() => onEdit(message)} className="mt-3 inline-flex min-h-9 items-center gap-1.5 rounded-full px-2.5 text-[11px] text-on-secondary-container transition-colors hover:bg-surface-container hover:text-primary">
-                  <Pencil size={13} /> {text.chat.edit}
-                </button>
+              {(onEdit || onToggleContext) && !isPending && (
+                <div className="mt-3 flex flex-wrap items-center gap-1 text-[11px] text-on-secondary-container">
+                  {onEdit && message.id === lastUserMessageId && (
+                    <button type="button" onClick={() => onEdit(message)} className="inline-flex min-h-9 items-center gap-1.5 rounded-full px-2.5 transition-colors hover:bg-surface-container hover:text-primary">
+                      <Pencil size={13} /> {text.chat.edit}
+                    </button>
+                  )}
+                  {onToggleContext && <ContextButton message={message} locale={locale} onToggle={onToggleContext} />}
+                </div>
               )}
             </div>
           </article>
         ) : (
-          <article key={message.id} className="chat-message-enter flex justify-start">
+          <article key={message.id} className={cn("chat-message-enter flex justify-start", message.excludedFromContext && "opacity-60")}>
             <div className={cn("assistant-message-card max-w-[98%] rounded-3xl border bg-surface-container-lowest px-5 py-5 shadow-[0_16px_48px_color-mix(in_srgb,var(--color-primary)_5%,transparent)] sm:max-w-[92%] sm:px-6", message.error ? "border-error/60" : "border-outline-variant")}>
               <div className="mb-4 flex items-center gap-3">
                 <span className="grid size-8 place-items-center overflow-hidden rounded-xl border border-outline-variant bg-surface-container-low p-1.5">
@@ -109,9 +144,13 @@ export function MessageList({
                     <Volume2 size={13} />
                     {speakingMessageId === message.id ? text.chat.stopSpeaking : text.chat.speak}
                   </button>
+                  {onToggleContext && !isPending && <ContextButton message={message} locale={locale} onToggle={onToggleContext} />}
                   {message.requestId && onCopyRequestId && <button type="button" onClick={() => onCopyRequestId(message)} className="inline-flex min-h-9 items-center gap-1.5 rounded-full px-2.5 py-1.5 transition-colors hover:bg-surface-container-low hover:text-primary"><Copy size={13} /> {text.chat.copyRequestId}</button>}
                   {message.meta?.fallbackReason && <span className="basis-full text-error">{text.chat.fallbackNotice}</span>}
                   {message.meta?.actualModel && <span className="basis-full text-on-secondary-container">{text.chat.usedModel}: {message.meta.actualModel} · {Math.max(0, Math.round(message.meta.latencyMs))}ms</span>}
+                  {typeof message.meta?.timeToFirstTokenMs === "number" && <span className="basis-full text-on-secondary-container">TTFT: {Math.max(0, Math.round(message.meta.timeToFirstTokenMs))}ms</span>}
+                  {typeof message.meta?.inputTokens === "number" && <span className="basis-full text-on-secondary-container">{locale === "ru" ? "Токены" : "Tokens"}: {message.meta.inputTokens}{typeof message.meta.outputTokens === "number" ? ` + ${message.meta.outputTokens}` : ""}</span>}
+                  {message.meta?.contextCompacted && <span className="basis-full text-on-secondary-container">{locale === "ru" ? "Старые сообщения свёрнуты в память контекста." : "Older messages were compacted into context memory."}</span>}
                   {message.meta?.reasoningUsed && <span className="basis-full text-on-secondary-container">{text.chat.reasoningUsed}</span>}
                   {speechNotice && message.id === lastMessage?.id && <span className="text-error">{speechNotice}</span>}
                 </div>

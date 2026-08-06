@@ -6,6 +6,13 @@ export type AiGenerationResult = {
   provider: AiProvider;
   actualModel: string;
   fallbackReason?: string;
+  inputTokens?: number;
+  outputTokens?: number;
+  timeToFirstTokenMs?: number;
+  contextMessageCount?: number;
+  contextAttachmentCount?: number;
+  contextLimit?: number;
+  contextCompacted?: boolean;
 };
 
 export type AiResponseMeta = {
@@ -17,4 +24,11 @@ export type AiResponseMeta = {
   httpStatus: number;
   reasoningUsed?: boolean;
   fallbackReason?: string;
+  inputTokens?: number;
+  outputTokens?: number;
+  timeToFirstTokenMs?: number;
+  contextMessageCount?: number;
+  contextAttachmentCount?: number;
+  contextLimit?: number;
+  contextCompacted?: boolean;
 };

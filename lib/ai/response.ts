@@ -17,6 +17,13 @@ export function createAiResponseMeta(
     httpStatus: status,
     ...(result.reasoningUsed ? { reasoningUsed: true } : {}),
     ...(result.fallbackReason ? { fallbackReason: result.fallbackReason } : {}),
+    ...(typeof result.inputTokens === "number" ? { inputTokens: Math.max(0, Math.round(result.inputTokens)) } : {}),
+    ...(typeof result.outputTokens === "number" ? { outputTokens: Math.max(0, Math.round(result.outputTokens)) } : {}),
+    ...(typeof result.timeToFirstTokenMs === "number" ? { timeToFirstTokenMs: Math.max(0, Math.round(result.timeToFirstTokenMs)) } : {}),
+    ...(typeof result.contextMessageCount === "number" ? { contextMessageCount: Math.max(0, Math.round(result.contextMessageCount)) } : {}),
+    ...(typeof result.contextAttachmentCount === "number" ? { contextAttachmentCount: Math.max(0, Math.round(result.contextAttachmentCount)) } : {}),
+    ...(typeof result.contextLimit === "number" ? { contextLimit: Math.max(0, Math.round(result.contextLimit)) } : {}),
+    ...(result.contextCompacted ? { contextCompacted: true } : {}),
   };
 }
 
