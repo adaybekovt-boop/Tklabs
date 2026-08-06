@@ -1,5 +1,6 @@
 import { DurableObject, type DurableObjectState } from "cloudflare:workers";
 
+import { getClodexModelConfig } from "@/lib/models/clodex-server";
 import type { HealthCheck, HealthPayload, HealthStatus as HealthState } from "@/lib/provider-health";
 
 type HealthStatusEnv = {
@@ -15,6 +16,9 @@ type HealthStatusEnv = {
   RATE_LIMIT_SECRET?: string;
   ACCOUNT_ID_SECRET?: string;
   CLODEX_ACCESS?: unknown;
+  CLODEX_MODEL_FAST?: string;
+  CLODEX_MODEL_REASONING?: string;
+  CLODEX_MODEL_PRO?: string;
 };
 
 type SnapshotRow = { payload: string; expires_at: number; stale_until: number };
@@ -55,12 +59,16 @@ async function buildHealth(env: HealthStatusEnv): Promise<Omit<HealthPayload, "s
   const nvidiaKey = firstEnv(env, "NVIDIA_API_KEY_PRIMARY", "NVIDIA_API_KEY_SECONDARY", "NVIDIA_API_KEY_1", "NVIDIA_API_KEY");
   const clodexKey = firstEnv(env, "CLODEX_API_KEY");
   const clodexEnabled = env.CLODEX_ENABLED?.trim().toLowerCase() === "true";
+  const clodexModelsConfigured = Boolean(getClodexModelConfig({
+    requireRuntimeConfig: true,
+    environment: env as Record<string, string | undefined>,
+  }));
   const authConfigured = Boolean(firstEnv(env, "AUTH_SECRET") && firstEnv(env, "AUTH_GOOGLE_ID") && firstEnv(env, "AUTH_GOOGLE_SECRET"));
   const rateLimitConfigured = Boolean(env.CLODEX_ACCESS && firstEnv(env, "RATE_LIMIT_SECRET") && firstEnv(env, "ACCOUNT_ID_SECRET"));
 
   const checks = await Promise.all([
     providerCheck("inference", "https://integrate.api.nvidia.com/v1/models", nvidiaKey ? { authorization: `Bearer ${nvidiaKey}` } : {}, Boolean(nvidiaKey)),
-    providerCheck("clodex", "https://clodex.xyz/v1/models", clodexKey ? { "anthropic-version": "2023-06-01", "x-api-key": clodexKey } : {}, clodexEnabled && Boolean(clodexKey), false),
+    providerCheck("clodex", "https://clodex.xyz/v1/models", clodexKey ? { "anthropic-version": "2023-06-01", "x-api-key": clodexKey } : {}, clodexEnabled && clodexModelsConfigured && Boolean(clodexKey), false),
     Promise.resolve<HealthCheck>({ id: "auth", status: authConfigured ? "operational" : "not_configured", latencyMs: null }),
     Promise.resolve<HealthCheck>({ id: "access", status: rateLimitConfigured ? "operational" : "not_configured", latencyMs: null }),
   ]);

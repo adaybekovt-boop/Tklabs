@@ -86,6 +86,18 @@ Final follow-up result: local `npm ci`, production audit, typecheck, lint, 12 un
 
 Rollback is a revert of the draft PR. Durable Object schema changes are additive and retain legacy columns/lookup paths. New D1 migration files are idempotent; do not manually delete production tables. If deployment fails, keep the last known-good Worker and revert the code/config change before retrying.
 
+## PR #28 final review follow-up
+
+- [x] Keep provider reasoning transient: evaluate it server-side, strip tagged blocks and reasoning-only responses, and expose only `answer`, `meta`, and the generic `reasoningUsed` flag.
+- [x] Restrict local preview switches to development and fail production builds when either preview flag is enabled.
+- [x] Make request cleanup ownership-aware so an aborted request cannot clear a newer chat generation.
+- [x] Make reasoning opt-in through the explicit request flag; response-effort selection no longer enables hidden provider reasoning.
+- [x] Centralize Clodex provider model IDs, budgets, environment keys, and validation for direct routing, fallback routing, health, and tests.
+- [x] Separate profile role, unlimited-AI entitlement, Clodex state, and account availability; membership cards are presentational and never grant access.
+- [x] Mask the normalized Cloudflare API token before exporting it to GitHub Actions environment state.
+- [x] Add HSTS, COOP, `X-Content-Type-Options`, Referrer-Policy, and restrictive Permissions-Policy headers.
+- [x] Document automatic deployment after a push to `main`, single-pipeline ownership, branch protection, and remaining owner-only Cloudflare/GitHub actions.
+
 ## Manual GitHub / Cloudflare actions
 
 - Confirm repository default branch is `main`, enable branch protection/required checks, and enable automatic head-branch deletion after merge.

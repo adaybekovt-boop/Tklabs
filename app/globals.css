@@ -119,6 +119,12 @@ button, span { overflow-wrap: break-word; }
 .chat-status-dot { box-shadow: 0 0 0 5px color-mix(in srgb, var(--color-chat-accent) 14%, transparent); }
 .chat-history-dropdown { border-color: color-mix(in srgb, var(--color-chat-accent) 34%, var(--color-outline-variant)); }
 .assistant-message-card { border-color: color-mix(in srgb, var(--color-chat-accent) 18%, var(--color-outline-variant)); }
+.membership-card { isolation: isolate; }
+.membership-card::after { position: absolute; inset: 0; z-index: -1; content: ""; opacity: .72; background: linear-gradient(135deg, transparent 20%, color-mix(in srgb, currentColor 12%, transparent), transparent 70%); pointer-events: none; }
+.membership-card--platinum { color: #202124; border-color: #b9bec5; background: linear-gradient(135deg, #f7f8fa, #dfe3e8 52%, #bfc5cd); }
+.membership-card--gold { color: #33230e; border-color: #d8b36b; background: linear-gradient(135deg, #fff3d2, #e7c278 52%, #c19035); }
+html[data-theme="dark"] .membership-card--platinum { color: #f3f1ed; border-color: #888f99; background: linear-gradient(135deg, #454a51, #292d33 55%, #17191c); }
+html[data-theme="dark"] .membership-card--gold { color: #fff6df; border-color: #bd9345; background: linear-gradient(135deg, #7c5b23, #4f3711 55%, #261b09); }
 
 /* Smooth rounded corners for the modern feel */
 img, video, canvas, picture { border-radius: 12px; }
@@ -217,4 +223,9 @@ html[data-theme="dark"] .bg-white { background-color: var(--color-surface-contai
 
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { scroll-behavior: auto !important; animation-duration: 1ms !important; animation-iteration-count: 1 !important; transition-duration: 1ms !important; }
+}
+
+@media (max-width: 340px) {
+  .stitch-container { padding-inline: 14px; }
+  .membership-card { padding: 18px; }
 }

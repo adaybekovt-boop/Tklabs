@@ -1,12 +1,12 @@
 import { auth } from "@/auth";
 import {
   AccountAccessUnavailableError,
-  getClodexAccessStatus,
   redeemClodexAccess,
 } from "@/lib/account-access";
 import { isClodexEnabled } from "@/lib/feature-flags";
 import { parseJsonBody, RequestBodyTooLargeError } from "@/lib/request-body";
 import { isClodexPromoEligible, isPrivilegedAiEmail, privilegedAccessStatus } from "@/lib/privileged-access";
+import { getProfileAccess } from "@/lib/profile-access";
 import { isTrustedRequestOrigin } from "@/lib/request-security";
 
 export const runtime = "edge";
@@ -22,11 +22,16 @@ function unavailableResponse() {
   );
 }
 
-function disabledResponse() {
-  return Response.json(
-    { hasGrant: false, active: false, unlimited: false, limit: 0, windowMs: 0, remaining: 0, resetAt: null },
-    { headers: { "cache-control": "no-store" } },
-  );
+function profileAccessResponse(access: Awaited<ReturnType<typeof getProfileAccess>>) {
+  return {
+    ...(access.clodex ?? { hasGrant: false, active: false, limit: 0, windowMs: 0, remaining: 0, resetAt: null }),
+    unlimited: access.unlimitedAi,
+    unlimitedAi: access.unlimitedAi,
+    isAdmin: access.isAdmin,
+    clodexEnabled: access.clodexEnabled,
+    clodexState: access.clodexState,
+    accountState: access.accountState,
+  };
 }
 
 async function getAuthenticatedEmail() {
@@ -42,16 +47,8 @@ export async function GET() {
   const email = await getAuthenticatedEmail();
   if (email === null) return unavailableResponse();
   if (!email) return Response.json({ error: "Authentication required." }, { status: 401, headers: { "cache-control": "no-store" } });
-  if (isPrivilegedAiEmail(email)) return Response.json(privilegedAccessStatus(), { headers: { "cache-control": "no-store" } });
-  if (!isClodexEnabled()) return disabledResponse();
-
-  try {
-    return Response.json(await getClodexAccessStatus(email), { headers: { "cache-control": "no-store" } });
-  } catch (error) {
-    if (error instanceof AccountAccessUnavailableError) return unavailableResponse();
-    console.error("Unable to read Clodex access status", error);
-    return unavailableResponse();
-  }
+  const access = await getProfileAccess(email);
+  return Response.json(profileAccessResponse(access), { headers: { "cache-control": "no-store" } });
 }
 
 export async function POST(request: Request) {
