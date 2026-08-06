@@ -46,7 +46,7 @@ export function getPreviousReleaseV0110(locale: Locale): PublicReleaseNote {
   };
 }
 
-export function getLatestRelease(locale: Locale): PublicReleaseNote {
+export function getPreviousReleaseV0111(locale: Locale): PublicReleaseNote {
   if (locale === "ru") {
     return {
       date: "06 авг. 2026",
@@ -80,6 +80,44 @@ export function getLatestRelease(locale: Locale): PublicReleaseNote {
       "Mobile Patch Notes show one selected release while retaining search and horizontal version selection, with previous and next release navigation.",
       "Each release supports the system share sheet with a safe clipboard fallback, while stable version hashes remain available for direct links.",
       "The v0.11.0 history entry is preserved separately when v0.11.1 becomes current, so publishing the new release does not remove the previous one.",
+    ],
+  };
+}
+
+export function getLatestRelease(locale: Locale): PublicReleaseNote {
+  if (locale === "ru") {
+    return {
+      date: "06 авг. 2026",
+      version: "v0.12.0",
+      title: "PWA, производительность и язык AI",
+      summary: "TK Lab стал устанавливаемым приложением с безопасным offline fallback, локальными визуальными ресурсами и контролем веса сборки. AI снова отвечает на языке текущего запроса, независимо от языка интерфейса.",
+      changes: [
+        "Исправлена причина постоянных английских ответов: язык теперь определяется по текущему сообщению пользователя, а locale интерфейса используется только как резервное значение.",
+        "Русские запросы с английскими названиями API, моделей и фрагментами кода остаются русскоязычными; явная просьба ответить на другом языке имеет приоритет.",
+        "NVIDIA и Clodex используют единый строгий языковой контракт, не раскрывая скрытые рассуждения и не ослабляя существующие safety-ограничения.",
+        "Добавлен service worker с версионным кэшем статических ресурсов и отдельной offline-страницей; API, auth, admin и HTML-навигация никогда не сохраняются в кэш.",
+        "Добавлены install prompt, standalone manifest, maskable SVG-иконка и быстрые действия для AI-чата и Patch Notes.",
+        "Главная больше не зависит от внешней доставки изображений: два крупных изображения заменены локальными лёгкими SVG-иллюстрациями с корректной приоритизацией загрузки.",
+        "CI теперь проверяет общий и максимальный размер JavaScript, gzip-размер, CSS и изображения после production build.",
+        "Добавлены regression-тесты определения языка, PWA-регистрации, приватности service worker, локальных ресурсов и performance budgets.",
+      ],
+    };
+  }
+
+  return {
+    date: "06 Aug 2026",
+    version: "v0.12.0",
+    title: "PWA, performance, and AI language",
+    summary: "TK Lab is now installable with a privacy-safe offline fallback, local visual assets, and build-size enforcement. AI replies again follow the current prompt language instead of the interface locale.",
+    changes: [
+      "Fixed the cause of English-only replies: response language is now inferred from the current user message, with interface locale used only as a fallback.",
+      "Russian requests containing English API names, model names, and code remain Russian, while an explicit request for another language takes priority.",
+      "NVIDIA and Clodex share one strict language contract without exposing hidden reasoning or weakening existing safety boundaries.",
+      "Added a versioned service worker and dedicated offline page; API, authentication, administration, and HTML navigation responses are never stored in cache.",
+      "Added an install prompt, standalone manifest, maskable SVG icon, and shortcuts for AI chat and Patch Notes.",
+      "The home page no longer depends on externally hosted images: two large visuals are replaced with lightweight local SVG artwork and explicit loading priority.",
+      "CI now enforces total and maximum JavaScript size, gzip size, CSS size, and image budgets after the production build.",
+      "Added regression tests for language inference, PWA registration, service-worker privacy, local assets, and performance budgets.",
     ],
   };
 }
