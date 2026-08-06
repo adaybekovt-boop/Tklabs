@@ -3,29 +3,30 @@
 /* eslint-disable react-hooks/set-state-in-effect -- browser-only workspace state hydrates from localStorage. */
 
 import { useEffect, useState } from "react";
-import { Activity, ChevronLeft, FileText, MessageSquareText, Sparkles } from "lucide-react";
+import { Activity, ChevronLeft, FileText, MessageSquareText, Sparkles, Workflow } from "lucide-react";
 
 import { AgentRunPanel } from "@/components/playground/AgentRunPanel";
 import { ArtifactStudio } from "@/components/playground/ArtifactStudio";
+import { ErmaFlowStudio } from "@/components/playground/ErmaFlowStudio";
 import { PlaygroundChat } from "@/components/playground/PlaygroundChat";
 import { LanguageToggle } from "@/components/site/LanguageToggle";
 import type { Locale } from "@/lib/i18n";
 import { CURRENT_RELEASE_BADGE } from "@/lib/release-version";
+import { isWorkspaceSection, WORKSPACE_SECTION_EVENT, type WorkspaceSection } from "@/lib/workspace-events";
 import { cn } from "@/lib/utils";
 
-type WorkspaceTab = "chat" | "artifacts" | "runs";
 const STORAGE_KEY = "tklabs.erma-nova.workspace-tab";
 
-function readSavedTab(): WorkspaceTab | null {
+function readSavedTab(): WorkspaceSection | null {
   try {
     const saved = window.localStorage.getItem(STORAGE_KEY);
-    return saved === "chat" || saved === "artifacts" || saved === "runs" ? saved : null;
+    return isWorkspaceSection(saved) ? saved : null;
   } catch {
     return null;
   }
 }
 
-function saveTab(tab: WorkspaceTab) {
+function saveTab(tab: WorkspaceSection) {
   try {
     window.localStorage.setItem(STORAGE_KEY, tab);
   } catch {
@@ -35,27 +36,43 @@ function saveTab(tab: WorkspaceTab) {
 
 export function ErmaNovaWorkspace({ locale }: { locale: Locale }) {
   const ru = locale === "ru";
-  const [tab, setTab] = useState<WorkspaceTab>("chat");
+  const [tab, setTab] = useState<WorkspaceSection>("chat");
 
   useEffect(() => {
     const saved = readSavedTab();
     if (saved) setTab(saved);
   }, []);
 
-  function selectTab(next: WorkspaceTab) {
+  useEffect(() => {
+    function handleWorkspaceRequest(event: Event) {
+      const detail = (event as CustomEvent<unknown>).detail;
+      if (!isWorkspaceSection(detail)) return;
+      setTab(detail);
+      saveTab(detail);
+    }
+    window.addEventListener(WORKSPACE_SECTION_EVENT, handleWorkspaceRequest);
+    return () => window.removeEventListener(WORKSPACE_SECTION_EVENT, handleWorkspaceRequest);
+  }, []);
+
+  function selectTab(next: WorkspaceSection) {
     setTab(next);
     saveTab(next);
   }
 
-  const tabs: Array<{ id: WorkspaceTab; label: string; icon: typeof MessageSquareText }> = [
+  const tabs: Array<{ id: WorkspaceSection; label: string; icon: typeof MessageSquareText }> = [
     { id: "chat", label: ru ? "Чат" : "Chat", icon: MessageSquareText },
+    { id: "flow", label: "Erma Flow", icon: Workflow },
     { id: "artifacts", label: ru ? "Артефакты" : "Artifacts", icon: FileText },
     { id: "runs", label: "Agent Runs", icon: Activity },
   ];
-  const mobileSectionTitle = tab === "artifacts" ? (ru ? "Артефакты" : "Artifacts") : "Agent Runs";
+  const mobileSectionTitle = tab === "flow"
+    ? "Erma Flow"
+    : tab === "artifacts"
+      ? ru ? "Артефакты" : "Artifacts"
+      : "Agent Runs";
 
   return (
-    <div className="flex h-full min-h-0 flex-1 flex-col overflow-hidden bg-surface" data-erma-nova-workspace>
+    <div className="flex h-full min-h-0 flex-1 flex-col overflow-hidden bg-surface" data-erma-nova-workspace data-active-workspace={tab}>
       {tab !== "chat" && (
         <header className="flex min-h-14 shrink-0 items-center justify-between gap-3 border-b border-outline-variant bg-surface-container-lowest/95 px-3 backdrop-blur-md md:hidden">
           <button type="button" onClick={() => selectTab("chat")} className="grid size-11 place-items-center rounded-full text-primary hover:bg-surface-container-low" aria-label={ru ? "Вернуться в чат" : "Back to chat"}><ChevronLeft size={20} /></button>
@@ -69,14 +86,14 @@ export function ErmaNovaWorkspace({ locale }: { locale: Locale }) {
           <div className="hidden shrink-0 items-center gap-2 xl:flex">
             <span className="grid size-8 place-items-center rounded-full bg-primary text-on-primary"><Sparkles className="size-4" /></span>
             <div className="min-w-0">
-              <p className="truncate text-sm font-semibold text-on-surface">Erma Nova</p>
-              <p className="truncate text-[10px] font-semibold uppercase tracking-[0.16em] text-secondary">Major update · pre-release</p>
+              <p className="truncate text-sm font-semibold text-on-surface">Erma Flow</p>
+              <p className="truncate text-[10px] font-semibold uppercase tracking-[0.16em] text-secondary">Motion system · controlled runs</p>
             </div>
           </div>
           <nav
             role="tablist"
             className="flex min-w-0 max-w-full items-center overflow-x-auto rounded-full border border-outline-variant bg-surface-container-low p-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
-            aria-label={ru ? "Рабочее пространство Erma Nova" : "Erma Nova workspace"}
+            aria-label={ru ? "Рабочее пространство Erma Flow" : "Erma Flow workspace"}
           >
             {tabs.map(({ id, label, icon: Icon }) => (
               <button
@@ -114,18 +131,23 @@ export function ErmaNovaWorkspace({ locale }: { locale: Locale }) {
           id="workspace-panel-chat"
           role="tabpanel"
           aria-labelledby="workspace-tab-chat"
-          className={cn("h-full min-h-0", tab !== "chat" && "hidden")}
+          className={cn("h-full min-h-0 motion-workspace-panel", tab !== "chat" && "hidden")}
           hidden={tab !== "chat"}
         >
           <PlaygroundChat locale={locale} onOpenArtifacts={() => selectTab("artifacts")} onOpenRuns={() => selectTab("runs")} />
         </div>
+        {tab === "flow" ? (
+          <div id="workspace-panel-flow" role="tabpanel" aria-labelledby="workspace-tab-flow" className="h-full min-h-0 motion-workspace-panel">
+            <ErmaFlowStudio locale={locale} />
+          </div>
+        ) : null}
         {tab === "artifacts" ? (
-          <div id="workspace-panel-artifacts" role="tabpanel" aria-labelledby="workspace-tab-artifacts" className="h-full min-h-0">
+          <div id="workspace-panel-artifacts" role="tabpanel" aria-labelledby="workspace-tab-artifacts" className="h-full min-h-0 motion-workspace-panel">
             <ArtifactStudio locale={locale} />
           </div>
         ) : null}
         {tab === "runs" ? (
-          <div id="workspace-panel-runs" role="tabpanel" aria-labelledby="workspace-tab-runs" className="h-full min-h-0">
+          <div id="workspace-panel-runs" role="tabpanel" aria-labelledby="workspace-tab-runs" className="h-full min-h-0 motion-workspace-panel">
             <AgentRunPanel locale={locale} />
           </div>
         ) : null}

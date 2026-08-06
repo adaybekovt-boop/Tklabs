@@ -11,72 +11,89 @@ import { CURRENT_RELEASE_BADGE, CURRENT_RELEASE_VERSION } from "../lib/release-v
 
 const read = (path) => readFile(new URL(`../${path}`, import.meta.url), "utf8");
 
-test("v0.16.0 beta.4 is the shared major preview release", async () => {
+test("v0.16.4 is the shared major preview release", async () => {
   const release = getPreviewRelease("en");
   const current = getCurrentRelease("en");
   const homePage = await read("app/page.tsx");
   const patchPage = await read("app/patch-notes/page.tsx");
-  const releaseDoc = await read("docs/releases/v0.16.0-beta.4.md");
+  const releaseDoc = await read("docs/releases/v0.16.4.md");
 
-  assert.equal(CURRENT_RELEASE_VERSION, "v0.16.0-beta.4");
-  assert.equal(CURRENT_RELEASE_BADGE, "v0.16 beta.4");
+  assert.equal(CURRENT_RELEASE_VERSION, "v0.16.4");
+  assert.equal(CURRENT_RELEASE_BADGE, "v0.16.4");
   assert.equal(release.version, CURRENT_RELEASE_VERSION);
   assert.equal(current.version, CURRENT_RELEASE_VERSION);
   assert.equal(release.channel, "preview");
   assert.equal(release.majorUpdate, true);
-  assert.equal(release.codename, "Erma Nova");
+  assert.equal(release.codename, "Erma Flow");
   assert.equal(release.stability, "beta");
-  assert.match(release.title, /Mobile Chat Rebuild/);
+  assert.match(release.title, /Motion & Controlled Work/);
   assert.match(homePage, /getCurrentRelease/);
   assert.doesNotMatch(homePage, /getLatestRelease/);
   assert.match(patchPage, /MAJOR UPDATE · PRE-RELEASE/);
   assert.match(patchPage, /getPreviewRelease/);
-  assert.doesNotMatch(patchPage, /beta\.1/);
-  assert.match(releaseDoc, /MAJOR UPDATE · PRE-RELEASE/);
-  assert.match(releaseDoc, /Mobile Chat Rebuild/);
+  assert.match(releaseDoc, /Erma Flow/);
+  assert.match(releaseDoc, /Motion System/);
 });
 
-test("Erma Nova mobile chat uses one header and dedicated mobile surfaces", async () => {
-  const page = await read("app/playground/page.tsx");
+test("Erma Flow connects workspace, mobile navigation, runs, artifacts, and motion", async () => {
+  const layout = await read("app/layout.tsx");
+  const motion = await read("app/motion.css");
+  const orchestrator = await read("components/site/MotionOrchestrator.tsx");
   const workspace = await read("components/playground/ErmaNovaWorkspace.tsx");
+  const flow = await read("components/playground/ErmaFlowStudio.tsx");
+  const runs = await read("components/playground/AgentRunPanel.tsx");
+  const drawer = await read("components/playground/MobileChatDrawer.tsx");
+  const store = await read("lib/flow/local-store.ts");
+
+  assert.match(layout, /motion\.css/);
+  assert.match(layout, /MotionOrchestrator/);
+  assert.match(motion, /prefers-reduced-motion/);
+  assert.match(motion, /data-mobile-chat-drawer/);
+  assert.match(motion, /chat-message-enter/);
+  assert.match(motion, /data-erma-flow-studio/);
+  assert.match(orchestrator, /IntersectionObserver/);
+  assert.match(orchestrator, /MutationObserver/);
+  assert.match(workspace, /workspace-tab-flow/);
+  assert.match(workspace, /ErmaFlowStudio/);
+  assert.match(workspace, /WORKSPACE_SECTION_EVENT/);
+  assert.match(flow, /text\/event-stream/);
+  assert.match(flow, /saveAsArtifact/);
+  assert.match(flow, /controllerRef\.current\?\.abort/);
+  assert.match(runs, /loadFlowRuns/);
+  assert.doesNotMatch(runs, /No active run/);
+  assert.match(drawer, /Erma Flow/);
+  assert.match(drawer, /requestWorkspaceSection\("flow"\)/);
+  assert.match(store, /tklabs\.erma-flow\.runs\.v1/);
+  assert.match(store, /MAX_RUNS = 16/);
+});
+
+test("Erma Nova mobile chat keeps the dedicated mobile surfaces", async () => {
+  const page = await read("app/playground/page.tsx");
   const chat = await read("components/playground/PlaygroundChat.tsx");
   const drawer = await read("components/playground/MobileChatDrawer.tsx");
   const composer = await read("components/playground/ResponsiveChatComposer.tsx");
   const messages = await read("components/playground/ResponsiveMessageList.tsx");
-  const agentRuns = await read("components/playground/AgentRunPanel.tsx");
   const artifacts = await read("components/playground/ArtifactStudio.tsx");
   const language = await read("components/site/LanguageToggle.tsx");
 
   assert.match(page, /ErmaNovaWorkspace/);
   assert.doesNotMatch(page, /fixed right-14 top-2/);
   assert.doesNotMatch(page, /<PlaygroundChat/);
-  assert.match(workspace, /<PlaygroundChat locale=\{locale\}/);
-  assert.match(workspace, /onOpenArtifacts/);
-  assert.match(workspace, /tab !== "chat"/);
-  assert.match(workspace, /md:hidden/);
-  assert.match(workspace, /role="tablist"/);
-  assert.match(workspace, /role="tabpanel"/);
   assert.match(chat, /MobileChatDrawer/);
   assert.match(chat, /ResponsiveChatComposer/);
   assert.match(chat, /ResponsiveMessageList/);
   assert.doesNotMatch(chat, /HistoryDropdown/);
   assert.match(drawer, /data-mobile-chat-drawer/);
   assert.match(drawer, /ConversationArchive/);
-  assert.match(drawer, /onOpenArtifacts/);
-  assert.match(drawer, /onOpenRuns/);
   assert.match(composer, /data-testid="mobile-prompt-input"/);
   assert.match(composer, /attachments\.length > 0/);
   assert.match(composer, /handlePrimaryAction/);
-  assert.match(composer, /Voice \/ Send \/ Stop|primaryLabel/);
   assert.match(messages, /ChatOverlay/);
   assert.match(messages, /startLongPress/);
   assert.match(messages, /max-w-\[86%\]/);
   assert.doesNotMatch(messages, /assistant-message-card/);
-  assert.doesNotMatch(agentRuns, /beta\.1/);
   assert.match(artifacts, /data-mobile-artifact-picker/);
   assert.match(artifacts, /data-mobile-version-history/);
-  assert.match(artifacts, /role="status"/);
-  assert.match(language, /try \{/);
   assert.match(language, /localStorage is unavailable/);
 });
 

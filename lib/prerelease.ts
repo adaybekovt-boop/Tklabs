@@ -9,7 +9,7 @@ import type { PublicReleaseNote } from "@/lib/releases/types";
 export interface PreviewReleaseNote extends PublicReleaseNote {
   channel: "preview";
   majorUpdate: true;
-  codename: "Erma Nova";
+  codename: "Erma Flow";
   stability: "beta";
   knownIssues: string[];
   migrationNotes: string[];
@@ -19,57 +19,57 @@ const PREVIEW_RELEASE: Record<Locale, PreviewReleaseNote> = {
   ru: {
     date: "07 авг. 2026",
     version: CURRENT_RELEASE_VERSION,
-    title: "ERMA NOVA — Mobile Chat Rebuild",
-    summary: "КРУПНОЕ ОБНОВЛЕНИЕ · ПРЕДВАРИТЕЛЬНАЯ ВЕРСИЯ. Мобильный AI-чат перестроен как самостоятельный интерфейс: одна шапка, полноэкранная история, новый composer, чистый поток сообщений и действия через нижние панели.",
+    title: "ERMA FLOW — Motion & Controlled Work",
+    summary: "КРУПНОЕ ОБНОВЛЕНИЕ · ПРЕДВАРИТЕЛЬНАЯ ВЕРСИЯ. Добавлены единая система анимаций для всего сайта, управляемые Erma Flow задачи со streaming-прогрессом, реальная история Agent Runs и сохранение результата в Artifact Studio.",
     changes: [
-      "Дублирующая мобильная workspace-шапка удалена из режима чата.",
-      "История диалогов перенесена в полноразмерный левый drawer с проектами, поиском и быстрым созданием чата.",
-      "Добавлен отдельный мобильный composer с видимыми файлами, прямой кнопкой вложения и контекстной Voice / Send / Stop кнопкой.",
-      "Модель, формат ответа, глубина и reasoning собраны в отдельной нижней панели настроек.",
-      "Ответы Erma на телефоне больше не заключены в тяжёлые карточки; действия открываются через мобильный action sheet.",
-      "Artifacts и Agent Runs доступны из мобильного меню без постоянной второй строки навигации.",
+      "Весь сайт получил единый Motion System: route transitions, reveal-анимации, интерактивные состояния, анимации drawer, sheets, workspace, чата и артефактов.",
+      "Добавлена новая рабочая область Erma Flow для сложных управляемых задач с этапами, Stop, streaming-результатом и локальной историей.",
+      "Agent Runs теперь показывает реальные Flow-запуски, их timeline, модель, итог и связь с созданным артефактом.",
+      "Результат Flow можно одним действием сохранить в Artifact Studio с автоматическим определением типа материала.",
+      "Мобильный drawer получил прямой вход в Erma Flow, более чистую иерархию и анимированные переходы.",
+      "Чат получил улучшенные анимации сообщений, composer, статуса, overlays и фонового состояния без нарушения reduced-motion.",
     ],
     channel: CURRENT_RELEASE_CHANNEL,
     majorUpdate: true,
     codename: CURRENT_RELEASE_CODENAME,
     stability: "beta",
     knownIssues: [
-      "Редактирование старого запроса пока переносит текст в composer; сохранение ветки с точки редактирования будет подключено следующим патчем.",
-      "Browser-level Playwright suite ещё не подключён; текущий контур защищён integration contracts и production build.",
-      "Артефакты и история диалогов по-прежнему хранятся на текущем устройстве.",
+      "Редактирование старого запроса всё ещё переносит текст в composer; branch-preserving edit-and-resubmit остаётся следующим крупным этапом.",
+      "Erma Flow использует текущую demo-квоту и те же ограничения доступа, что и основной AI-чат.",
+      "Flow runs, артефакты и история диалогов хранятся локально на текущем устройстве.",
     ],
     migrationNotes: [
-      "Диалоги, проекты, черновики, версии ответов и артефакты beta.1–beta.3 сохраняются без изменений.",
-      "Публичные JSON и SSE контракты `/api/demo` не изменены.",
-      "Desktop composer и desktop message stream сохранены как стабильный fallback на время мобильной миграции.",
+      "Диалоги, проекты, черновики, версии ответов и артефакты предыдущих beta-релизов сохраняются без изменений.",
+      "Добавляется отдельное локальное хранилище `tklabs.erma-flow.runs.v1`; существующие ключи не изменяются.",
+      "Публичные JSON и SSE контракты `/api/demo` не изменены; Flow использует существующий streaming API.",
     ],
   },
   en: {
     date: "07 Aug 2026",
     version: CURRENT_RELEASE_VERSION,
-    title: "ERMA NOVA — Mobile Chat Rebuild",
-    summary: "MAJOR UPDATE · PRE-RELEASE. The mobile AI chat is now a dedicated interface with one header, a full-height history drawer, a new composer, a cleaner message stream, and bottom-sheet actions.",
+    title: "ERMA FLOW — Motion & Controlled Work",
+    summary: "MAJOR UPDATE · PRE-RELEASE. Added one site-wide motion system, controlled Erma Flow tasks with streaming progress, real Agent Run history, and one-action result delivery into Artifact Studio.",
     changes: [
-      "Removed the duplicate mobile workspace header from the chat surface.",
-      "Moved conversation history into a full-height left drawer with projects, search, and a prominent new-chat action.",
-      "Added a dedicated mobile composer with visible attachments, a direct add-file button, and contextual Voice / Send / Stop behavior.",
-      "Moved model, response mode, effort, and reasoning into one focused bottom sheet.",
-      "Removed heavy assistant cards on phones and moved secondary actions into a mobile action sheet.",
-      "Made Artifacts and Agent Runs reachable from the mobile drawer without a permanent second navigation row.",
+      "Added one site-wide Motion System covering route transitions, reveals, interactive states, drawers, sheets, workspaces, chat, and artifacts.",
+      "Added the Erma Flow workspace for controlled complex tasks with explicit stages, Stop, streaming output, and local history.",
+      "Agent Runs now displays real Flow executions, timelines, model metadata, outcomes, and artifact links.",
+      "Flow results can be saved to Artifact Studio in one action with automatic material-type detection.",
+      "Added direct Erma Flow access to the mobile drawer with a cleaner hierarchy and animated transitions.",
+      "Improved chat message, composer, status, overlay, and ambient animations while respecting reduced-motion preferences.",
     ],
     channel: CURRENT_RELEASE_CHANNEL,
     majorUpdate: true,
     codename: CURRENT_RELEASE_CODENAME,
     stability: "beta",
     knownIssues: [
-      "Editing an older prompt still moves its text into the composer; branch-preserving edit-and-resubmit is scheduled for the next patch.",
-      "A browser-level Playwright suite is not connected yet; integration contracts and the production build protect the current surface.",
-      "Artifacts and conversation history remain local to the current device.",
+      "Editing an older prompt still moves its text into the composer; branch-preserving edit-and-resubmit remains the next major stage.",
+      "Erma Flow uses the current demo quota and the same access limits as the main AI chat.",
+      "Flow runs, artifacts, and conversation history remain local to the current device.",
     ],
     migrationNotes: [
-      "beta.1–beta.3 conversations, projects, drafts, response versions, and artifacts remain unchanged.",
-      "The public `/api/demo` JSON and SSE contracts are unchanged.",
-      "The desktop composer and desktop message stream remain the stable fallback during the mobile migration.",
+      "Conversations, projects, drafts, response versions, and artifacts from earlier beta releases remain unchanged.",
+      "A separate `tklabs.erma-flow.runs.v1` local store is added; existing storage keys are not changed.",
+      "The public `/api/demo` JSON and SSE contracts are unchanged; Flow consumes the existing streaming API.",
     ],
   },
 };

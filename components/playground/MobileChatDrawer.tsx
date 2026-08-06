@@ -3,12 +3,13 @@
 import Link from "next/link";
 import { useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
-import { Activity, FileText, Menu, MessageSquareText, Plus, X } from "lucide-react";
+import { Activity, FileText, Menu, MessageSquareText, Plus, Workflow, X } from "lucide-react";
 
 import { ConversationArchive } from "@/components/playground/ConversationArchive";
 import { LanguageToggle } from "@/components/site/LanguageToggle";
 import { ThemeToggle } from "@/components/site/ThemeToggle";
 import { getDictionary, type Locale } from "@/lib/i18n";
+import { requestWorkspaceSection } from "@/lib/workspace-events";
 
 export function MobileChatDrawer({
   open,
@@ -26,7 +27,7 @@ export function MobileChatDrawer({
   onOpenRuns?: () => void;
 }) {
   const text = getDictionary(locale);
-  const drawerRef = useRef<HTMLDivElement>(null);
+  const drawerRef = useRef<HTMLDivElement | null>(null);
   const previousFocusRef = useRef<HTMLElement | null>(null);
   const onCloseRef = useRef(onClose);
   const ru = locale === "ru";
@@ -73,6 +74,11 @@ export function MobileChatDrawer({
     };
   }, [open]);
 
+  function openFlow() {
+    requestWorkspaceSection("flow");
+    onClose();
+  }
+
   if (!open || typeof document === "undefined") return null;
 
   return createPortal(
@@ -88,10 +94,10 @@ export function MobileChatDrawer({
       >
         <header className="flex min-h-14 shrink-0 items-center justify-between gap-3 border-b border-outline-variant px-4">
           <div className="flex min-w-0 items-center gap-2">
-            <span className="grid size-9 shrink-0 place-items-center rounded-xl bg-primary text-on-primary"><Menu size={16} /></span>
+            <span className="grid size-9 shrink-0 place-items-center rounded-xl bg-primary text-on-primary"><Workflow size={16} /></span>
             <div className="min-w-0">
-              <p id="mobile-chat-drawer-title" className="truncate text-sm font-semibold text-primary">Erma Nova</p>
-              <p className="truncate text-[11px] text-on-secondary-container">{ru ? "Диалоги и рабочие области" : "Conversations and workspace"}</p>
+              <p id="mobile-chat-drawer-title" className="truncate text-sm font-semibold text-primary">Erma Flow</p>
+              <p className="truncate text-[11px] text-on-secondary-container">{ru ? "Диалоги, задачи и материалы" : "Chats, tasks, and materials"}</p>
             </div>
           </div>
           <button type="button" onClick={onClose} className="grid size-11 shrink-0 place-items-center rounded-full text-on-secondary-container hover:bg-surface-container-low hover:text-primary" aria-label={text.chat.close}><X size={18} /></button>
@@ -106,8 +112,9 @@ export function MobileChatDrawer({
             <Plus size={17} />{text.chat.newDialog}
           </button>
 
-          <section className="mt-4 rounded-2xl border border-outline-variant bg-surface p-2" aria-label={ru ? "Рабочие области" : "Workspace areas"}>
+          <section className="mt-4 rounded-2xl border border-outline-variant bg-surface p-2" aria-label={ru ? "Рабочие области" : "Workspace areas"} data-motion-card>
             <button type="button" onClick={onClose} className="flex min-h-11 w-full items-center gap-3 rounded-xl bg-surface-container-low px-3 text-left text-sm font-medium text-primary"><MessageSquareText size={17} />{ru ? "Чат" : "Chat"}</button>
+            <button type="button" onClick={openFlow} className="mt-1 flex min-h-12 w-full items-center gap-3 rounded-xl border border-primary/20 bg-primary/5 px-3 text-left text-sm font-medium text-primary hover:bg-primary/10"><Workflow size={17} />Erma Flow<span className="ml-auto rounded-full bg-primary px-2 py-0.5 text-[9px] font-semibold uppercase tracking-[0.08em] text-on-primary">new</span></button>
             {onOpenArtifacts && <button type="button" onClick={() => { onOpenArtifacts(); onClose(); }} className="mt-1 flex min-h-11 w-full items-center gap-3 rounded-xl px-3 text-left text-sm text-on-surface-variant hover:bg-surface-container-low"><FileText size={17} />{ru ? "Артефакты" : "Artifacts"}</button>}
             {onOpenRuns && <button type="button" onClick={() => { onOpenRuns(); onClose(); }} className="mt-1 flex min-h-11 w-full items-center gap-3 rounded-xl px-3 text-left text-sm text-on-surface-variant hover:bg-surface-container-low"><Activity size={17} />Agent Runs</button>}
           </section>
