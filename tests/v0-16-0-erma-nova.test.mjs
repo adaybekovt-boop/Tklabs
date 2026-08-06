@@ -9,19 +9,21 @@ import { getPreviewRelease } from "../lib/prerelease.ts";
 
 const read = (path) => readFile(new URL(`../${path}`, import.meta.url), "utf8");
 
-test("v0.16.0 beta.1 is explicitly published as a major preview", async () => {
+test("v0.16.0 beta.2 is explicitly published as a major preview", async () => {
   const release = getPreviewRelease("en");
   const patchPage = await read("app/patch-notes/page.tsx");
-  const releaseDoc = await read("docs/releases/v0.16.0-beta.1.md");
+  const releaseDoc = await read("docs/releases/v0.16.0-beta.2.md");
 
-  assert.equal(release.version, "v0.16.0-beta.1");
+  assert.equal(release.version, "v0.16.0-beta.2");
   assert.equal(release.channel, "preview");
   assert.equal(release.majorUpdate, true);
   assert.equal(release.codename, "Erma Nova");
   assert.equal(release.stability, "beta");
+  assert.match(release.title, /Architecture Foundation/);
   assert.match(patchPage, /MAJOR UPDATE · PRE-RELEASE/);
   assert.match(patchPage, /getPreviewRelease/);
   assert.match(releaseDoc, /MAJOR UPDATE · PRE-RELEASE/);
+  assert.match(releaseDoc, /Architecture Foundation/);
 });
 
 test("Erma Nova wraps the compatible chat in a dedicated workspace", async () => {
