@@ -1,6 +1,6 @@
 "use client";
 
-/* eslint-disable react-hooks/set-state-in-effect -- viewport and browser network state hydrate after mount. */
+/* eslint-disable react-hooks/set-state-in-effect -- browser network state hydrates after mount. */
 
 import * as React from "react";
 import { ArrowUp, ChevronDown, FileText, Mic, Plus, SlidersHorizontal, Square, WifiOff, X } from "lucide-react";
@@ -13,8 +13,10 @@ import {
   type ChatInputModel,
   type PromptInputProps,
 } from "@/components/ui/ai-chat-input";
-import { CHAT_RESPONSE_MODES, chatResponseModeLabel } from "@/lib/chat-modes";
+import { useMobileViewport } from "@/hooks/use-mobile-viewport";
+import { CHAT_RESPONSE_MODES, chatResponseModeLabel, type ChatResponseMode } from "@/lib/chat-modes";
 import { cn } from "@/lib/utils";
+import { requestWorkspaceSection } from "@/lib/workspace-events";
 
 type SpeechRecognitionResultLike = { isFinal: boolean; 0: { transcript: string } };
 type SpeechRecognitionEventLike = { resultIndex: number; results: ArrayLike<SpeechRecognitionResultLike> };
@@ -30,19 +32,13 @@ type SpeechRecognitionLike = {
 };
 type SpeechRecognitionConstructor = new () => SpeechRecognitionLike;
 
-function useMobileViewport() {
-  const [mobile, setMobile] = React.useState<boolean | null>(null);
-
-  React.useEffect(() => {
-    const query = window.matchMedia("(max-width: 767px)");
-    const update = () => setMobile(query.matches);
-    update();
-    query.addEventListener("change", update);
-    return () => query.removeEventListener("change", update);
-  }, []);
-
-  return mobile;
-}
+type QuickCommand = {
+  id: "flow" | "plan" | "document" | "code" | "search";
+  label: string;
+  description: string;
+  mode?: ChatResponseMode;
+  prompt?: string;
+};
 
 function ModelRow({ model, selected, onSelect }: { model: ChatInputModel; selected: boolean; onSelect: () => void }) {
   return (
@@ -98,6 +94,22 @@ const MobileChatComposer = React.forwardRef<HTMLDivElement, PromptInputProps>(fu
     { id: "medium", label: labels.effortMedium },
     { id: "high", label: labels.effortHigh },
   ];
+  const quickCommands: QuickCommand[] = locale === "ru"
+    ? [
+        { id: "flow", label: "/flow", description: "Открыть управляемую многошаговую задачу" },
+        { id: "plan", label: "/plan", description: "Составить структурированный план", mode: "analysis", prompt: "Составь пошаговый план: " },
+        { id: "document", label: "/document", description: "Подготовить цельный документ", mode: "document", prompt: "Подготовь профессиональный документ: " },
+        { id: "code", label: "/code", description: "Перейти в режим кода", mode: "code", prompt: "Реши задачу и подготовь качественный код: " },
+        { id: "search", label: "/search", description: "Ответ с поисковым режимом", mode: "search", prompt: "Найди и систематизируй информацию: " },
+      ]
+    : [
+        { id: "flow", label: "/flow", description: "Open a controlled multi-step task" },
+        { id: "plan", label: "/plan", description: "Create a structured plan", mode: "analysis", prompt: "Create a step-by-step plan: " },
+        { id: "document", label: "/document", description: "Prepare a complete document", mode: "document", prompt: "Prepare a professional document: " },
+        { id: "code", label: "/code", description: "Switch to code mode", mode: "code", prompt: "Solve the task and prepare production-quality code: " },
+        { id: "search", label: "/search", description: "Use search response mode", mode: "search", prompt: "Find and organize the relevant information: " },
+      ];
+
   const [settingsOpen, setSettingsOpen] = React.useState(false);
   const [effort, setEffort] = React.useState<ChatEffort>("medium");
   const [attachments, setAttachments] = React.useState<ChatInputAttachment[]>([]);
@@ -118,6 +130,10 @@ const MobileChatComposer = React.forwardRef<HTMLDivElement, PromptInputProps>(fu
     for (const model of models) groups.set(model.tierLabel, [...(groups.get(model.tierLabel) ?? []), model]);
     return [...groups.entries()];
   }, [models]);
+  const commandQuery = value.trim().toLowerCase();
+  const visibleCommands = commandQuery.startsWith("/") && !commandQuery.includes(" ")
+    ? quickCommands.filter((command) => command.label.startsWith(commandQuery))
+    : [];
 
   React.useEffect(() => {
     attachmentsRef.current = attachments;
@@ -145,8 +161,19 @@ const MobileChatComposer = React.forwardRef<HTMLDivElement, PromptInputProps>(fu
     const textarea = textareaRef.current;
     if (!textarea) return;
     textarea.style.height = "0px";
-    textarea.style.height = `${Math.min(Math.max(textarea.scrollHeight, 44), 144)}px`;
+    textarea.style.height = `${Math.min(Math.max(textarea.scrollHeight, 44), 176)}px`;
   }, [value]);
+
+  function applyCommand(command: QuickCommand) {
+    if (command.id === "flow") {
+      onChange("");
+      requestWorkspaceSection("flow");
+      return;
+    }
+    if (command.mode) onResponseModeChange?.(command.mode);
+    onChange(command.prompt ?? "");
+    requestAnimationFrame(() => textareaRef.current?.focus());
+  }
 
   function submit() {
     if (!canSubmit || !selectedModel) return;
@@ -274,6 +301,17 @@ const MobileChatComposer = React.forwardRef<HTMLDivElement, PromptInputProps>(fu
 
   return (
     <div ref={forwardedRef} data-testid="mobile-prompt-input" className={cn("relative mx-auto w-full max-w-[780px]", className)}>
+      {visibleCommands.length > 0 && (
+        <div className="motion-command-menu absolute bottom-[calc(100%+10px)] left-0 right-0 z-20 overflow-hidden rounded-2xl border border-outline-variant bg-surface-container-lowest p-2 shadow-2xl" role="listbox" aria-label={locale === "ru" ? "Быстрые команды" : "Quick commands"}>
+          {visibleCommands.map((command) => (
+            <button key={command.id} type="button" role="option" onClick={() => applyCommand(command)} className="flex min-h-12 w-full items-center gap-3 rounded-xl px-3 text-left hover:bg-surface-container-low">
+              <span className="min-w-[78px] font-mono text-xs font-semibold text-primary">{command.label}</span>
+              <span className="text-xs leading-5 text-on-secondary-container">{command.description}</span>
+            </button>
+          ))}
+        </div>
+      )}
+
       {attachmentsEnabled && <input ref={fileInputRef} className="sr-only" type="file" accept="text/plain,text/markdown,.txt,.md" multiple aria-label={labels.addAttachment} onChange={(event) => { void addFiles(event.target.files); event.target.value = ""; }} />}
 
       <div className="overflow-hidden rounded-[1.55rem] border border-outline-variant bg-surface-container-lowest shadow-[0_10px_30px_color-mix(in_srgb,var(--color-primary)_8%,transparent)] focus-within:border-primary">
@@ -317,7 +355,7 @@ const MobileChatComposer = React.forwardRef<HTMLDivElement, PromptInputProps>(fu
             rows={1}
             enterKeyHint="enter"
             aria-label={labels.request}
-            className="block min-h-11 max-h-36 min-w-0 flex-1 resize-none overflow-y-auto bg-transparent px-2 py-2.5 text-[16px] leading-6 text-primary outline-none placeholder:text-on-secondary-container disabled:opacity-60"
+            className="block min-h-11 max-h-44 min-w-0 flex-1 resize-none overflow-y-auto bg-transparent px-2 py-2.5 text-[16px] leading-6 text-primary outline-none placeholder:text-on-secondary-container disabled:opacity-60"
           />
 
           <button
@@ -389,7 +427,6 @@ MobileChatComposer.displayName = "MobileChatComposer";
 
 export const ResponsiveChatComposer = React.forwardRef<HTMLDivElement, PromptInputProps>(function ResponsiveChatComposer(props, ref) {
   const mobile = useMobileViewport();
-  if (mobile === null) return <div className="mx-auto h-[68px] w-full max-w-[780px]" aria-hidden="true" />;
   return mobile ? <MobileChatComposer ref={ref} {...props} /> : <PromptInput ref={ref} {...props} />;
 });
 
