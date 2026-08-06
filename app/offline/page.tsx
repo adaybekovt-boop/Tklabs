@@ -16,7 +16,6 @@ export default async function OfflinePage() {
         title: "Подключение отсутствует",
         description: "Статические элементы приложения доступны из локального кэша. AI-запросы, авторизация, страницы аккаунта и загрузка новых данных требуют подключения к интернету.",
         retry: "Проверить подключение",
-        home: "Вернуться на главную",
         note: "Незавершённые черновики AI-чата остаются в этом браузере и не отправляются до восстановления сети.",
       }
     : {
@@ -24,7 +23,6 @@ export default async function OfflinePage() {
         title: "No network connection",
         description: "Static application assets remain available from the local cache. AI requests, authentication, account pages, and new data loading require an internet connection.",
         retry: "Check connection",
-        home: "Return home",
         note: "Unfinished AI chat drafts remain in this browser and are not submitted until the connection is restored.",
       };
 
@@ -38,14 +36,9 @@ export default async function OfflinePage() {
         <h1 className="mt-3 font-serif text-[40px] leading-[1.05] sm:text-[52px]">{text.title}</h1>
         <p className="mt-6 text-[16px] leading-[1.75] text-on-surface-variant">{text.description}</p>
         <p className="mt-4 rounded-2xl border border-outline-variant bg-surface-container-low p-4 text-sm leading-[1.6] text-on-surface-variant">{text.note}</p>
-        <div className="mt-7 grid gap-2 sm:grid-cols-2">
-          <Link href="/" className="flex min-h-12 items-center justify-center gap-2 rounded-xl bg-primary px-4 text-sm font-medium text-on-primary">
-            {text.retry}<ArrowUpRight size={15} aria-hidden="true" />
-          </Link>
-          <Link href="/" className="flex min-h-12 items-center justify-center gap-2 rounded-xl border border-outline-variant px-4 text-center text-sm font-medium text-primary">
-            {text.home}
-          </Link>
-        </div>
+        <Link href="/" className="mt-7 flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-primary px-4 text-sm font-medium text-on-primary sm:w-auto sm:px-6">
+          {text.retry}<ArrowUpRight size={15} aria-hidden="true" />
+        </Link>
       </section>
     </main>
   );
