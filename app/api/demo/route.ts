@@ -1,190 +1,67 @@
 import { auth } from "@/auth";
-import { generateWithClodex } from "@/lib/ai/providers/clodex";
-import { generateWithNvidia, streamWithNvidia } from "@/lib/ai/providers/nvidia";
-import { logAiProviderFailure, logAiRequest } from "@/lib/ai/logging";
-import { newRequestId } from "@/lib/ai/provider-http";
-import type { AiGenerationResult, AiToolCallTrace } from "@/lib/ai/types";
-import { createAiResponseMeta, localFallbackResult } from "@/lib/ai/response";
-import { prepareReadOnlyToolAugmentation } from "@/lib/ai/tools/route-tools";
-import { classifyPromptSafety, safetyRefusal } from "@/lib/ai-safety";
 import {
   ChatContextValidationError,
   estimateTextTokens,
   prepareChatContext,
   type PreparedChatContext,
 } from "@/lib/ai/context";
+import { logAiProviderFailure, logAiRequest } from "@/lib/ai/logging";
+import { newRequestId } from "@/lib/ai/provider-http";
+import { generateWithNvidia, streamWithNvidia } from "@/lib/ai/providers/nvidia";
+import { createAiResponseMeta } from "@/lib/ai/response";
 import { aiStreamHeaders, encodeAiStreamEvent } from "@/lib/ai/sse";
-import { promptValidationMessage, PromptValidationError, validateAndBuildProviderPrompt } from "@/lib/chat-prompt";
-import { DemoRateLimitUnavailableError, commitDemoRequest, releaseDemoRequest, reserveDemoRequest } from "@/lib/demo-rate-limit-access";
-import { isClodexEnabled } from "@/lib/feature-flags";
-import { getErmaModel, type ErmaTone } from "@/lib/models/server";
-import { getClodexModelConfig } from "@/lib/models/clodex-server";
-import { getRateLimitIdentity, RateLimitConfigurationError } from "@/lib/rate-limit-identity";
+import { prepareReadOnlyToolAugmentation } from "@/lib/ai/tools/route-tools";
+import type { AiToolCallTrace } from "@/lib/ai/types";
+import { classifyPromptSafety, safetyRefusal } from "@/lib/ai-safety";
+import { PromptValidationError, validateAndBuildProviderPrompt } from "@/lib/chat-prompt";
+import { getErmaModel } from "@/lib/models/server";
 import { isPrivilegedAiEmail } from "@/lib/privileged-access";
 import { parseJsonBody, RequestBodyTooLargeError } from "@/lib/request-body";
 import { isTrustedRequestOrigin } from "@/lib/request-security";
 
+import {
+  acceptsEventStream,
+  normalizeEffort,
+  normalizeLanguage,
+  normalizeTone,
+  type ChatRequest,
+} from "./contracts";
+import {
+  contextualFallbackPrompt,
+  providerFailureReason,
+  resolveFallback,
+  streamInterruptedText,
+  withContextMetadata,
+  withToolCalls,
+} from "./fallback";
+import { contextErrorResponse, jsonResponse, promptErrorResponse } from "./http";
+import { createDemoQuota } from "./quota";
+
 export const runtime = "edge";
-
-type Language = "ru" | "en";
-type ReasoningEffort = "low" | "medium" | "high";
-type ChatRequest = {
-  prompt?: unknown;
-  messages?: unknown;
-  locale?: unknown;
-  model?: unknown;
-  reasonEnabled?: unknown;
-  effort?: unknown;
-  tone?: unknown;
-  attachments?: unknown;
-  localArchive?: unknown;
-};
-
-type QuotaSettlement = "pending" | "committed" | "released";
-
-function normalizeEffort(value: unknown): ReasoningEffort {
-  return value === "low" || value === "high" ? value : "medium";
-}
-
-function normalizeTone(value: unknown): ErmaTone {
-  if (value === "character") return "character";
-  if (value === "erma") return "erma";
-  return "professional";
-}
-
-function responseHeaders(requestId: string, setCookie?: string | null) {
-  const headers = new Headers({ "cache-control": "no-store", "x-request-id": requestId });
-  if (setCookie) headers.set("set-cookie", setCookie);
-  return headers;
-}
-
-function jsonResponse(payload: unknown, requestId: string, status = 200, setCookie?: string | null) {
-  return Response.json(payload, { status, headers: responseHeaders(requestId, setCookie) });
-}
-
-function promptErrorResponse(error: PromptValidationError, language: Language, privileged: boolean, requestId: string) {
-  return jsonResponse(
-    { error: promptValidationMessage(error.code, language, privileged), code: error.code, requestId },
-    requestId,
-    error.status,
-  );
-}
-
-function contextErrorResponse(error: ChatContextValidationError, language: Language, requestId: string) {
-  const errorText = error.status === 413
-    ? language === "ru"
-      ? "Контекст диалога превышает допустимый лимит. Начните новый диалог или исключите часть сообщений."
-      : "The conversation context exceeds the allowed limit. Start a new chat or exclude some messages."
-    : language === "ru"
-      ? "История диалога содержит некорректные сообщения."
-      : "The conversation history contains invalid messages.";
-  return jsonResponse({ error: errorText, code: "invalid_context", requestId }, requestId, error.status);
-}
-
-function contextualFallbackPrompt(context: PreparedChatContext, augmentedSummary?: string) {
-  const sections = [
-    augmentedSummary ? `Conversation memory and verified internal tool data:\n${augmentedSummary}` : context.summary ? `Conversation memory summary:\n${context.summary}` : "",
-    ...context.messages.map((message) => `${message.role === "user" ? "User" : "Assistant"}:\n${message.content}`),
-  ].filter(Boolean);
-  const flattened = sections.join("\n\n");
-  const characters = Array.from(flattened);
-  return characters.length > 120_000 ? characters.slice(-120_000).join("") : flattened;
-}
-
-function withContextMetadata(result: AiGenerationResult, context: PreparedChatContext): AiGenerationResult {
-  return {
-    ...result,
-    inputTokens: result.inputTokens ?? context.estimatedTokens,
-    outputTokens: result.outputTokens ?? estimateTextTokens(result.answer),
-    contextMessageCount: context.includedMessageCount,
-    contextAttachmentCount: context.attachmentCount,
-    contextLimit: context.contextLimit,
-    contextCompacted: context.compacted,
-  };
-}
-
-function withToolCalls(result: AiGenerationResult, toolCalls: AiToolCallTrace[]): AiGenerationResult {
-  return toolCalls.length ? { ...result, toolCalls } : result;
-}
-
-async function resolveFallback(input: {
-  prompt: string;
-  language: Language;
-  allowCode: boolean;
-  requestId: string;
-  requestedModel: string;
-  primaryReason: string;
-  signal?: AbortSignal;
-}): Promise<AiGenerationResult> {
-  const apiKey = process.env.CLODEX_API_KEY?.trim();
-  const fallbackModel = getClodexModelConfig({ requireRuntimeConfig: true })?.[0];
-  if (isClodexEnabled() && apiKey && fallbackModel) {
-    try {
-      const { answer, reasoningUsed, actualModel, inputTokens, outputTokens } = await generateWithClodex(
-        input.prompt,
-        apiKey,
-        fallbackModel.providerModel,
-        fallbackModel.maxTokens,
-        input.language,
-        input.allowCode,
-        input.signal,
-      );
-      return {
-        answer,
-        reasoningUsed,
-        provider: "clodex",
-        actualModel,
-        fallbackReason: input.primaryReason,
-        inputTokens,
-        outputTokens,
-      };
-    } catch (error) {
-      logAiProviderFailure({
-        requestId: input.requestId,
-        requestedModel: input.requestedModel,
-        provider: "clodex",
-        status: typeof error === "object" && error && "status" in error && typeof error.status === "number" ? error.status : undefined,
-        reason: error instanceof Error ? error.message : "clodex_failed",
-      });
-    }
-  }
-
-  return localFallbackResult(
-    input.language,
-    isClodexEnabled() ? `${input.primaryReason};clodex_unavailable` : `${input.primaryReason};clodex_disabled`,
-  );
-}
-
-function providerFailureReason(error: unknown) {
-  if (error instanceof Error && error.message === "nvidia_not_configured") return "nvidia_not_configured";
-  if (error instanceof Error && error.message === "nvidia_output_blocked") return "safety_output_blocked";
-  return "nvidia_request_failed";
-}
-
-function streamInterruptedText(language: Language) {
-  return language === "ru"
-    ? "Соединение с моделью прервалось. Частичный ответ сохранён."
-    : "The model connection was interrupted. The partial response was saved.";
-}
 
 export async function POST(request: Request) {
   const requestId = newRequestId();
-  if (!isTrustedRequestOrigin(request)) return jsonResponse({ error: "Request origin is not allowed.", requestId }, requestId, 403);
+  if (!isTrustedRequestOrigin(request)) {
+    return jsonResponse({ error: "Request origin is not allowed.", requestId }, requestId, 403);
+  }
 
   let body: ChatRequest | null;
   try {
     body = await parseJsonBody<ChatRequest>(request);
   } catch (error) {
-    if (error instanceof RequestBodyTooLargeError) return jsonResponse({ error: "Request body is too large.", requestId }, requestId, 413);
+    if (error instanceof RequestBodyTooLargeError) {
+      return jsonResponse({ error: "Request body is too large.", requestId }, requestId, 413);
+    }
     throw error;
   }
 
-  const language: Language = body?.locale === "en" ? "en" : "ru";
+  const language = normalizeLanguage(body?.locale);
   const model = getErmaModel(typeof body?.model === "string" ? body.model : undefined);
   const requestedReasoning = body?.reasonEnabled === true;
   const effort = normalizeEffort(body?.effort);
   const tone = normalizeTone(body?.tone);
-  const wantsStream = request.headers.get("accept")?.toLowerCase().includes("text/event-stream") === true;
+  const wantsStream = acceptsEventStream(request);
+
   let sessionEmail = "";
   try {
     const session = await auth();
@@ -196,9 +73,13 @@ export async function POST(request: Request) {
 
   let validatedPrompt;
   try {
-    validatedPrompt = validateAndBuildProviderPrompt(body?.prompt, body?.attachments, { privileged: privilegedAccount });
+    validatedPrompt = validateAndBuildProviderPrompt(body?.prompt, body?.attachments, {
+      privileged: privilegedAccount,
+    });
   } catch (error) {
-    if (error instanceof PromptValidationError) return promptErrorResponse(error, language, privilegedAccount, requestId);
+    if (error instanceof PromptValidationError) {
+      return promptErrorResponse(error, language, privilegedAccount, requestId);
+    }
     throw error;
   }
 
@@ -210,7 +91,9 @@ export async function POST(request: Request) {
       attachmentCount: validatedPrompt.attachments.length,
     });
   } catch (error) {
-    if (error instanceof ChatContextValidationError) return contextErrorResponse(error, language, requestId);
+    if (error instanceof ChatContextValidationError) {
+      return contextErrorResponse(error, language, requestId);
+    }
     throw error;
   }
 
@@ -223,68 +106,16 @@ export async function POST(request: Request) {
     return jsonResponse({ error: safetyRefusal(language, safetyDecision.reason), requestId }, requestId, 403);
   }
 
-  let rateLimitCookie: string | null = null;
-  let rateLimitIdentifier = "";
-  let demoReservationId = "";
-  if (!privilegedAccount) {
-    let allowance;
-    try {
-      const identity = await getRateLimitIdentity(request, sessionEmail);
-      rateLimitCookie = identity.setCookie;
-      rateLimitIdentifier = identity.identifier;
-      allowance = await reserveDemoRequest(identity.identifier);
-    } catch (error) {
-      if (!(error instanceof DemoRateLimitUnavailableError || error instanceof RateLimitConfigurationError)) {
-        console.warn("demo.rate_limit_unavailable", { requestId });
-      }
-      return jsonResponse(
-        { error: language === "ru" ? "Демо временно недоступно. Попробуйте позже." : "The demo is temporarily unavailable. Please try again later.", requestId },
-        requestId,
-        503,
-        rateLimitCookie,
-      );
-    }
-    if (!allowance.allowed) {
-      const retryAfter = allowance.resetAt ? Math.max(1, Math.ceil((allowance.resetAt - Date.now()) / 1000)) : undefined;
-      const response = jsonResponse(
-        { error: language === "ru" ? "Дневной лимит демо исчерпан. Попробуйте завтра." : "Daily demo limit reached. Please try again tomorrow.", retryAt: allowance.resetAt, requestId },
-        requestId,
-        429,
-        rateLimitCookie,
-      );
-      if (retryAfter) response.headers.set("retry-after", String(retryAfter));
-      return response;
-    }
-    demoReservationId = allowance.reservationId ?? "";
-    if (!demoReservationId) {
-      return jsonResponse(
-        { error: language === "ru" ? "Демо временно недоступно. Попробуйте позже." : "The demo is temporarily unavailable. Please try again later.", requestId },
-        requestId,
-        503,
-        rateLimitCookie,
-      );
-    }
-  }
-
-  let quotaSettlement: QuotaSettlement = "pending";
-  const commitDemo = async () => {
-    if (!demoReservationId || !rateLimitIdentifier || quotaSettlement !== "pending") return;
-    quotaSettlement = "committed";
-    try {
-      await commitDemoRequest(rateLimitIdentifier, demoReservationId);
-    } catch {
-      console.warn("demo.rate_limit_commit_failed", { requestId });
-    }
-  };
-  const releaseDemo = async () => {
-    if (!demoReservationId || !rateLimitIdentifier || quotaSettlement !== "pending") return;
-    quotaSettlement = "released";
-    try {
-      await releaseDemoRequest(rateLimitIdentifier, demoReservationId);
-    } catch {
-      console.warn("demo.rate_limit_release_failed", { requestId });
-    }
-  };
+  const quotaResult = await createDemoQuota({
+    request,
+    requestId,
+    language,
+    sessionEmail,
+    privileged: privilegedAccount,
+  });
+  if ("response" in quotaResult) return quotaResult.response;
+  const { quota } = quotaResult;
+  const rateLimitCookie = quota.cookie;
 
   const startedAt = Date.now();
   const requestedModel = model.name;
@@ -300,6 +131,7 @@ export async function POST(request: Request) {
       signal: request.signal,
     });
     const fallbackPrompt = contextualFallbackPrompt(context, toolAugmentation.summary);
+
     try {
       const result = await generateWithNvidia({
         messages: context.messages,
@@ -320,13 +152,13 @@ export async function POST(request: Request) {
         inputTokens: result.inputTokens,
         outputTokens: result.outputTokens,
       }, toolAugmentation.traces), context);
-      await commitDemo();
+      await quota.commit();
       const meta = createAiResponseMeta(generationResult, requestedModel, requestId, startedAt);
       logAiRequest(meta);
       return jsonResponse({ answer: generationResult.answer, meta }, requestId, 200, rateLimitCookie);
     } catch (error) {
       if (request.signal.aborted) {
-        await releaseDemo();
+        await quota.release();
         return jsonResponse({ error: "Request cancelled.", requestId }, requestId, 499, rateLimitCookie);
       }
 
@@ -335,12 +167,14 @@ export async function POST(request: Request) {
         requestId,
         requestedModel,
         provider: "nvidia",
-        status: typeof error === "object" && error && "status" in error && typeof error.status === "number" ? error.status : undefined,
+        status: typeof error === "object" && error && "status" in error && typeof error.status === "number"
+          ? error.status
+          : undefined,
         reason,
       });
 
       if (reason === "safety_output_blocked") {
-        await commitDemo();
+        await quota.commit();
         const safetyResult = withContextMetadata(withToolCalls({
           answer: safetyRefusal(language),
           provider: "edge-fallback",
@@ -361,8 +195,8 @@ export async function POST(request: Request) {
         primaryReason: reason,
         signal: request.signal,
       }), toolAugmentation.traces), context);
-      if (fallback.provider === "clodex") await commitDemo();
-      else await releaseDemo();
+      if (fallback.provider === "clodex") await quota.commit();
+      else await quota.release();
       const meta = createAiResponseMeta(fallback, requestedModel, requestId, startedAt);
       logAiRequest(meta);
       return jsonResponse({ answer: fallback.answer, meta }, requestId, 200, rateLimitCookie);
@@ -381,6 +215,7 @@ export async function POST(request: Request) {
       let streamClosed = false;
       let toolCalls: AiToolCallTrace[] = [];
       let augmentedSummary = context.summary;
+
       const send = (event: Parameters<typeof encodeAiStreamEvent>[0], payload: unknown = {}) => {
         if (streamClosed) return false;
         try {
@@ -454,17 +289,18 @@ export async function POST(request: Request) {
           timeToFirstTokenMs: firstTokenAt ? firstTokenAt - startedAt : undefined,
         }, toolCalls), context);
         const meta = createAiResponseMeta(generationResult, requestedModel, requestId, startedAt);
-        await commitDemo();
+        await quota.commit();
         logAiRequest(meta);
         send("meta", meta);
         send("done", { requestId, stopped: false });
         close();
         return;
       } catch (error) {
-        const aborted = providerController.signal.aborted || (error instanceof DOMException && error.name === "AbortError");
+        const aborted = providerController.signal.aborted
+          || (error instanceof DOMException && error.name === "AbortError");
         if (aborted) {
-          if (partialAnswer) await commitDemo();
-          else await releaseDemo();
+          if (partialAnswer) await quota.commit();
+          else await quota.release();
           if (partialAnswer) {
             const stoppedResult = withContextMetadata(withToolCalls({
               answer: partialAnswer,
@@ -488,12 +324,14 @@ export async function POST(request: Request) {
           requestId,
           requestedModel,
           provider: "nvidia",
-          status: typeof error === "object" && error && "status" in error && typeof error.status === "number" ? error.status : undefined,
+          status: typeof error === "object" && error && "status" in error && typeof error.status === "number"
+            ? error.status
+            : undefined,
           reason,
         });
 
         if (partialAnswer) {
-          await commitDemo();
+          await quota.commit();
           const partialResult = withContextMetadata(withToolCalls({
             answer: partialAnswer,
             provider: "nvidia",
@@ -502,7 +340,13 @@ export async function POST(request: Request) {
             outputTokens: estimateTextTokens(partialAnswer),
             timeToFirstTokenMs: firstTokenAt ? firstTokenAt - startedAt : undefined,
           }, toolCalls), context);
-          const meta = createAiResponseMeta(partialResult, requestedModel, requestId, startedAt, reason === "safety_output_blocked" ? 200 : 502);
+          const meta = createAiResponseMeta(
+            partialResult,
+            requestedModel,
+            requestId,
+            startedAt,
+            reason === "safety_output_blocked" ? 200 : 502,
+          );
           logAiRequest(meta);
           send("meta", meta);
           send("error", { error: streamInterruptedText(language), requestId, partial: true });
@@ -512,7 +356,7 @@ export async function POST(request: Request) {
         }
 
         if (reason === "safety_output_blocked") {
-          await commitDemo();
+          await quota.commit();
           const safetyResult = withContextMetadata(withToolCalls({
             answer: safetyRefusal(language),
             provider: "edge-fallback",
@@ -537,8 +381,8 @@ export async function POST(request: Request) {
           primaryReason: reason,
           signal: providerController.signal,
         }), toolCalls), context);
-        if (fallback.provider === "clodex") await commitDemo();
-        else await releaseDemo();
+        if (fallback.provider === "clodex") await quota.commit();
+        else await quota.release();
         const meta = createAiResponseMeta(fallback, requestedModel, requestId, startedAt);
         logAiRequest(meta);
         send("delta", { text: fallback.answer });
@@ -550,9 +394,12 @@ export async function POST(request: Request) {
     async cancel() {
       request.signal.removeEventListener("abort", abortProvider);
       providerController.abort("response_cancelled");
-      await releaseDemo();
+      await quota.release();
     },
   });
 
-  return new Response(responseStream, { status: 200, headers: aiStreamHeaders(requestId, rateLimitCookie) });
+  return new Response(responseStream, {
+    status: 200,
+    headers: aiStreamHeaders(requestId, rateLimitCookie),
+  });
 }
