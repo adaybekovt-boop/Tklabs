@@ -1,11 +1,18 @@
 import { auth } from "@/auth";
 import { generateWithClodex } from "@/lib/ai/providers/clodex";
-import { generateWithNvidia } from "@/lib/ai/providers/nvidia";
+import { streamWithNvidia } from "@/lib/ai/providers/nvidia";
 import { logAiProviderFailure, logAiRequest } from "@/lib/ai/logging";
 import { newRequestId } from "@/lib/ai/provider-http";
 import type { AiGenerationResult } from "@/lib/ai/types";
 import { createAiResponseMeta, localFallbackResult } from "@/lib/ai/response";
-import { classifyPromptSafety, evaluateAssistantContent, safetyRefusal } from "@/lib/ai-safety";
+import { classifyPromptSafety, safetyRefusal } from "@/lib/ai-safety";
+import {
+  ChatContextValidationError,
+  estimateTextTokens,
+  prepareChatContext,
+  type PreparedChatContext,
+} from "@/lib/ai/context";
+import { aiStreamHeaders, encodeAiStreamEvent } from "@/lib/ai/sse";
 import { promptValidationMessage, PromptValidationError, validateAndBuildProviderPrompt } from "@/lib/chat-prompt";
 import { DemoRateLimitUnavailableError, commitDemoRequest, releaseDemoRequest, reserveDemoRequest } from "@/lib/demo-rate-limit-access";
 import { isClodexEnabled } from "@/lib/feature-flags";
@@ -20,7 +27,16 @@ export const runtime = "edge";
 
 type Language = "ru" | "en";
 type ReasoningEffort = "low" | "medium" | "high";
-type ChatRequest = { prompt?: unknown; locale?: unknown; model?: unknown; reasonEnabled?: unknown; effort?: unknown; tone?: unknown; attachments?: unknown };
+type ChatRequest = {
+  prompt?: unknown;
+  messages?: unknown;
+  locale?: unknown;
+  model?: unknown;
+  reasonEnabled?: unknown;
+  effort?: unknown;
+  tone?: unknown;
+  attachments?: unknown;
+};
 
 function normalizeEffort(value: unknown): ReasoningEffort {
   return value === "low" || value === "high" ? value : "medium";
@@ -50,10 +66,25 @@ function promptErrorResponse(error: PromptValidationError, language: Language, p
   );
 }
 
-function resultResponse(result: AiGenerationResult, requestedModel: string, requestId: string, startedAt: number, setCookie?: string | null) {
-  const meta = createAiResponseMeta(result, requestedModel, requestId, startedAt);
-  logAiRequest(meta);
-  return jsonResponse({ answer: result.answer, meta }, requestId, 200, setCookie);
+function contextErrorResponse(error: ChatContextValidationError, language: Language, requestId: string) {
+  const errorText = error.status === 413
+    ? language === "ru"
+      ? "Контекст диалога превышает допустимый лимит. Начните новый диалог или исключите часть сообщений."
+      : "The conversation context exceeds the allowed limit. Start a new chat or exclude some messages."
+    : language === "ru"
+      ? "История диалога содержит некорректные сообщения."
+      : "The conversation history contains invalid messages.";
+  return jsonResponse({ error: errorText, code: "invalid_context", requestId }, requestId, error.status);
+}
+
+function contextualFallbackPrompt(context: PreparedChatContext) {
+  const sections = [
+    context.summary ? `Conversation memory summary:\n${context.summary}` : "",
+    ...context.messages.map((message) => `${message.role === "user" ? "User" : "Assistant"}:\n${message.content}`),
+  ].filter(Boolean);
+  const flattened = sections.join("\n\n");
+  const characters = Array.from(flattened);
+  return characters.length > 120_000 ? characters.slice(-120_000).join("") : flattened;
 }
 
 async function resolveFallback(input: {
@@ -69,7 +100,15 @@ async function resolveFallback(input: {
   const fallbackModel = getClodexModelConfig({ requireRuntimeConfig: true })?.[0];
   if (isClodexEnabled() && apiKey && fallbackModel) {
     try {
-      const { answer, reasoningUsed, actualModel } = await generateWithClodex(input.prompt, apiKey, fallbackModel.providerModel, fallbackModel.maxTokens, input.language, input.allowCode, input.signal);
+      const { answer, reasoningUsed, actualModel } = await generateWithClodex(
+        input.prompt,
+        apiKey,
+        fallbackModel.providerModel,
+        fallbackModel.maxTokens,
+        input.language,
+        input.allowCode,
+        input.signal,
+      );
       return { answer, reasoningUsed, provider: "clodex", actualModel, fallbackReason: input.primaryReason };
     } catch (error) {
       logAiProviderFailure({
@@ -83,6 +122,12 @@ async function resolveFallback(input: {
   }
 
   return localFallbackResult(input.language, isClodexEnabled() ? `${input.primaryReason};clodex_unavailable` : `${input.primaryReason};clodex_disabled`);
+}
+
+function streamInterruptedText(language: Language) {
+  return language === "ru"
+    ? "Соединение с моделью прервалось. Частичный ответ сохранён."
+    : "The model connection was interrupted. The partial response was saved.";
 }
 
 export async function POST(request: Request) {
@@ -110,6 +155,7 @@ export async function POST(request: Request) {
     // Guest demo requests remain usable when optional auth configuration is absent.
   }
   const privilegedAccount = isPrivilegedAiEmail(sessionEmail);
+
   let validatedPrompt;
   try {
     validatedPrompt = validateAndBuildProviderPrompt(body?.prompt, body?.attachments, { privileged: privilegedAccount });
@@ -118,8 +164,23 @@ export async function POST(request: Request) {
     throw error;
   }
 
-  const { providerPrompt } = validatedPrompt;
-  const safetyDecision = classifyPromptSafety(providerPrompt, { allowCode: privilegedAccount });
+  let context: PreparedChatContext;
+  try {
+    context = prepareChatContext({
+      history: body?.messages,
+      currentUserContent: validatedPrompt.providerPrompt,
+      attachmentCount: validatedPrompt.attachments.length,
+    });
+  } catch (error) {
+    if (error instanceof ChatContextValidationError) return contextErrorResponse(error, language, requestId);
+    throw error;
+  }
+
+  const safetyInput = [
+    context.summary ?? "",
+    ...context.messages.filter((message) => message.role === "user").map((message) => message.content),
+  ].filter(Boolean).join("\n\n");
+  const safetyDecision = classifyPromptSafety(safetyInput, { allowCode: privilegedAccount });
   if (safetyDecision.blocked) {
     return jsonResponse({ error: safetyRefusal(language, safetyDecision.reason), requestId }, requestId, 403);
   }
@@ -186,54 +247,199 @@ export async function POST(request: Request) {
 
   const startedAt = Date.now();
   const requestedModel = model.name;
-  try {
-    const result = await generateWithNvidia({
-      prompt: providerPrompt,
-      language,
-      model,
-      requestedReasoning,
-      effort,
-      allowCode: privilegedAccount,
-      tone,
-      signal: request.signal,
-    });
-    const evaluation = evaluateAssistantContent({ answer: result.answer }, { allowCode: privilegedAccount });
-    if (evaluation.verdict !== "ok") {
-      const safetyResult: AiGenerationResult = {
-        answer: safetyRefusal(language),
-        provider: "edge-fallback",
-        actualModel: "safety-policy",
-        fallbackReason: "safety_output_blocked",
+  const fallbackPrompt = contextualFallbackPrompt(context);
+  const responseStream = new ReadableStream<Uint8Array>({
+    async start(controller) {
+      let partialAnswer = "";
+      let firstTokenAt = 0;
+      let streamClosed = false;
+      const send = (event: Parameters<typeof encodeAiStreamEvent>[0], payload: unknown = {}) => {
+        if (streamClosed) return false;
+        try {
+          controller.enqueue(encodeAiStreamEvent(event, payload));
+          return true;
+        } catch {
+          streamClosed = true;
+          return false;
+        }
       };
-      await commitDemo();
-      return resultResponse(safetyResult, requestedModel, requestId, startedAt, rateLimitCookie);
-    }
-    await commitDemo();
-    return resultResponse({ answer: evaluation.answer, reasoningUsed: result.reasoningUsed, provider: "nvidia", actualModel: result.actualModel }, requestedModel, requestId, startedAt, rateLimitCookie);
-  } catch (error) {
-    if (request.signal.aborted) {
-      await releaseDemo();
-      return jsonResponse({ error: "Request cancelled.", requestId }, requestId, 499, rateLimitCookie);
-    }
-    if (error instanceof Error && error.message === "nvidia_output_blocked") {
-      await commitDemo();
-      return resultResponse({ answer: safetyRefusal(language), provider: "edge-fallback", actualModel: "safety-policy", fallbackReason: "safety_output_blocked" }, requestedModel, requestId, startedAt, rateLimitCookie);
-    }
-    const reason = error instanceof Error && error.message === "nvidia_not_configured" ? "nvidia_not_configured" : "nvidia_request_failed";
-    logAiProviderFailure({
-      requestId,
-      requestedModel,
-      provider: "nvidia",
-      status: typeof error === "object" && error && "status" in error && typeof error.status === "number" ? error.status : undefined,
-      reason,
-    });
-    const fallback = await resolveFallback({ prompt: providerPrompt, language, allowCode: privilegedAccount, requestId, requestedModel, primaryReason: reason, signal: request.signal });
-    // A provider reservation is committed only when an external provider
-    // actually produced the answer. Local deterministic fallback is free and
-    // must refund the reservation. This also keeps full-provider failures
-    // honest instead of consuming demo quota.
-    if (fallback.provider === "clodex") await commitDemo();
-    else await releaseDemo();
-    return resultResponse(fallback, requestedModel, requestId, startedAt, rateLimitCookie);
-  }
+      const close = () => {
+        if (streamClosed) return;
+        streamClosed = true;
+        try {
+          controller.close();
+        } catch {
+          // The browser can close the stream before the provider finishes.
+        }
+      };
+
+      send("start", {
+        requestId,
+        status: "connecting",
+        context: {
+          estimatedTokens: context.estimatedTokens,
+          messages: context.includedMessageCount,
+          attachments: context.attachmentCount,
+          limit: context.contextLimit,
+          compacted: context.compacted,
+        },
+      });
+
+      try {
+        const result = await streamWithNvidia({
+          messages: context.messages,
+          summary: context.summary,
+          language,
+          model,
+          requestedReasoning,
+          effort,
+          allowCode: privilegedAccount,
+          tone,
+          signal: request.signal,
+        }, (delta) => {
+          if (!firstTokenAt) firstTokenAt = Date.now();
+          partialAnswer += delta;
+          send("delta", { text: delta });
+        });
+
+        const generationResult: AiGenerationResult = {
+          answer: result.answer,
+          reasoningUsed: result.reasoningUsed,
+          provider: "nvidia",
+          actualModel: result.actualModel,
+          inputTokens: result.inputTokens ?? context.estimatedTokens,
+          outputTokens: result.outputTokens ?? estimateTextTokens(result.answer),
+          timeToFirstTokenMs: firstTokenAt ? firstTokenAt - startedAt : undefined,
+          contextMessageCount: context.includedMessageCount,
+          contextAttachmentCount: context.attachmentCount,
+          contextLimit: context.contextLimit,
+          contextCompacted: context.compacted,
+        };
+        const meta = createAiResponseMeta(generationResult, requestedModel, requestId, startedAt);
+        await commitDemo();
+        logAiRequest(meta);
+        send("meta", meta);
+        send("done", { requestId, stopped: false });
+        close();
+        return;
+      } catch (error) {
+        const aborted = request.signal.aborted || (error instanceof DOMException && error.name === "AbortError");
+        if (aborted) {
+          if (partialAnswer) await commitDemo();
+          else await releaseDemo();
+          if (partialAnswer) {
+            const meta = createAiResponseMeta({
+              answer: partialAnswer,
+              provider: "nvidia",
+              actualModel: model.nvidiaModel ?? model.name,
+              inputTokens: context.estimatedTokens,
+              outputTokens: estimateTextTokens(partialAnswer),
+              timeToFirstTokenMs: firstTokenAt ? firstTokenAt - startedAt : undefined,
+              contextMessageCount: context.includedMessageCount,
+              contextAttachmentCount: context.attachmentCount,
+              contextLimit: context.contextLimit,
+              contextCompacted: context.compacted,
+              fallbackReason: "generation_stopped",
+            }, requestedModel, requestId, startedAt, 499);
+            logAiRequest(meta);
+            send("meta", meta);
+          }
+          send("done", { requestId, stopped: true, partial: Boolean(partialAnswer) });
+          close();
+          return;
+        }
+
+        const reason = error instanceof Error && error.message === "nvidia_not_configured"
+          ? "nvidia_not_configured"
+          : error instanceof Error && error.message === "nvidia_output_blocked"
+            ? "safety_output_blocked"
+            : "nvidia_request_failed";
+        logAiProviderFailure({
+          requestId,
+          requestedModel,
+          provider: "nvidia",
+          status: typeof error === "object" && error && "status" in error && typeof error.status === "number" ? error.status : undefined,
+          reason,
+        });
+
+        if (partialAnswer) {
+          await commitDemo();
+          const meta = createAiResponseMeta({
+            answer: partialAnswer,
+            provider: "nvidia",
+            actualModel: model.nvidiaModel ?? model.name,
+            fallbackReason: reason === "safety_output_blocked" ? reason : "nvidia_stream_interrupted",
+            inputTokens: context.estimatedTokens,
+            outputTokens: estimateTextTokens(partialAnswer),
+            timeToFirstTokenMs: firstTokenAt ? firstTokenAt - startedAt : undefined,
+            contextMessageCount: context.includedMessageCount,
+            contextAttachmentCount: context.attachmentCount,
+            contextLimit: context.contextLimit,
+            contextCompacted: context.compacted,
+          }, requestedModel, requestId, startedAt, reason === "safety_output_blocked" ? 200 : 502);
+          logAiRequest(meta);
+          send("meta", meta);
+          send("error", { error: streamInterruptedText(language), requestId, partial: true });
+          send("done", { requestId, stopped: false, partial: true });
+          close();
+          return;
+        }
+
+        if (reason === "safety_output_blocked") {
+          await commitDemo();
+          const safetyResult: AiGenerationResult = {
+            answer: safetyRefusal(language),
+            provider: "edge-fallback",
+            actualModel: "safety-policy",
+            fallbackReason: reason,
+            inputTokens: context.estimatedTokens,
+            outputTokens: estimateTextTokens(safetyRefusal(language)),
+            contextMessageCount: context.includedMessageCount,
+            contextAttachmentCount: context.attachmentCount,
+            contextLimit: context.contextLimit,
+            contextCompacted: context.compacted,
+          };
+          const meta = createAiResponseMeta(safetyResult, requestedModel, requestId, startedAt);
+          logAiRequest(meta);
+          send("delta", { text: safetyResult.answer });
+          send("meta", meta);
+          send("done", { requestId, stopped: false });
+          close();
+          return;
+        }
+
+        const fallback = await resolveFallback({
+          prompt: fallbackPrompt,
+          language,
+          allowCode: privilegedAccount,
+          requestId,
+          requestedModel,
+          primaryReason: reason,
+          signal: request.signal,
+        });
+        const fallbackResult: AiGenerationResult = {
+          ...fallback,
+          inputTokens: context.estimatedTokens,
+          outputTokens: estimateTextTokens(fallback.answer),
+          contextMessageCount: context.includedMessageCount,
+          contextAttachmentCount: context.attachmentCount,
+          contextLimit: context.contextLimit,
+          contextCompacted: context.compacted,
+        };
+        if (fallback.provider === "clodex") await commitDemo();
+        else await releaseDemo();
+        const meta = createAiResponseMeta(fallbackResult, requestedModel, requestId, startedAt);
+        logAiRequest(meta);
+        send("delta", { text: fallback.answer });
+        send("meta", meta);
+        send("done", { requestId, stopped: false });
+        close();
+      }
+    },
+    async cancel() {
+      if (!request.signal.aborted) await releaseDemo();
+    },
+  });
+
+  return new Response(responseStream, { status: 200, headers: aiStreamHeaders(requestId, rateLimitCookie) });
 }
