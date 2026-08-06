@@ -2,24 +2,38 @@
 
 import { useEffect } from "react";
 
+const CHAT_VISUAL_HEIGHT = "--chat-visual-height";
+
 export function useVisualViewport() {
   useEffect(() => {
     const viewport = window.visualViewport;
-    if (!viewport) return;
+    const mobileQuery = window.matchMedia("(max-width: 767px), (pointer: coarse)");
     let frame = 0;
-    const update = () => {
+
+    function clearHeight() {
       cancelAnimationFrame(frame);
+      document.documentElement.style.removeProperty(CHAT_VISUAL_HEIGHT);
+    }
+
+    function updateHeight() {
+      cancelAnimationFrame(frame);
+      if (!viewport || !mobileQuery.matches) {
+        document.documentElement.style.removeProperty(CHAT_VISUAL_HEIGHT);
+        return;
+      }
       frame = requestAnimationFrame(() => {
-        document.documentElement.style.setProperty("--chat-visual-height", `${Math.round(viewport.height)}px`);
+        document.documentElement.style.setProperty(CHAT_VISUAL_HEIGHT, `${Math.round(viewport.height)}px`);
       });
-    };
-    update();
-    viewport.addEventListener("resize", update, { passive: true });
-    viewport.addEventListener("scroll", update, { passive: true });
+    }
+
+    updateHeight();
+    mobileQuery.addEventListener("change", updateHeight);
+    viewport?.addEventListener("resize", updateHeight, { passive: true });
+
     return () => {
-      cancelAnimationFrame(frame);
-      viewport.removeEventListener("resize", update);
-      viewport.removeEventListener("scroll", update);
+      mobileQuery.removeEventListener("change", updateHeight);
+      viewport?.removeEventListener("resize", updateHeight);
+      clearHeight();
     };
   }, []);
 }
