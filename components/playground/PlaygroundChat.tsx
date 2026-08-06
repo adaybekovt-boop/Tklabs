@@ -267,7 +267,7 @@ export function PlaygroundChat({ locale }: { locale: Locale }) {
                     <Image src={modelMark} alt="" width={36} height={36} className="size-full object-contain" />
                   </div>
                   <p className="label-caps mb-3 text-on-secondary-container">{text.chat.emptyKicker}</p>
-                  <h2 className="mb-3 max-w-2xl font-serif text-[32px] leading-[1.15] text-primary sm:text-[42px]">{text.chat.emptyTitle}</h2>
+                  <h2 className="mb-3 max-w-2xl font-serif text-[36px] leading-[1.12] text-primary md:text-[48px]">{text.chat.emptyTitle}</h2>
                   <p className="max-w-xl text-[15px] leading-[1.65] text-on-secondary-container">{text.chat.emptyDescription}</p>
                 </div>
               </div>
