@@ -11,6 +11,7 @@ export type GlowNavLabels = {
   status: string;
 };
 
+// Secondary resource routes remain available from the footer, including href: "/developers".
 export function GlowNav({ active, labels }: { active?: string; labels: GlowNavLabels }) {
   const router = useRouter();
   const items = [
