@@ -10,6 +10,7 @@ import type { Language } from "./contracts";
 import { jsonResponse } from "./http";
 
 type QuotaSettlement = "pending" | "committed" | "released";
+type DemoAllowance = Awaited<ReturnType<typeof reserveDemoRequest>>;
 
 export type DemoQuota = {
   cookie: string | null;
@@ -51,7 +52,7 @@ export async function createDemoQuota(input: {
   let cookie: string | null = null;
   let identifier = "";
   let reservationId = "";
-  let allowance;
+  let allowance: DemoAllowance;
 
   try {
     const identity = await getRateLimitIdentity(input.request, input.sessionEmail);
