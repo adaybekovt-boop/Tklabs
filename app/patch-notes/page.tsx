@@ -9,6 +9,7 @@ import { ScrollReveal } from "@/components/ui/scroll-reveal";
 import { getDictionary } from "@/lib/i18n";
 import { getLatestRelease, getReleaseHistory } from "@/lib/latest-release";
 import { getLocale } from "@/lib/locale";
+import { getReleaseV0131 } from "@/lib/release-v0131";
 
 export const metadata: Metadata = {
   title: "TK LAB — Patch Notes",
@@ -18,9 +19,13 @@ export const metadata: Metadata = {
 export default async function PatchNotesPage() {
   const locale = await getLocale();
   const text = getDictionary(locale);
-  const latestRelease = getLatestRelease(locale);
   // Legacy source contract: release entries previously lived at text.patchNotes.entries.
   const entries = getReleaseHistory(locale);
+  const detailedRelease = getReleaseV0131(locale);
+  const currentIndex = entries.findIndex((entry) => entry.version === detailedRelease.version);
+  if (currentIndex >= 0) entries[currentIndex] = detailedRelease;
+  else entries.unshift(detailedRelease);
+  const latestRelease = entries[0] ?? getLatestRelease(locale);
   const ui = locale === "ru"
     ? {
         latest: "Актуальная версия",
