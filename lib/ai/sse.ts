@@ -1,4 +1,4 @@
-export type AiStreamEventName = "start" | "delta" | "meta" | "error" | "done";
+export type AiStreamEventName = "start" | "tool" | "delta" | "meta" | "error" | "done";
 
 const encoder = new TextEncoder();
 

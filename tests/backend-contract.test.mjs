@@ -153,17 +153,19 @@ test("the public Erma catalog exposes one model per working tier", async () => {
   assert.doesNotMatch(publicModels, /erma-instant|erma-polos|erma-dalos|erma-reborn|erma-asimasi/);
   assert.doesNotMatch(serverModels, /erma-instant|erma-polos|erma-dalos|erma-reborn|erma-asimasi/);
   assert.doesNotMatch(publicModels, /nvidiaModel|tools: true|vision: true/);
+  assert.match(publicModels, /READ_ONLY_TOOLS_ENABLED = true/);
+  assert.match(publicModels, /toolMode: "read-only"/);
   assert.match(serverModels, /nvidiaModel:/);
 });
 
 test("protected API routes fail safely when Auth.js is unavailable", async () => {
   const clodex = await text("app/api/clodex/route.ts");
-  const access = await text("app/api/profile/access/route.ts");
+  const accessRoute = await text("app/api/profile/access/route.ts");
 
   assert.match(clodex, /Authentication service is temporarily unavailable/);
   assert.match(clodex, /await auth\(\)|Authentication service is temporarily unavailable/);
-  assert.match(access, /getAuthenticatedEmail/);
-  assert.match(access, /unavailableResponse/);
+  assert.match(accessRoute, /getAuthenticatedEmail/);
+  assert.match(accessRoute, /unavailableResponse/);
 });
 
 test("terms consent is database-backed, versioned, and admin-reviewable", async () => {
@@ -440,7 +442,7 @@ test("raw provider reasoning never enters public or client contracts", async () 
   assert.match(nvidia, /reasoning_content/);
   assert.match(clodex, /thinking/);
   for (const source of [demo, clodexRoute, hook, messageList, logging]) assert.doesNotMatch(source, /payload\.thinking|message\.thinking|\bthinking:/);
-  assert.match(demo, /jsonResponse\(\{ answer: result\.answer, meta \}/);
+  assert.match(demo, /jsonResponse\(\{ answer: (?:result|generationResult)\.answer, meta \}/);
   assert.doesNotMatch(messageList, /ReasoningTrace|reasoning-trace/);
   assert.doesNotMatch(logging, /thinking|reasoning_content/);
 });

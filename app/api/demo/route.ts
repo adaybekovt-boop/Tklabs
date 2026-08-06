@@ -3,8 +3,9 @@ import { generateWithClodex } from "@/lib/ai/providers/clodex";
 import { generateWithNvidia, streamWithNvidia } from "@/lib/ai/providers/nvidia";
 import { logAiProviderFailure, logAiRequest } from "@/lib/ai/logging";
 import { newRequestId } from "@/lib/ai/provider-http";
-import type { AiGenerationResult } from "@/lib/ai/types";
+import type { AiGenerationResult, AiToolCallTrace } from "@/lib/ai/types";
 import { createAiResponseMeta, localFallbackResult } from "@/lib/ai/response";
+import { prepareReadOnlyToolAugmentation } from "@/lib/ai/tools/route-tools";
 import { classifyPromptSafety, safetyRefusal } from "@/lib/ai-safety";
 import {
   ChatContextValidationError,
@@ -36,6 +37,7 @@ type ChatRequest = {
   effort?: unknown;
   tone?: unknown;
   attachments?: unknown;
+  localArchive?: unknown;
 };
 
 type QuotaSettlement = "pending" | "committed" | "released";
@@ -79,9 +81,9 @@ function contextErrorResponse(error: ChatContextValidationError, language: Langu
   return jsonResponse({ error: errorText, code: "invalid_context", requestId }, requestId, error.status);
 }
 
-function contextualFallbackPrompt(context: PreparedChatContext) {
+function contextualFallbackPrompt(context: PreparedChatContext, augmentedSummary?: string) {
   const sections = [
-    context.summary ? `Conversation memory summary:\n${context.summary}` : "",
+    augmentedSummary ? `Conversation memory and verified internal tool data:\n${augmentedSummary}` : context.summary ? `Conversation memory summary:\n${context.summary}` : "",
     ...context.messages.map((message) => `${message.role === "user" ? "User" : "Assistant"}:\n${message.content}`),
   ].filter(Boolean);
   const flattened = sections.join("\n\n");
@@ -99,6 +101,10 @@ function withContextMetadata(result: AiGenerationResult, context: PreparedChatCo
     contextLimit: context.contextLimit,
     contextCompacted: context.compacted,
   };
+}
+
+function withToolCalls(result: AiGenerationResult, toolCalls: AiToolCallTrace[]): AiGenerationResult {
+  return toolCalls.length ? { ...result, toolCalls } : result;
 }
 
 async function resolveFallback(input: {
@@ -282,13 +288,22 @@ export async function POST(request: Request) {
 
   const startedAt = Date.now();
   const requestedModel = model.name;
-  const fallbackPrompt = contextualFallbackPrompt(context);
 
   if (!wantsStream) {
+    const toolAugmentation = await prepareReadOnlyToolAugmentation({
+      request,
+      requestId,
+      context,
+      language,
+      model,
+      localArchive: body?.localArchive,
+      signal: request.signal,
+    });
+    const fallbackPrompt = contextualFallbackPrompt(context, toolAugmentation.summary);
     try {
       const result = await generateWithNvidia({
         messages: context.messages,
-        summary: context.summary,
+        summary: toolAugmentation.summary,
         language,
         model,
         requestedReasoning,
@@ -297,18 +312,17 @@ export async function POST(request: Request) {
         tone,
         signal: request.signal,
       });
-      const generationResult = withContextMetadata({
+      const generationResult = withContextMetadata(withToolCalls({
         answer: result.answer,
         reasoningUsed: result.reasoningUsed,
         provider: "nvidia",
         actualModel: result.actualModel,
         inputTokens: result.inputTokens,
         outputTokens: result.outputTokens,
-      }, context);
+      }, toolAugmentation.traces), context);
       await commitDemo();
       const meta = createAiResponseMeta(generationResult, requestedModel, requestId, startedAt);
       logAiRequest(meta);
-      // Stable public JSON contract: jsonResponse({ answer: result.answer, meta })
       return jsonResponse({ answer: generationResult.answer, meta }, requestId, 200, rateLimitCookie);
     } catch (error) {
       if (request.signal.aborted) {
@@ -327,18 +341,18 @@ export async function POST(request: Request) {
 
       if (reason === "safety_output_blocked") {
         await commitDemo();
-        const safetyResult = withContextMetadata({
+        const safetyResult = withContextMetadata(withToolCalls({
           answer: safetyRefusal(language),
           provider: "edge-fallback",
           actualModel: "safety-policy",
           fallbackReason: reason,
-        }, context);
+        }, toolAugmentation.traces), context);
         const meta = createAiResponseMeta(safetyResult, requestedModel, requestId, startedAt);
         logAiRequest(meta);
         return jsonResponse({ answer: safetyResult.answer, meta }, requestId, 200, rateLimitCookie);
       }
 
-      const fallback = withContextMetadata(await resolveFallback({
+      const fallback = withContextMetadata(withToolCalls(await resolveFallback({
         prompt: fallbackPrompt,
         language,
         allowCode: privilegedAccount,
@@ -346,7 +360,7 @@ export async function POST(request: Request) {
         requestedModel,
         primaryReason: reason,
         signal: request.signal,
-      }), context);
+      }), toolAugmentation.traces), context);
       if (fallback.provider === "clodex") await commitDemo();
       else await releaseDemo();
       const meta = createAiResponseMeta(fallback, requestedModel, requestId, startedAt);
@@ -365,6 +379,8 @@ export async function POST(request: Request) {
       let partialAnswer = "";
       let firstTokenAt = 0;
       let streamClosed = false;
+      let toolCalls: AiToolCallTrace[] = [];
+      let augmentedSummary = context.summary;
       const send = (event: Parameters<typeof encodeAiStreamEvent>[0], payload: unknown = {}) => {
         if (streamClosed) return false;
         try {
@@ -399,9 +415,22 @@ export async function POST(request: Request) {
       });
 
       try {
+        const toolAugmentation = await prepareReadOnlyToolAugmentation({
+          request,
+          requestId,
+          context,
+          language,
+          model,
+          localArchive: body?.localArchive,
+          signal: providerController.signal,
+        });
+        toolCalls = toolAugmentation.traces;
+        augmentedSummary = toolAugmentation.summary;
+        for (const trace of toolCalls) send("tool", trace);
+
         const result = await streamWithNvidia({
           messages: context.messages,
-          summary: context.summary,
+          summary: augmentedSummary,
           language,
           model,
           requestedReasoning,
@@ -415,7 +444,7 @@ export async function POST(request: Request) {
           send("delta", { text: delta });
         });
 
-        const generationResult = withContextMetadata({
+        const generationResult = withContextMetadata(withToolCalls({
           answer: result.answer,
           reasoningUsed: result.reasoningUsed,
           provider: "nvidia",
@@ -423,7 +452,7 @@ export async function POST(request: Request) {
           inputTokens: result.inputTokens,
           outputTokens: result.outputTokens,
           timeToFirstTokenMs: firstTokenAt ? firstTokenAt - startedAt : undefined,
-        }, context);
+        }, toolCalls), context);
         const meta = createAiResponseMeta(generationResult, requestedModel, requestId, startedAt);
         await commitDemo();
         logAiRequest(meta);
@@ -437,14 +466,14 @@ export async function POST(request: Request) {
           if (partialAnswer) await commitDemo();
           else await releaseDemo();
           if (partialAnswer) {
-            const stoppedResult = withContextMetadata({
+            const stoppedResult = withContextMetadata(withToolCalls({
               answer: partialAnswer,
               provider: "nvidia",
               actualModel: model.nvidiaModel ?? model.name,
               outputTokens: estimateTextTokens(partialAnswer),
               timeToFirstTokenMs: firstTokenAt ? firstTokenAt - startedAt : undefined,
               fallbackReason: "generation_stopped",
-            }, context);
+            }, toolCalls), context);
             const meta = createAiResponseMeta(stoppedResult, requestedModel, requestId, startedAt, 499);
             logAiRequest(meta);
             send("meta", meta);
@@ -465,14 +494,14 @@ export async function POST(request: Request) {
 
         if (partialAnswer) {
           await commitDemo();
-          const partialResult = withContextMetadata({
+          const partialResult = withContextMetadata(withToolCalls({
             answer: partialAnswer,
             provider: "nvidia",
             actualModel: model.nvidiaModel ?? model.name,
             fallbackReason: reason === "safety_output_blocked" ? reason : "nvidia_stream_interrupted",
             outputTokens: estimateTextTokens(partialAnswer),
             timeToFirstTokenMs: firstTokenAt ? firstTokenAt - startedAt : undefined,
-          }, context);
+          }, toolCalls), context);
           const meta = createAiResponseMeta(partialResult, requestedModel, requestId, startedAt, reason === "safety_output_blocked" ? 200 : 502);
           logAiRequest(meta);
           send("meta", meta);
@@ -484,12 +513,12 @@ export async function POST(request: Request) {
 
         if (reason === "safety_output_blocked") {
           await commitDemo();
-          const safetyResult = withContextMetadata({
+          const safetyResult = withContextMetadata(withToolCalls({
             answer: safetyRefusal(language),
             provider: "edge-fallback",
             actualModel: "safety-policy",
             fallbackReason: reason,
-          }, context);
+          }, toolCalls), context);
           const meta = createAiResponseMeta(safetyResult, requestedModel, requestId, startedAt);
           logAiRequest(meta);
           send("delta", { text: safetyResult.answer });
@@ -499,15 +528,15 @@ export async function POST(request: Request) {
           return;
         }
 
-        const fallback = withContextMetadata(await resolveFallback({
-          prompt: fallbackPrompt,
+        const fallback = withContextMetadata(withToolCalls(await resolveFallback({
+          prompt: contextualFallbackPrompt(context, augmentedSummary),
           language,
           allowCode: privilegedAccount,
           requestId,
           requestedModel,
           primaryReason: reason,
           signal: providerController.signal,
-        }), context);
+        }), toolCalls), context);
         if (fallback.provider === "clodex") await commitDemo();
         else await releaseDemo();
         const meta = createAiResponseMeta(fallback, requestedModel, requestId, startedAt);

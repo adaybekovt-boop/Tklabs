@@ -1,4 +1,22 @@
-import type { AiGenerationResult, AiResponseMeta } from "@/lib/ai/types";
+import type { AiGenerationResult, AiResponseMeta, AiToolCallTrace } from "@/lib/ai/types";
+
+function safeToolCalls(value: AiToolCallTrace[] | undefined) {
+  if (!value?.length) return undefined;
+  const calls = value.slice(0, 4).map((call) => ({
+    id: call.id.slice(0, 120),
+    name: call.name,
+    status: call.status,
+    durationMs: Math.max(0, Math.round(call.durationMs)),
+    summary: call.summary.slice(0, 180),
+    ...(call.links?.length ? {
+      links: call.links
+        .filter((link) => link.href.startsWith("/") && !link.href.startsWith("//"))
+        .slice(0, 5)
+        .map((link) => ({ label: link.label.slice(0, 120), href: link.href.slice(0, 240) })),
+    } : {}),
+  }));
+  return calls.length ? calls : undefined;
+}
 
 export function createAiResponseMeta(
   result: AiGenerationResult,
@@ -8,6 +26,7 @@ export function createAiResponseMeta(
   status = 200,
   now = Date.now(),
 ): AiResponseMeta {
+  const toolCalls = safeToolCalls(result.toolCalls);
   return {
     requestId,
     requestedModel,
@@ -24,6 +43,7 @@ export function createAiResponseMeta(
     ...(typeof result.contextAttachmentCount === "number" ? { contextAttachmentCount: Math.max(0, Math.round(result.contextAttachmentCount)) } : {}),
     ...(typeof result.contextLimit === "number" ? { contextLimit: Math.max(0, Math.round(result.contextLimit)) } : {}),
     ...(result.contextCompacted ? { contextCompacted: true } : {}),
+    ...(toolCalls ? { toolCalls } : {}),
   };
 }
 

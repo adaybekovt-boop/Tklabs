@@ -6,6 +6,7 @@ import { chatResponseModeInstruction, type ChatResponseMode } from "@/lib/chat-m
 import type { Locale } from "@/lib/i18n";
 import { getDictionary } from "@/lib/i18n";
 import type { ArchivedMessage, ArchivedMessageVersion } from "@/lib/local-archive";
+import { buildLocalArchiveSearchIndex } from "@/lib/local-archive-search";
 import type { ChatInputSubmitMeta } from "@/components/ui/ai-chat-input";
 import type { ChatMessage } from "@/components/playground/MessageList";
 
@@ -271,6 +272,7 @@ export function useChatRequest(options: {
     const controller = new AbortController();
     const history = toContextMessages(configuration.historyOverride ?? messagesRef.current);
     const conversation: ActiveConversation = { prompt, model: submitMeta.model, assistantId, requestId };
+    const localArchive = buildLocalArchiveSearchIndex();
 
     setServerContextStats(null);
     if (configuration.reuseAssistantId) {
@@ -302,6 +304,7 @@ export function useChatRequest(options: {
           effort: submitMeta.effort,
           tone: options.tone,
           attachments: modeAttachments(submitMeta.attachments, options.responseMode, options.locale),
+          ...(endpoint === "/api/demo" ? { localArchive } : {}),
         }),
       });
       armWatchdog(controller, conversation);
@@ -420,6 +423,7 @@ export function useChatRequest(options: {
           effort: "medium",
           tone: options.tone,
           attachments: modeAttachments([], options.responseMode, options.locale),
+          ...(endpoint === "/api/demo" ? { localArchive: buildLocalArchiveSearchIndex() } : {}),
         }),
       });
       const payload = await response.json().catch(() => null) as { answer?: unknown; error?: unknown; meta?: unknown; requestId?: unknown } | null;
