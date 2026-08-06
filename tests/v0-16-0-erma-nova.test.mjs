@@ -5,37 +5,64 @@ import test from "node:test";
 import { applyAgentRunEvent, createEmptyAgentRun, isAgentRunEvent } from "../lib/ai/agent-run.ts";
 import { encodeAgentRunEvent, parseAgentRunEventFrame } from "../lib/ai/stream-v2.ts";
 import { createArtifact, snapshotArtifact, updateArtifact } from "../lib/artifacts/local-store.ts";
+import { getCurrentRelease } from "../lib/current-release.ts";
 import { getPreviewRelease } from "../lib/prerelease.ts";
+import { CURRENT_RELEASE_BADGE, CURRENT_RELEASE_VERSION } from "../lib/release-version.ts";
 
 const read = (path) => readFile(new URL(`../${path}`, import.meta.url), "utf8");
 
-test("v0.16.0 beta.2 is explicitly published as a major preview", async () => {
+test("v0.16.0 beta.3 is the shared major preview release", async () => {
   const release = getPreviewRelease("en");
+  const current = getCurrentRelease("en");
+  const homePage = await read("app/page.tsx");
   const patchPage = await read("app/patch-notes/page.tsx");
-  const releaseDoc = await read("docs/releases/v0.16.0-beta.2.md");
+  const releaseDoc = await read("docs/releases/v0.16.0-beta.3.md");
 
-  assert.equal(release.version, "v0.16.0-beta.2");
+  assert.equal(CURRENT_RELEASE_VERSION, "v0.16.0-beta.3");
+  assert.equal(CURRENT_RELEASE_BADGE, "v0.16 beta.3");
+  assert.equal(release.version, CURRENT_RELEASE_VERSION);
+  assert.equal(current.version, CURRENT_RELEASE_VERSION);
   assert.equal(release.channel, "preview");
   assert.equal(release.majorUpdate, true);
   assert.equal(release.codename, "Erma Nova");
   assert.equal(release.stability, "beta");
-  assert.match(release.title, /Architecture Foundation/);
+  assert.match(release.title, /Interface Reliability/);
+  assert.match(homePage, /getCurrentRelease/);
+  assert.doesNotMatch(homePage, /getLatestRelease/);
   assert.match(patchPage, /MAJOR UPDATE · PRE-RELEASE/);
   assert.match(patchPage, /getPreviewRelease/);
+  assert.doesNotMatch(patchPage, /beta\.1/);
   assert.match(releaseDoc, /MAJOR UPDATE · PRE-RELEASE/);
-  assert.match(releaseDoc, /Architecture Foundation/);
+  assert.match(releaseDoc, /Interface Reliability/);
 });
 
-test("Erma Nova wraps the compatible chat in a dedicated workspace", async () => {
+test("Erma Nova workspace keeps mobile controls reachable and labelled", async () => {
   const page = await read("app/playground/page.tsx");
   const workspace = await read("components/playground/ErmaNovaWorkspace.tsx");
+  const agentRuns = await read("components/playground/AgentRunPanel.tsx");
+  const artifacts = await read("components/playground/ArtifactStudio.tsx");
+  const language = await read("components/site/LanguageToggle.tsx");
 
   assert.match(page, /ErmaNovaWorkspace/);
+  assert.doesNotMatch(page, /fixed right-14 top-2/);
   assert.doesNotMatch(page, /<PlaygroundChat/);
   assert.match(workspace, /<PlaygroundChat locale=\{locale\}/);
   assert.match(workspace, /ArtifactStudio/);
   assert.match(workspace, /AgentRunPanel/);
+  assert.match(workspace, /LanguageToggle/);
+  assert.match(workspace, /CURRENT_RELEASE_BADGE/);
+  assert.match(workspace, /role="tablist"/);
+  assert.match(workspace, /role="tab"/);
+  assert.match(workspace, /role="tabpanel"/);
+  assert.match(workspace, /aria-controls/);
   assert.match(workspace, /data-erma-nova-workspace/);
+  assert.doesNotMatch(workspace, /v0\.16 beta\.1/);
+  assert.doesNotMatch(agentRuns, /beta\.1/);
+  assert.match(artifacts, /data-mobile-artifact-picker/);
+  assert.match(artifacts, /data-mobile-version-history/);
+  assert.match(artifacts, /role="status"/);
+  assert.match(language, /try \{/);
+  assert.match(language, /localStorage is unavailable/);
 });
 
 test("Agent Run Protocol 2.0 keeps plans bounded and state explicit", () => {
