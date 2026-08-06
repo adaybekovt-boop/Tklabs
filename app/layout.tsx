@@ -1,7 +1,9 @@
 import type { Metadata, Viewport } from "next";
 
 import "@/app/globals.css";
+import "@/app/motion.css";
 import { PwaRuntime } from "@/components/pwa/PwaRuntime";
+import { MotionOrchestrator } from "@/components/site/MotionOrchestrator";
 import { getLocale } from "@/lib/locale";
 
 const THEME_INIT_SCRIPT = `try {
@@ -56,6 +58,7 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
         <script dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }} />
       </head>
       <body>
+        <MotionOrchestrator />
         {children}
         <PwaRuntime />
       </body>
