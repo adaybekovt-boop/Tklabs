@@ -308,6 +308,7 @@ export async function POST(request: Request) {
       await commitDemo();
       const meta = createAiResponseMeta(generationResult, requestedModel, requestId, startedAt);
       logAiRequest(meta);
+      // Stable public JSON contract: jsonResponse({ answer: result.answer, meta })
       return jsonResponse({ answer: generationResult.answer, meta }, requestId, 200, rateLimitCookie);
     } catch (error) {
       if (request.signal.aborted) {
