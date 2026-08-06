@@ -63,9 +63,10 @@ test("local archive search sends a bounded ephemeral index", async () => {
   assert.match(hook, /localArchive/);
 });
 
-test("API and UI expose sanitized tool traces", async () => {
+test("API, UI, and local archive preserve sanitized tool traces", async () => {
   const route = await text("app/api/demo/route.ts");
   const response = await text("lib/ai/response.ts");
+  const archive = await text("lib/local-archive.ts");
   const sse = await text("lib/ai/sse.ts");
   const cards = await text("components/playground/ToolCallCards.tsx");
   const messages = await text("components/playground/MessageList.tsx");
@@ -73,6 +74,10 @@ test("API and UI expose sanitized tool traces", async () => {
   assert.match(route, /send\("tool", trace\)/);
   assert.match(response, /toolCalls/);
   assert.match(response, /link\.href\.startsWith\("\/"\)/);
+  assert.match(archive, /sanitizeToolCalls/);
+  assert.match(archive, /MAX_TOOL_CALLS_PER_MESSAGE = 4/);
+  assert.match(archive, /candidate\.href\.startsWith\("\/"\)/);
+  assert.match(archive, /\.\.\.\(toolCalls \? \{ toolCalls \} : \{\}\)/);
   assert.match(sse, /"tool"/);
   assert.match(cards, /AI использовал инструмент/);
   assert.match(cards, /AI used a tool/);
