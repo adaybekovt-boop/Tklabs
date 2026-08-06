@@ -85,7 +85,8 @@ test("Erma catalogs and Patch Notes publish v0.14.0", async () => {
   const releases = await text("lib/latest-release.ts");
   const releaseDocument = await text("docs/releases/v0.14.0.md");
   assert.equal((server.match(/tools: true/g) ?? []).length, 3);
-  assert.equal((publicModels.match(/tools: true/g) ?? []).length, 3);
+  assert.match(publicModels, /const READ_ONLY_TOOLS_ENABLED = true/);
+  assert.equal((publicModels.match(/tools: READ_ONLY_TOOLS_ENABLED/g) ?? []).length, 3);
   assert.match(publicModels, /toolMode: "read-only"/);
   assert.match(releases, /version: "v0\.14\.0"/);
   assert.match(releases, /return getRelease\(locale, "v0\.14\.0"\)/);
