@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="TK Lab">
+  <defs>
+    <radialGradient id="bg" cx="35%" cy="25%" r="90%">
+      <stop stop-color="#596270"/>
+      <stop offset=".45" stop-color="#1d2128"/>
+      <stop offset="1" stop-color="#0b0d10"/>
+    </radialGradient>
+    <linearGradient id="mark" x1="0" y1="0" x2="1" y2="1">
+      <stop stop-color="#ffffff"/>
+      <stop offset="1" stop-color="#c7ced8"/>
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" rx="112" fill="url(#bg)"/>
+  <circle cx="256" cy="256" r="174" fill="none" stroke="#fff" stroke-opacity=".12" stroke-width="2"/>
+  <circle cx="256" cy="256" r="132" fill="none" stroke="#fff" stroke-opacity=".08" stroke-width="2"/>
+  <g fill="none" stroke="url(#mark)" stroke-width="32" stroke-linecap="square" stroke-linejoin="miter">
+    <path d="M132 174h112m-56 0v166"/>
+    <path d="M294 174v166m0-83 91-83m-91 83 94 87"/>
+  </g>
+</svg>
