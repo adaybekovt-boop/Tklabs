@@ -3,7 +3,7 @@
 /* eslint-disable react-hooks/set-state-in-effect -- browser-only workspace state hydrates from localStorage. */
 
 import { useEffect, useState } from "react";
-import { Activity, FileText, MessageSquareText, Sparkles } from "lucide-react";
+import { Activity, ChevronLeft, FileText, MessageSquareText, Sparkles } from "lucide-react";
 
 import { AgentRunPanel } from "@/components/playground/AgentRunPanel";
 import { ArtifactStudio } from "@/components/playground/ArtifactStudio";
@@ -52,10 +52,19 @@ export function ErmaNovaWorkspace({ locale }: { locale: Locale }) {
     { id: "artifacts", label: ru ? "Артефакты" : "Artifacts", icon: FileText },
     { id: "runs", label: "Agent Runs", icon: Activity },
   ];
+  const mobileSectionTitle = tab === "artifacts" ? (ru ? "Артефакты" : "Artifacts") : "Agent Runs";
 
   return (
     <div className="flex h-full min-h-0 flex-1 flex-col overflow-hidden bg-surface" data-erma-nova-workspace>
-      <header className="flex min-h-14 shrink-0 items-center justify-between gap-2 border-b border-outline-variant bg-surface-container-lowest/95 px-3 backdrop-blur-md sm:gap-3 sm:px-5">
+      {tab !== "chat" && (
+        <header className="flex min-h-14 shrink-0 items-center justify-between gap-3 border-b border-outline-variant bg-surface-container-lowest/95 px-3 backdrop-blur-md md:hidden">
+          <button type="button" onClick={() => selectTab("chat")} className="grid size-11 place-items-center rounded-full text-primary hover:bg-surface-container-low" aria-label={ru ? "Вернуться в чат" : "Back to chat"}><ChevronLeft size={20} /></button>
+          <p className="min-w-0 flex-1 truncate text-center text-sm font-semibold text-primary">{mobileSectionTitle}</p>
+          <div className="flex min-h-10 items-center rounded-xl border border-outline-variant bg-surface px-2"><LanguageToggle locale={locale} label={ru ? "Язык интерфейса" : "Interface language"} /></div>
+        </header>
+      )}
+
+      <header className="hidden min-h-14 shrink-0 items-center justify-between gap-2 border-b border-outline-variant bg-surface-container-lowest/95 px-5 backdrop-blur-md md:flex">
         <div className="flex min-w-0 items-center gap-3 overflow-hidden">
           <div className="hidden shrink-0 items-center gap-2 xl:flex">
             <span className="grid size-8 place-items-center rounded-full bg-primary text-on-primary"><Sparkles className="size-4" /></span>
@@ -79,12 +88,12 @@ export function ErmaNovaWorkspace({ locale }: { locale: Locale }) {
                 aria-selected={tab === id}
                 aria-controls={`workspace-panel-${id}`}
                 className={cn(
-                  "inline-flex h-9 shrink-0 items-center gap-2 rounded-full px-3 text-xs font-medium transition-colors sm:px-4",
+                  "inline-flex h-9 shrink-0 items-center gap-2 rounded-full px-4 text-xs font-medium transition-colors",
                   tab === id ? "bg-primary text-on-primary shadow-sm" : "text-on-surface-variant hover:bg-surface",
                 )}
               >
                 <Icon className="size-3.5" />
-                <span className={id === "runs" ? "hidden sm:inline" : ""}>{label}</span>
+                <span>{label}</span>
               </button>
             ))}
           </nav>
@@ -108,7 +117,7 @@ export function ErmaNovaWorkspace({ locale }: { locale: Locale }) {
           className={cn("h-full min-h-0", tab !== "chat" && "hidden")}
           hidden={tab !== "chat"}
         >
-          <PlaygroundChat locale={locale} />
+          <PlaygroundChat locale={locale} onOpenArtifacts={() => selectTab("artifacts")} onOpenRuns={() => selectTab("runs")} />
         </div>
         {tab === "artifacts" ? (
           <div id="workspace-panel-artifacts" role="tabpanel" aria-labelledby="workspace-tab-artifacts" className="h-full min-h-0">
