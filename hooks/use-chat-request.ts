@@ -1,11 +1,12 @@
 import { useEffect, useReducer, useRef, useState } from "react";
 
+import type { ChatInputSubmitMeta } from "@/components/ui/ai-chat-input";
+import type { ChatMessage } from "@/components/playground/MessageList";
+import { readAiEventStream } from "@/lib/ai/sse";
 import type { AiResponseMeta } from "@/lib/ai/types";
 import type { Locale } from "@/lib/i18n";
 import { getDictionary } from "@/lib/i18n";
 import type { ArchivedMessage } from "@/lib/local-archive";
-import type { ChatInputSubmitMeta } from "@/components/ui/ai-chat-input";
-import type { ChatMessage } from "@/components/playground/MessageList";
 
 type Tone = "professional" | "character" | "erma";
 export type ChatRequestStatus = "idle" | "preparing" | "generating" | "completed" | "error" | "stopped";
@@ -54,6 +55,12 @@ function isAbortError(error: unknown) {
   return error instanceof DOMException && error.name === "AbortError";
 }
 
+function contextHistory(messages: ChatMessage[]) {
+  return messages
+    .filter((message) => !message.error && message.content.trim())
+    .map((message) => ({ role: message.role, content: message.content }));
+}
+
 export function useChatRequest(options: {
   locale: Locale;
   tone: Tone;
@@ -63,6 +70,7 @@ export function useChatRequest(options: {
 }) {
   const text = getDictionary(options.locale);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const messagesRef = useRef<ChatMessage[]>([]);
   const [requestState, dispatch] = useReducer(requestReducer, { status: "idle", requestId: null, assistantId: null });
   const activeRequestRef = useRef<AbortController | null>(null);
   const activeConversationRef = useRef<{
@@ -75,6 +83,8 @@ export function useChatRequest(options: {
   } | null>(null);
   const watchdogRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isPending = requestState.status === "preparing" || requestState.status === "generating";
+
+  useEffect(() => { messagesRef.current = messages; }, [messages]);
 
   function clearActiveRequest() {
     activeRequestRef.current = null;
@@ -92,14 +102,18 @@ export function useChatRequest(options: {
     if (!activeConversation) return;
     activeRequestRef.current?.abort();
     clearActiveRequest();
-    appendAssistant(activeConversation.assistantId, (message) => ({
-      ...message,
-      content: message.content ? `${message.content}\n\n${text.chat.generationStopped}` : text.chat.generationStopped,
-      error: false,
-    }));
     setMessages((current) => {
-      options.saveConversation(activeConversation.prompt, activeConversation.model, current as ArchivedMessage[]);
-      return current;
+      const next = current.map((message) => message.id === activeConversation.assistantId
+        ? {
+            ...message,
+            content: message.content
+              ? `${message.content}\n\n${text.chat.generationStopped}`
+              : text.chat.generationStopped,
+            error: false,
+          }
+        : message);
+      options.saveConversation(activeConversation.prompt, activeConversation.model, next as ArchivedMessage[]);
+      return next;
     });
     dispatch({ type: "stopped" });
   }
@@ -108,6 +122,7 @@ export function useChatRequest(options: {
     const requestId = crypto.randomUUID();
     const assistantId = crypto.randomUUID();
     const controller = new AbortController();
+    const history = contextHistory(messagesRef.current);
     const conversation = {
       prompt,
       model: submitMeta.model,
@@ -150,14 +165,19 @@ export function useChatRequest(options: {
     }, 120_000);
 
     try {
-      const endpoint = submitMeta.model.startsWith("clodex:") ? "/api/clodex" : "/api/demo";
+      const streaming = !submitMeta.model.startsWith("clodex:");
+      const endpoint = streaming ? "/api/demo/stream" : "/api/clodex";
       dispatch({ type: "generating" });
       const response = await fetch(endpoint, {
         method: "POST",
-        headers: { "content-type": "application/json" },
+        headers: {
+          "content-type": "application/json",
+          accept: streaming ? "text/event-stream" : "application/json",
+        },
         signal: controller.signal,
         body: JSON.stringify({
           prompt,
+          history,
           model: submitMeta.model,
           locale: options.locale,
           reasonEnabled: options.reasonEnabled,
@@ -166,20 +186,13 @@ export function useChatRequest(options: {
           attachments: submitMeta.attachments,
         }),
       });
-      const payload = await response.json().catch(() => null) as {
-        answer?: unknown;
-        meta?: unknown;
-        error?: unknown;
-        requestId?: unknown;
-        retryAfter?: unknown;
-      } | null;
 
       if (!response.ok) {
+        const payload = await response.json().catch(() => null) as { error?: unknown; requestId?: unknown; retryAfter?: unknown } | null;
         const fallback = response.status === 401 ? text.chat.authExpired : `${text.chat.apiError} ${response.status}`;
-        const errorText = typeof payload?.error === "string" ? payload.error : fallback;
         appendAssistant(assistantId, (message) => ({
           ...message,
-          content: errorText,
+          content: typeof payload?.error === "string" ? payload.error : fallback,
           error: true,
           requestId: typeof payload?.requestId === "string" ? payload.requestId : requestId,
           retryAfterSeconds: safeRetrySeconds(response, payload),
@@ -188,6 +201,38 @@ export function useChatRequest(options: {
         return;
       }
 
+      if (streaming) {
+        if (!response.body) throw new Error("The AI stream was empty.");
+        let responseMeta: AiResponseMeta | undefined;
+        let streamError = "";
+        let streamedContent = "";
+        await readAiEventStream(response.body, (event) => {
+          if (activeRequestRef.current !== controller) return;
+          if (event.type === "delta") {
+            streamedContent += event.text;
+            appendAssistant(assistantId, (message) => ({ ...message, content: `${message.content}${event.text}` }));
+          } else if (event.type === "meta" && isResponseMeta(event.meta)) {
+            responseMeta = event.meta;
+            appendAssistant(assistantId, (message) => ({ ...message, meta: event.meta, requestId: event.meta.requestId }));
+          } else if (event.type === "error") {
+            streamError = event.error;
+          }
+        });
+        if (streamError) throw new Error(streamError);
+        if (!streamedContent.trim()) throw new Error("The AI response was empty.");
+
+        setMessages((current) => {
+          const next = current.map((message) => message.id === assistantId && responseMeta
+            ? { ...message, meta: responseMeta, requestId: responseMeta.requestId }
+            : message);
+          options.saveConversation(prompt, submitMeta.model, next as ArchivedMessage[]);
+          return next;
+        });
+        dispatch({ type: "completed" });
+        return;
+      }
+
+      const payload = await response.json().catch(() => null) as { answer?: unknown; meta?: unknown } | null;
       const assistantContent = typeof payload?.answer === "string" ? payload.answer.trim() : "";
       if (!assistantContent) throw new Error("The AI response was empty.");
       const responseMeta = isResponseMeta(payload?.meta) ? payload.meta : undefined;
@@ -206,7 +251,12 @@ export function useChatRequest(options: {
       dispatch({ type: "completed" });
     } catch (error) {
       if (isAbortError(error)) return;
-      appendAssistant(assistantId, (message) => ({ ...message, content: text.chat.networkError, error: true, requestId }));
+      appendAssistant(assistantId, (message) => ({
+        ...message,
+        content: message.content || (error instanceof Error && error.message ? error.message : text.chat.networkError),
+        error: true,
+        requestId,
+      }));
       dispatch({ type: "error" });
     } finally {
       if (activeRequestRef.current === controller) clearActiveRequest();

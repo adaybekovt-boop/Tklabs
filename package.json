@@ -11,7 +11,7 @@
     "start": "vinext start",
     "typecheck": "tsc --noEmit",
     "lint": "eslint . --ignore-pattern dist --ignore-pattern .next",
-    "test:unit": "tsx --test tests/behavior.test.ts",
+    "test:unit": "tsx --test tests/*.test.ts",
     "test:integration": "node --import tsx --experimental-loader ./tests/cloudflare-loader.mjs --test tests/*.test.mjs",
     "test": "npm run test:unit && npm run test:integration",
     "perf:budget": "node scripts/check-performance-budget.mjs",
