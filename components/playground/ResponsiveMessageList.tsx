@@ -1,7 +1,5 @@
 "use client";
 
-/* eslint-disable react-hooks/set-state-in-effect -- viewport state hydrates from matchMedia after mount. */
-
 import { lazy, Suspense, useEffect, useRef, useState } from "react";
 import { Check, Copy, Eye, EyeOff, GitBranch, GitCompareArrows, MoreHorizontal, Pencil, RefreshCw, RotateCcw, Volume2, X } from "lucide-react";
 
@@ -9,6 +7,7 @@ import { AgentActivity } from "@/components/playground/AgentActivity";
 import { ChatOverlay } from "@/components/playground/ChatOverlay";
 import { MessageList, type ChatMessage } from "@/components/playground/MessageList";
 import AIThinkingBlock from "@/components/ui/ai-thinking-block";
+import { useMobileViewport } from "@/hooks/use-mobile-viewport";
 import { getDictionary, type Locale } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 
@@ -33,18 +32,6 @@ export type ResponsiveMessageListProps = {
   onOpenWorkspace?: (message: ChatMessage) => void;
   onToggleContext?: (message: ChatMessage) => void;
 };
-
-function useMobileViewport() {
-  const [mobile, setMobile] = useState<boolean | null>(null);
-  useEffect(() => {
-    const query = window.matchMedia("(max-width: 767px)");
-    const update = () => setMobile(query.matches);
-    update();
-    query.addEventListener("change", update);
-    return () => query.removeEventListener("change", update);
-  }, []);
-  return mobile;
-}
 
 function AnswerBody({ content, pending, error = false }: { content: string; pending?: boolean; error?: boolean }) {
   return (
@@ -88,7 +75,10 @@ function MobileMessageList(props: ResponsiveMessageListProps) {
 
   function startLongPress(message: ChatMessage) {
     if (pressTimerRef.current) window.clearTimeout(pressTimerRef.current);
-    pressTimerRef.current = window.setTimeout(() => setActionMessage(message), 520);
+    pressTimerRef.current = window.setTimeout(() => {
+      setActionMessage(message);
+      navigator.vibrate?.(12);
+    }, 500);
   }
 
   function cancelLongPress() {
@@ -107,7 +97,7 @@ function MobileMessageList(props: ResponsiveMessageListProps) {
 
   return (
     <>
-      <div className="mx-auto flex w-full max-w-3xl flex-col gap-6 pb-8" role="log" aria-label={text.chat.currentSession} lang={locale}>
+      <div className="mx-auto flex w-full max-w-3xl flex-col gap-6 pb-8" role="log" aria-label={text.chat.currentSession} lang={locale} aria-live="polite">
         {messages.map((message) => message.role === "user" ? (
           <article
             key={message.id}
@@ -116,8 +106,9 @@ function MobileMessageList(props: ResponsiveMessageListProps) {
             onPointerUp={cancelLongPress}
             onPointerCancel={cancelLongPress}
             onPointerMove={cancelLongPress}
+            data-message-role="user"
           >
-            <div className="max-w-[86%] rounded-[1.35rem] bg-surface-container-high px-4 py-3 text-primary">
+            <div className="max-w-[82%] rounded-[1.35rem] bg-surface-container-high px-4 py-3 text-primary shadow-[0_8px_20px_color-mix(in_srgb,var(--color-primary)_4%,transparent)]">
               <p className="whitespace-pre-wrap text-[15px] leading-[1.62]">{message.content}</p>
               {!isPending && (onEdit || onBranch || onToggleContext) ? (
                 <div className="mt-1 flex justify-end">
@@ -134,9 +125,10 @@ function MobileMessageList(props: ResponsiveMessageListProps) {
             onPointerUp={cancelLongPress}
             onPointerCancel={cancelLongPress}
             onPointerMove={cancelLongPress}
+            data-message-role="assistant"
           >
             <div className="mb-2 flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.08em] text-on-secondary-container">
-              <span className="grid size-7 place-items-center rounded-full bg-primary text-[10px] text-on-primary">E</span>
+              <span className="grid size-7 place-items-center rounded-full bg-primary text-[10px] text-on-primary shadow-sm">E</span>
               <span>Erma</span>
               {message.versions?.length ? <span className="ml-auto rounded-full bg-surface-container-low px-2 py-1 text-[10px] normal-case tracking-normal">{message.versions.length + 1}</span> : null}
             </div>
@@ -159,7 +151,7 @@ function MobileMessageList(props: ResponsiveMessageListProps) {
                 {onRetry && <button type="button" onClick={() => onRetry(message)} className="inline-flex min-h-10 items-center gap-2 rounded-full border border-error/50 px-4 text-[12px] text-error"><RefreshCw size={14} />{text.chat.retry}</button>}
               </div>
             ) : message.content ? (
-              <div className="mt-3 flex items-center gap-1 text-on-secondary-container">
+              <div className="mt-3 flex items-center gap-1 text-on-secondary-container" aria-label={labels.actions}>
                 <button type="button" onClick={() => onCopy(message)} className="grid size-10 place-items-center rounded-full hover:bg-surface-container-low hover:text-primary" aria-label={copiedMessageId === message.id ? text.chat.copied : text.chat.copy}>{copiedMessageId === message.id ? <Check size={15} /> : <Copy size={15} />}</button>
                 {onRegenerate && !isPending && <button type="button" onClick={() => onRegenerate(message)} className="grid size-10 place-items-center rounded-full hover:bg-surface-container-low hover:text-primary" aria-label={labels.regenerate}><RefreshCw size={15} /></button>}
                 <button type="button" onClick={() => setActionMessage(message)} className="grid size-10 place-items-center rounded-full hover:bg-surface-container-low hover:text-primary" aria-label={labels.actions}><MoreHorizontal size={17} /></button>
@@ -195,6 +187,5 @@ function MobileMessageList(props: ResponsiveMessageListProps) {
 
 export function ResponsiveMessageList(props: ResponsiveMessageListProps) {
   const mobile = useMobileViewport();
-  if (mobile === null) return null;
   return mobile ? <MobileMessageList {...props} /> : <MessageList {...props} />;
 }
