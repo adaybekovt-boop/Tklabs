@@ -13,8 +13,12 @@ export function LanguageToggle({ locale, label }: { locale: Locale; label: strin
 
   function changeLocale(nextLocale: Locale) {
     if (nextLocale === locale || pending) return;
-    document.cookie = LOCALE_COOKIE + "=" + nextLocale + "; Path=/; Max-Age=31536000; SameSite=Lax";
-    window.localStorage.setItem(LOCALE_COOKIE, nextLocale);
+    document.cookie = `${LOCALE_COOKIE}=${nextLocale}; Path=/; Max-Age=31536000; SameSite=Lax`;
+    try {
+      window.localStorage.setItem(LOCALE_COOKIE, nextLocale);
+    } catch {
+      // The cookie remains the server source of truth when localStorage is unavailable.
+    }
     document.documentElement.lang = nextLocale;
     startTransition(() => router.refresh());
   }

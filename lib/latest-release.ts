@@ -1,12 +1,7 @@
 import type { Locale } from "@/lib/i18n";
+import type { PublicReleaseNote } from "@/lib/releases/types";
 
-export interface PublicReleaseNote {
-  date: string;
-  version: string;
-  title: string;
-  summary: string;
-  changes: string[];
-}
+export type { PublicReleaseNote } from "@/lib/releases/types";
 
 const RELEASES: Record<Locale, PublicReleaseNote[]> = {
   ru: [

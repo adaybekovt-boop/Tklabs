@@ -6,7 +6,7 @@ import { StitchFooter } from "@/components/site/StitchFooter";
 import { StitchHeader } from "@/components/site/StitchHeader";
 import { FlowButton } from "@/components/ui/flow-button";
 import { ScrollReveal, StaggerContainer, StaggerItem } from "@/components/ui/scroll-reveal";
-import { getLatestRelease } from "@/lib/latest-release";
+import { getCurrentRelease } from "@/lib/current-release";
 import { getLocale } from "@/lib/locale";
 
 const HERO_IMAGE = "/images/home/hero-lab.svg";
@@ -15,7 +15,7 @@ const LAB_IMAGE = "/images/home/lab-cluster.svg";
 export default async function HomePage() {
   const locale = await getLocale();
   const ru = locale === "ru";
-  const latestRelease = getLatestRelease(locale);
+  const latestRelease = getCurrentRelease(locale);
   const capabilities = ru
     ? [
         { title: "Erma · Auto", text: "Один понятный режим сам выбирает Lite, Core или Pro под сложность задачи.", icon: Sparkles },
@@ -83,7 +83,7 @@ export default async function HomePage() {
           <ScrollReveal>
             <article className="relative overflow-hidden rounded-3xl border border-outline-variant bg-surface-container-lowest p-6 sm:p-10 md:p-14">
               <div className="relative grid gap-7 md:grid-cols-12 md:items-start">
-                <div className="md:col-span-3"><span className="inline-flex size-11 items-center justify-center rounded-2xl border border-outline-variant bg-surface-container-low"><Sparkles size={20} /></span><p className="label-caps mt-5 text-secondary">{ru ? "Текущая версия" : "Current release"}</p><p className="mt-2 font-serif text-[28px]">{latestRelease.version}</p><p className="mt-1 text-sm text-secondary">{latestRelease.date}</p></div>
+                <div className="md:col-span-3"><span className="inline-flex size-11 items-center justify-center rounded-2xl border border-outline-variant bg-surface-container-low"><Sparkles size={20} /></span><p className="label-caps mt-5 text-secondary">{ru ? "Текущая версия" : "Current release"}</p><p className="mt-2 break-words font-serif text-[28px]">{latestRelease.version}</p><p className="mt-1 text-sm text-secondary">{latestRelease.date}</p></div>
                 <div className="md:col-span-8 md:col-start-5"><h2 className="headline-title">{latestRelease.title}</h2><p className="mt-4 max-w-3xl leading-[1.75] text-on-surface-variant">{latestRelease.summary}</p><ul className="mt-6 grid gap-2 sm:grid-cols-2">{latestRelease.changes.slice(0, 4).map((change) => <li key={change} className="rounded-2xl bg-surface-container-low p-4 text-sm leading-[1.6] text-on-surface-variant">{change}</li>)}</ul><Link href="/patch-notes" className="mt-7 inline-flex min-h-11 items-center gap-2 border-b border-primary text-sm font-medium text-primary">{ru ? "Все обновления" : "All updates"}<ArrowUpRight size={16} /></Link></div>
               </div>
             </article>

@@ -30,8 +30,11 @@ function downloadArtifact(artifact: WorkspaceArtifact) {
   const link = document.createElement("a");
   link.href = href;
   link.download = `${safeFilename(artifact.title)}.${artifactFileExtension(artifact.kind)}`;
+  link.hidden = true;
+  document.body.appendChild(link);
   link.click();
-  URL.revokeObjectURL(href);
+  link.remove();
+  window.setTimeout(() => URL.revokeObjectURL(href), 0);
 }
 
 export function ArtifactStudio({ locale }: { locale: Locale }) {
@@ -57,6 +60,13 @@ export function ArtifactStudio({ locale }: { locale: Locale }) {
 
   const selected = useMemo(() => artifacts.find((artifact) => artifact.id === selectedId) ?? null, [artifacts, selectedId]);
 
+  function selectArtifact(id: string) {
+    setSelectedId(id);
+    setDeletePending(false);
+    setVersionLabel("");
+    setStatus("");
+  }
+
   function replaceArtifact(next: WorkspaceArtifact) {
     setArtifacts((current) => current.map((artifact) => artifact.id === next.id ? next : artifact).sort((a, b) => b.updatedAt - a.updatedAt));
   }
@@ -66,12 +76,14 @@ export function ArtifactStudio({ locale }: { locale: Locale }) {
     setArtifacts((current) => [artifact, ...current].slice(0, 24));
     setSelectedId(artifact.id);
     setDeletePending(false);
+    setVersionLabel("");
     setStatus(ru ? "Артефакт создан локально." : "Artifact created locally.");
   }
 
   function updateSelected(update: Partial<Pick<WorkspaceArtifact, "title" | "kind" | "content">>) {
     if (!selected) return;
     replaceArtifact({ ...selected, ...update, updatedAt: Date.now() });
+    setDeletePending(false);
     setStatus(ru ? "Сохранено на устройстве" : "Saved on this device");
   }
 
@@ -79,6 +91,7 @@ export function ArtifactStudio({ locale }: { locale: Locale }) {
     if (!selected) return;
     replaceArtifact(snapshotArtifact(selected, versionLabel || (ru ? "Сохранённая версия" : "Saved version")));
     setVersionLabel("");
+    setDeletePending(false);
     setStatus(ru ? "Версия сохранена." : "Version saved.");
   }
 
@@ -88,6 +101,7 @@ export function ArtifactStudio({ locale }: { locale: Locale }) {
     setArtifacts((current) => [copy, ...current].slice(0, 24));
     setSelectedId(copy.id);
     setDeletePending(false);
+    setVersionLabel("");
     setStatus(ru ? "Создана копия." : "Copy created.");
   }
 
@@ -102,12 +116,14 @@ export function ArtifactStudio({ locale }: { locale: Locale }) {
     setArtifacts(remaining);
     setSelectedId(remaining[0]?.id ?? "");
     setDeletePending(false);
+    setVersionLabel("");
     setStatus(ru ? "Артефакт удалён." : "Artifact deleted.");
   }
 
   function restoreVersion(versionId: string) {
     if (!selected) return;
     replaceArtifact(restoreArtifactVersion(selected, versionId));
+    setDeletePending(false);
     setStatus(ru ? "Версия восстановлена." : "Version restored.");
   }
 
@@ -128,7 +144,7 @@ export function ArtifactStudio({ locale }: { locale: Locale }) {
             <button
               key={artifact.id}
               type="button"
-              onClick={() => { setSelectedId(artifact.id); setDeletePending(false); }}
+              onClick={() => selectArtifact(artifact.id)}
               className={cn("w-full rounded-2xl border px-3 py-3 text-left transition-colors", artifact.id === selectedId ? "border-primary bg-primary/10" : "border-outline-variant bg-surface hover:bg-surface-container-low")}
             >
               <span className="block truncate text-sm font-medium text-on-surface">{artifact.title}</span>
@@ -143,7 +159,7 @@ export function ArtifactStudio({ locale }: { locale: Locale }) {
         <header className="flex min-h-16 shrink-0 items-center justify-between gap-3 border-b border-outline-variant px-4 sm:px-6">
           <div className="min-w-0">
             <p className="label-caps text-secondary">{ru ? "Редактор" : "Editor"}</p>
-            <p className="mt-1 truncate text-xs text-on-surface-variant">{status || (ru ? "Данные остаются на этом устройстве" : "Data stays on this device")}</p>
+            <p className="mt-1 truncate text-xs text-on-surface-variant" role="status" aria-live="polite">{status || (ru ? "Данные остаются на этом устройстве" : "Data stays on this device")}</p>
           </div>
           <div className="flex items-center gap-2">
             <button type="button" onClick={() => createNew()} className="rounded-full border border-outline-variant px-3 py-2 text-xs font-medium lg:hidden">{ru ? "Новый" : "New"}</button>
@@ -151,21 +167,37 @@ export function ArtifactStudio({ locale }: { locale: Locale }) {
           </div>
         </header>
 
+        {artifacts.length ? (
+          <div className="shrink-0 border-b border-outline-variant bg-surface-container-low/60 px-4 py-3 lg:hidden" data-mobile-artifact-picker>
+            <label className="block">
+              <span className="sr-only">{ru ? "Выбрать артефакт" : "Select artifact"}</span>
+              <select
+                value={selectedId}
+                onChange={(event) => selectArtifact(event.target.value)}
+                className="h-11 w-full rounded-xl border border-outline-variant bg-surface-container-lowest px-3 text-sm outline-none focus:border-primary"
+              >
+                {artifacts.map((artifact) => <option key={artifact.id} value={artifact.id}>{artifact.title} · {artifact.kind}</option>)}
+              </select>
+            </label>
+          </div>
+        ) : null}
+
         {selected ? (
           <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto p-4 sm:p-6">
             <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_180px]">
               <label className="space-y-1.5">
                 <span className="text-xs font-medium text-secondary">{ru ? "Название" : "Title"}</span>
-                <input value={selected.title} onChange={(event) => updateSelected({ title: event.target.value.slice(0, 120) })} className="h-11 w-full rounded-xl border border-outline-variant bg-surface-container-lowest px-3 text-sm outline-none focus:border-primary" />
+                <input aria-label={ru ? "Название артефакта" : "Artifact title"} value={selected.title} onChange={(event) => updateSelected({ title: event.target.value.slice(0, 120) })} className="h-11 w-full rounded-xl border border-outline-variant bg-surface-container-lowest px-3 text-sm outline-none focus:border-primary" />
               </label>
               <label className="space-y-1.5">
                 <span className="text-xs font-medium text-secondary">{ru ? "Тип" : "Type"}</span>
-                <select value={selected.kind} onChange={(event) => updateSelected({ kind: event.target.value as ArtifactKind })} className="h-11 w-full rounded-xl border border-outline-variant bg-surface-container-lowest px-3 text-sm outline-none focus:border-primary">
+                <select aria-label={ru ? "Тип артефакта" : "Artifact type"} value={selected.kind} onChange={(event) => updateSelected({ kind: event.target.value as ArtifactKind })} className="h-11 w-full rounded-xl border border-outline-variant bg-surface-container-lowest px-3 text-sm outline-none focus:border-primary">
                   {KINDS.map((kind) => <option key={kind} value={kind}>{kind}</option>)}
                 </select>
               </label>
             </div>
             <textarea
+              aria-label={ru ? "Содержимое артефакта" : "Artifact content"}
               value={selected.content}
               onChange={(event) => updateSelected({ content: event.target.value.slice(0, 200_000) })}
               placeholder={ru ? "Пишите здесь или перенесите в артефакт результат из чата…" : "Write here or move a chat result into this artifact…"}
@@ -177,6 +209,23 @@ export function ArtifactStudio({ locale }: { locale: Locale }) {
               <button type="button" onClick={duplicateSelected} className="inline-flex h-10 items-center gap-2 rounded-full border border-outline-variant px-4 text-sm"><Copy className="size-4" />{ru ? "Копия" : "Duplicate"}</button>
               <button type="button" onClick={removeSelected} className={cn("inline-flex h-10 items-center gap-2 rounded-full border px-4 text-sm", deletePending ? "border-error bg-error/10 text-error" : "border-outline-variant")}><Trash2 className="size-4" />{deletePending ? (ru ? "Подтвердить" : "Confirm") : (ru ? "Удалить" : "Delete")}</button>
             </div>
+
+            <details className="rounded-2xl border border-outline-variant bg-surface-container-low p-4 lg:hidden" data-mobile-version-history>
+              <summary className="flex cursor-pointer list-none items-center gap-2 text-sm font-medium text-on-surface">
+                <History className="size-4 text-secondary" />
+                {ru ? `Версии (${selected.versions.length})` : `Versions (${selected.versions.length})`}
+              </summary>
+              <div className="mt-4 space-y-2">
+                {selected.versions.slice().reverse().map((version) => (
+                  <article key={version.id} className="rounded-xl border border-outline-variant bg-surface p-3">
+                    <p className="truncate text-sm font-medium">{version.label || (ru ? "Сохранённая версия" : "Saved version")}</p>
+                    <p className="mt-1 text-xs text-secondary">{new Date(version.createdAt).toLocaleString(ru ? "ru-RU" : "en-US")}</p>
+                    <button type="button" onClick={() => restoreVersion(version.id)} className="mt-3 inline-flex items-center gap-2 text-xs font-medium text-primary"><RotateCcw className="size-3.5" />{ru ? "Восстановить" : "Restore"}</button>
+                  </article>
+                ))}
+                {!selected.versions.length ? <p className="text-sm leading-6 text-on-surface-variant">{ru ? "Сохранённые версии появятся здесь." : "Saved versions will appear here."}</p> : null}
+              </div>
+            </details>
           </div>
         ) : (
           <div className="grid flex-1 place-items-center p-6 text-center">
