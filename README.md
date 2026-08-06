@@ -30,7 +30,7 @@ The main responsibilities are separated into:
 - `worker/` — Durable Object implementation and Worker entry point.
 - `db/` and `drizzle/` — the D1 schema and migration used by terms consent.
 - `components/playground/` — stable UI composition for the chat toolbar, suggestions, messages, and composer.
-- `hooks/` — chat request lifecycle, browser-local archive identity, and speech/TTS fallback logic.
+- `hooks/` — explicit chat request lifecycle, visual viewport adaptation, browser-local archive identity, and speech/TTS fallback logic.
 
 ## Local development
 
@@ -98,6 +98,8 @@ On provider failure, `meta.fallbackReason` is present and the UI tells the user 
 - Only `cf-connecting-ip` on a Cloudflare request is considered as an IP signal. Arbitrary `x-forwarded-for` values are ignored. Non-Cloudflare anonymous clients receive a signed HttpOnly fallback cookie.
 - Provider keys, OAuth credentials, access codes, model IDs, and system prompts are server-only.
 - User text is rendered as text, not injected as HTML, and user code is never executed by the application.
+- Assistant answers use safe GFM Markdown without raw HTML; links, code blocks, and tables are constrained for safe mobile rendering.
+- The Playground uses a JSON response contract, request ownership, explicit stop/retry behavior, and reader-owned scrolling. It does not implement true token streaming.
 - Regex safety checks are only a heuristic layer. Authentication, allowlists, body/prompt/attachment limits, origin checks, timeouts, and safe output handling are the actual boundaries.
 
 ## Environment variables
@@ -135,6 +137,7 @@ Provider and feature configuration:
 - `npm run test:integration` — Worker/API contract tests.
 - `npm test` — unit and integration tests.
 - `npm run build` — one production Worker build.
+- `npm run test:unit` includes pure chat scroll ownership and policy tests; browser-level QA should use a preview with mocked provider routes because no paid provider or production D1 is used in tests.
 - `npm run check` — typecheck, lint, tests, and build.
 - `npm run db:generate` — generate a reviewed Drizzle migration when the D1 schema changes.
 - `npm run db:migrate` — validate the ordered `drizzle/*.sql` files and invoke the official `wrangler d1 migrations apply tklabs --remote` flow. Wrangler selects only pending files and writes its `d1_migrations` ledger row in the same D1 execution as each migration.

@@ -1,6 +1,33 @@
-# TK Labs production hardening follow-up
+# TK Labs v0.9.0 chat UX overhaul
 
-## Audit baseline
+## Current execution plan
+
+- Branch: `feat/chat-ux-v0.9.0`
+- Base: `main` at `53c579fb9ddf6eb9d327657cc441be420bc3b23c` (PR #28 merged; production deployment check passed)
+- Delivery: one new draft PR, no merge to `main`
+- Scope: mobile/desktop chat reliability, accessible overlays, request lifecycle, safe rendering, archive ergonomics, performance, tests, and bilingual patch notes.
+
+### Stages
+
+- [x] Audit current shell, request hook, archive, model catalog, overlays, headers, CI, and dependencies.
+- [x] P0 — request ownership, cancellation, timeout/watchdog, safe response metadata, and mobile composer contract.
+- [x] P1 — scroll ownership, safe Markdown, message actions, accessible overlay primitive, visualViewport handling, and archive cache.
+- [ ] P2 — finish responsive shell polish, model picker sheet, performance instrumentation, and focused UI behavior tests.
+- [ ] P3 — final checks, docs/README, measured performance report, push, and open draft PR.
+
+The existing production-hardening history below is retained as a historical record. This branch does not reuse `fix/production-hardening-followup` and does not modify or merge PR #24.
+
+## v0.9 validation snapshot
+
+- `npm ci` — passed.
+- `npm audit --omit=dev --audit-level=high` — passed with 0 production vulnerabilities.
+- `AUTH_URL=https://tklabs.uk AUTH_TRUST_HOST=true npm run check` — passed: typecheck, lint, 22 unit tests, 39 integration/contract tests, and production build.
+- `git diff --check` — passed.
+- `wrangler deploy --dry-run --config dist/server/wrangler.json` — passed; generated config contains the `tklabs` D1 binding and both Durable Object migrations.
+- Local build artifacts: `dist/` 4.9 MB, client 1.4 MB, server 3.5 MB. These are artifact sizes, not production latency claims.
+- Browser smoke test — not completed because the connected remote browser could not reach the local preview port. Run the documented mocked-provider browser smoke test against a preview deployment before production rollout.
+
+## Audit baseline (historical hardening record)
 
 - Repository: `adaybekovt-boop/Tklabs`
 - Baseline: `main` at `3db8c856e117c39d2d25c6168484a0af67e7b913` (PR #23)

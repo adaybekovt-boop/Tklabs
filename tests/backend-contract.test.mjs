@@ -305,7 +305,8 @@ test("mobile layouts avoid fixed-width content traps", async () => {
   assert.match(home, /md:hidden/);
   assert.match(home, /aspect-\[4\/5\] lg:aspect-auto/);
   assert.doesNotMatch(home, /min-w-\[700px\]/);
-  assert.match(input, /max-\[420px\]:fixed/);
+  assert.match(input, /position="responsive"/);
+  assert.match(input, /ChatOverlay/);
   assert.match(login, /grid-cols-1.*sm:grid-cols-2/);
 });
 
@@ -331,7 +332,8 @@ test("privileged workspace access is reflected in the client and profile", async
   const input = await text("components/ui/ai-chat-input.tsx");
 
   assert.match(publicModels, /PUBLIC_MAX_PROMPT_LENGTH = 2_000/);
-  assert.match(playground, /clodexAccess\?\.unlimited \? PRIVILEGED_MAX_PROMPT_LENGTH/);
+  assert.match(playground, /clodexAccess\?\.unlimited \|\| localPreview/);
+  assert.match(playground, /PRIVILEGED_MAX_PROMPT_LENGTH/);
   assert.match(playground, /maxLength=\{promptLimit\}/);
   assert.match(profile, /getProfileAccess/);
   assert.match(profile, /unlimitedAi/);
@@ -394,13 +396,20 @@ test("chat uses one JSON response contract and keeps model selection mobile-safe
   const chatHook = await text("hooks/use-chat-request.ts");
   const toolbar = await text("components/playground/ChatToolbar.tsx");
   const messageList = await text("components/playground/MessageList.tsx");
+  const markdown = await text("components/playground/MarkdownMessage.tsx");
+  const overlay = await text("components/playground/ChatOverlay.tsx");
   const input = await text("components/ui/ai-chat-input.tsx");
   const css = await text("app/globals.css");
 
   assert.match(chatHook, /response\.json\(\)/);
   assert.match(chatHook, /actualProvider/);
   assert.match(messageList, /fallbackNotice/);
-  assert.match(input, /max-\[420px\]:fixed/);
+  assert.match(messageList, /lazy\(\(\) => import/);
+  assert.doesNotMatch(markdown, /rehype-raw|dangerouslySetInnerHTML/);
+  assert.match(markdown, /remarkGfm/);
+  assert.match(overlay, /aria-modal="true"/);
+  assert.match(overlay, /Escape/);
+  assert.match(input, /position="responsive"/);
   assert.match(input, /aria-haspopup="listbox"/);
   assert.match(input, /min-w-0 flex-1/);
   assert.match(input, /maxAttachmentContextLength/);
@@ -416,8 +425,8 @@ test("chat uses one JSON response contract and keeps model selection mobile-safe
 test("aborted requests cannot clear a newer generation", async () => {
   const hook = await text("hooks/use-chat-request.ts");
   assert.match(hook, /activeRequestRef\.current === controller/);
-  assert.match(hook, /activeConversationRef\.current = null;[\s\S]*setIsPending\(false\);/);
-  assert.match(hook, /activeController\?\.abort\(\);/);
+  assert.match(hook, /activeConversationRef\.current = null;[\s\S]*dispatch\(\{ type: "stopped" \}\)/);
+  assert.match(hook, /activeRequestRef\.current\?\.abort\(\);/);
 });
 
 test("raw provider reasoning never enters public or client contracts", async () => {

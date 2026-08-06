@@ -18,6 +18,16 @@ import { buildSecretListArgs, missingSecretNames, parseSecretNames, readCloudfla
 import { canCommitReservation, isReservationExpired, reservationExpiresAt } from "../lib/reservation-policy";
 import { assertProductionPreviewDisabled, isClientLocalPreviewEnabled, isLocalPreviewEnabled } from "../lib/local-preview";
 import { loadArchive } from "../lib/local-archive";
+import { isNearBottom, restoreScrollAnchor, shouldAutoScroll } from "../lib/chat-scroll";
+
+test("chat scroll ownership follows the reader instead of forcing the transcript to the bottom", () => {
+  assert.equal(isNearBottom(900, 100, 1_000), true);
+  assert.equal(isNearBottom(500, 100, 1_000), false);
+  assert.equal(shouldAutoScroll({ wasNearBottom: true }), true);
+  assert.equal(shouldAutoScroll({ wasNearBottom: false }), false);
+  assert.equal(shouldAutoScroll({ wasNearBottom: false, isNewConversation: true }), true);
+  assert.equal(restoreScrollAnchor({ previousScrollHeight: 500, previousScrollTop: 120, nextScrollHeight: 740 }), 360);
+});
 
 test("AI reasoning is separated from the visible answer and is not duplicated", () => {
   const thinking = "I should inspect the user wording, follow the response policy, and then give a short natural answer in the requested language.";
