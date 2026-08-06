@@ -7,7 +7,7 @@ import type { AiGenerationResult } from "@/lib/ai/types";
 import { AccountAccessUnavailableError, consumeClodexAccess, releaseClodexAccess } from "@/lib/account-access";
 import { classifyPromptSafety, safetyRefusal } from "@/lib/ai-safety";
 import { promptValidationMessage, PromptValidationError, validateAndBuildProviderPrompt } from "@/lib/chat-prompt";
-import { getClodexModel } from "@/lib/models/clodex-server";
+import { getClodexModel, getClodexModelConfig } from "@/lib/models/clodex-server";
 import { isClodexEnabled } from "@/lib/feature-flags";
 import { isPrivilegedAiEmail } from "@/lib/privileged-access";
 import { parseJsonBody, RequestBodyTooLargeError } from "@/lib/request-body";
@@ -66,7 +66,8 @@ export async function POST(request: Request) {
   }
 
   const language: Language = body?.locale === "en" ? "en" : "ru";
-  const model = getClodexModel(typeof body?.model === "string" ? body.model : undefined);
+  const modelConfig = getClodexModelConfig({ requireRuntimeConfig: true });
+  const model = getClodexModel(typeof body?.model === "string" ? body.model : undefined, { requireRuntimeConfig: true });
   let validatedPrompt;
   try {
     validatedPrompt = validateAndBuildProviderPrompt(body?.prompt, body?.attachments, { privileged: privilegedAccount });
@@ -80,7 +81,7 @@ export async function POST(request: Request) {
     }
     throw error;
   }
-  if (!model) return jsonResponse({ error: errorText(language, "access"), requestId }, requestId, 403);
+  if (!modelConfig || !model) return jsonResponse({ error: errorText(language, "configuration"), requestId }, requestId, 503);
 
   const { providerPrompt } = validatedPrompt;
   const safetyDecision = classifyPromptSafety(providerPrompt, { allowCode: privilegedAccount });
@@ -118,10 +119,10 @@ export async function POST(request: Request) {
 
   const startedAt = Date.now();
   try {
-    const { answer, thinking } = await generateWithClodex(providerPrompt, apiKey, model.providerModel, language, privilegedAccount, request.signal);
-    const meta = createAiResponseMeta({ answer, provider: "clodex", actualModel: model.providerModel }, model.name, requestId, startedAt);
+    const { answer, reasoningUsed } = await generateWithClodex(providerPrompt, apiKey, model.providerModel, model.maxTokens, language, privilegedAccount, request.signal);
+    const meta = createAiResponseMeta({ answer, reasoningUsed, provider: "clodex", actualModel: model.providerModel }, model.name, requestId, startedAt);
     logAiRequest(meta);
-    return jsonResponse({ answer, ...(thinking ? { thinking } : {}), meta }, requestId);
+    return jsonResponse({ answer, meta }, requestId);
   } catch (error) {
     if (allowanceReserved && allowanceReservationId) {
       try {

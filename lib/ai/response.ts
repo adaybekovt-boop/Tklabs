@@ -15,6 +15,7 @@ export function createAiResponseMeta(
     actualModel: result.actualModel,
     latencyMs: Math.max(0, now - startedAt),
     httpStatus: status,
+    ...(result.reasoningUsed ? { reasoningUsed: true } : {}),
     ...(result.fallbackReason ? { fallbackReason: result.fallbackReason } : {}),
   };
 }

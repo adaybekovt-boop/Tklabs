@@ -17,6 +17,7 @@ import { CLODEX_MODELS } from "@/lib/models/clodex-public";
 import { DEFAULT_ERMA_MODEL_KEY, PRIVILEGED_MAX_PROMPT_LENGTH, PUBLIC_ERMA_MODELS, PUBLIC_MAX_PROMPT_LENGTH, type ErmaTier } from "@/lib/models/public";
 import { getDictionary, type Locale } from "@/lib/i18n";
 import { getSession, loadSettings } from "@/lib/local-archive";
+import { isClientLocalPreviewEnabled } from "@/lib/local-preview";
 import { cn } from "@/lib/utils";
 
 const TIER_LABEL: Record<ErmaTier, string> = { light: "Light", medium: "Medium", heavy: "Heavy" };
@@ -42,7 +43,7 @@ export function PlaygroundChat({ locale }: { locale: Locale }) {
   const [suggestionKind, setSuggestionKind] = useState<SuggestionKind | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
 
-  const localPreview = process.env.NEXT_PUBLIC_TKLABS_LOCAL_PREVIEW === "true";
+  const localPreview = isClientLocalPreviewEnabled();
   const modelMark = "/images/models/model-mark.png";
   const ermaOptions: ChatInputModel[] = PUBLIC_ERMA_MODELS.map((model) => ({ id: model.key, name: model.name, tierLabel: TIER_LABEL[model.tier], available: model.available, markSrc: modelMark }));
   const clodexOptions: ChatInputModel[] = CLODEX_MODELS.map((model) => ({ id: model.key, name: model.name, tierLabel: "Clodex", available: true, markSrc: modelMark }));

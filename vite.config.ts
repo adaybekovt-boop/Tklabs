@@ -1,5 +1,9 @@
 import vinext from "vinext";
 import { defineConfig } from "vite";
+import { assertProductionPreviewDisabled } from "./lib/local-preview";
+import { areClodexModelIdsConfigured } from "./lib/models/clodex-server";
+
+assertProductionPreviewDisabled();
 
 // macOS Seatbelt blocks FSEvents, so Codex previews need polling for HMR.
 const isCodexSeatbeltSandbox = process.env.CODEX_SANDBOX === "seatbelt";
@@ -9,6 +13,9 @@ const isCodexSeatbeltSandbox = process.env.CODEX_SANDBOX === "seatbelt";
 const DEFAULT_D1_DATABASE_ID = "c4085a86-0fec-49f2-b2ed-5999190fcc30";
 const d1DatabaseId = process.env.D1_DATABASE_ID?.trim() || DEFAULT_D1_DATABASE_ID;
 const clodexEnabled = process.env.CLODEX_ENABLED?.trim().toLowerCase() === "true";
+if (clodexEnabled && !areClodexModelIdsConfigured(process.env)) {
+  throw new Error("CLODEX_ENABLED=true requires valid CLODEX_MODEL_FAST, CLODEX_MODEL_REASONING, and CLODEX_MODEL_PRO values.");
+}
 const clodexGrantTtlDays = process.env.CLODEX_GRANT_TTL_DAYS?.trim() || "30";
 const clodexGrantVersion = process.env.CLODEX_GRANT_VERSION?.trim() || "v2";
 const configuredAuthUrl = process.env.AUTH_URL?.trim();
@@ -37,6 +44,9 @@ const localWorkerConfig = {
     CLODEX_ENABLED: clodexEnabled ? "true" : "false",
     CLODEX_GRANT_TTL_DAYS: clodexGrantTtlDays,
     CLODEX_GRANT_VERSION: clodexGrantVersion,
+    ...(process.env.CLODEX_MODEL_FAST?.trim() ? { CLODEX_MODEL_FAST: process.env.CLODEX_MODEL_FAST.trim() } : {}),
+    ...(process.env.CLODEX_MODEL_REASONING?.trim() ? { CLODEX_MODEL_REASONING: process.env.CLODEX_MODEL_REASONING.trim() } : {}),
+    ...(process.env.CLODEX_MODEL_PRO?.trim() ? { CLODEX_MODEL_PRO: process.env.CLODEX_MODEL_PRO.trim() } : {}),
     TTS_REQUEST_LIMIT: process.env.TTS_REQUEST_LIMIT?.trim() || "5",
     TTS_DAILY_CHARACTER_QUOTA: process.env.TTS_DAILY_CHARACTER_QUOTA?.trim() || "10000",
     TTS_PRIVILEGED_REQUEST_LIMIT: process.env.TTS_PRIVILEGED_REQUEST_LIMIT?.trim() || "30",

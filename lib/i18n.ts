@@ -145,6 +145,10 @@ interface PatchNotesDictionary {
   eyebrow: string;
   title: string;
   intro: string;
+  historyTitle: string;
+  releaseCount: string;
+  workspaceLabel: string;
+  workspaceTitle: string;
   entries: PatchNoteEntry[];
   openLaboratory: string;
 }
@@ -216,6 +220,20 @@ interface ProfileDictionary {
   adminToolsTitle: string;
   reviewAgreement: string;
   promo: ProfilePromoDictionary;
+  membership: {
+    platinum: string;
+    gold: string;
+    administrator: string;
+    member: string;
+    aiAccess: string;
+    unlimited: string;
+    standard: string;
+    clodex: string;
+    active: string;
+    inactive: string;
+    disabled: string;
+    unavailable: string;
+  };
 }
 
 interface StatusDictionary {
@@ -281,9 +299,7 @@ interface ChatDictionary {
   ready: string;
   streaming: string;
   thinking: string;
-  reasoningLabel: string;
-  reasoningShow: string;
-  reasoningHide: string;
+  reasoningUsed: string;
   clodexReady: string;
   newDialog: string;
   history: string;
@@ -472,7 +488,24 @@ export const dictionaries: Record<Locale, Dictionary> = {
       eyebrow: "Патч-ноуты / 01",
       title: "Что изменилось в TK LAB.",
       intro: "Открытый журнал обновлений продукта, интерфейса и надёжности. Здесь появляются новые записи по мере развития системы.",
+      historyTitle: "История релизов",
+      releaseCount: "релизов",
+      workspaceLabel: "TK LAB / РАБОЧАЯ СРЕДА",
+      workspaceTitle: "Продолжайте работу с актуальной версией системы.",
       entries: [
+        {
+          date: "06 авг. 2026",
+          version: "v0.8.1",
+          title: "Безопасный reasoning и стабильный deploy",
+          summary: "Скрытые рассуждения провайдера больше не попадают в интерфейс, архив или логи, а конфигурация production теперь проверяется до публикации.",
+          changes: [
+            "Убран raw provider reasoning из API, браузерного состояния, localStorage и логов; UI показывает только общий признак глубокой обработки.",
+            "Добавлены проверки reasoning-only ответов, safety-проверка отброшенных provider-блоков и очистка старых reasoning-полей из локального архива.",
+            "Clodex model IDs, budgets и runtime validation объединены для прямого маршрута, fallback и health-check; при неполной конфигурации доступ закрывается.",
+            "Исправлена гонка abort/resubmit, production preview-флаги запрещены, а профиль разделяет роль администратора, unlimited AI и состояние Clodex.",
+            "Обновлены security headers, документация и автоматический pipeline: production deploy запускается после push в main и использует проверенный Worker artifact.",
+          ],
+        },
         {
           date: "05 авг. 2026",
           version: "v0.8.0",
@@ -709,6 +742,20 @@ export const dictionaries: Record<Locale, Dictionary> = {
         invalid: "Промокод не принят.",
         unavailable: "Сервис доступа временно недоступен.",
       },
+      membership: {
+        platinum: "PLATINUM",
+        gold: "GOLD",
+        administrator: "Администратор",
+        member: "Участник",
+        aiAccess: "AI-доступ",
+        unlimited: "Без ограничений",
+        standard: "Стандартный",
+        clodex: "Clodex",
+        active: "Активен",
+        inactive: "Не активен",
+        disabled: "Отключён",
+        unavailable: "Недоступен",
+      },
     },
     status: {
       eyebrow: "Мониторинг платформы",
@@ -755,9 +802,7 @@ export const dictionaries: Record<Locale, Dictionary> = {
       ready: "Система готова",
       streaming: "Получаем ответ",
       thinking: "Думает...",
-      reasoningLabel: "Ход рассуждений",
-      reasoningShow: "Показать ход рассуждений",
-      reasoningHide: "Скрыть ход рассуждений",
+      reasoningUsed: "Использована глубокая обработка",
       clodexReady: "Erma + Clodex доступны",
       newDialog: "Новый диалог",
       history: "Локальные сессии",
@@ -794,7 +839,7 @@ export const dictionaries: Record<Locale, Dictionary> = {
       promptPlaceholder: "Спросите что-нибудь…",
       fallbackNotice: "Выбранная модель временно недоступна. Ответ сформирован резервным режимом.",
       input: {
-        effort: "Уровень рассуждения",
+        effort: "Глубина ответа",
         effortLow: "Быстро",
         effortMedium: "Баланс",
         effortHigh: "Глубоко",
@@ -947,7 +992,24 @@ export const dictionaries: Record<Locale, Dictionary> = {
       eyebrow: "Patch Notes / 01",
       title: "What changed in TK LAB.",
       intro: "A public, English-language log of product, interface, and reliability updates. New releases will be added here as the system evolves.",
+      historyTitle: "Release history",
+      releaseCount: "releases",
+      workspaceLabel: "TK LAB / WORKSPACE",
+      workspaceTitle: "Keep building with the latest system version.",
       entries: [
+        {
+          date: "06 Aug 2026",
+          version: "v0.8.1",
+          title: "Safe reasoning & deterministic deployment",
+          summary: "Provider reasoning no longer enters the interface, archive, or logs, while production configuration is validated before publication.",
+          changes: [
+            "Removed raw provider reasoning from API payloads, browser state, localStorage, and logs; the UI exposes only a generic deep-processing indicator.",
+            "Added reasoning-only rejection, safety checks for discarded provider blocks, and cleanup of legacy reasoning fields from the local archive.",
+            "Centralized Clodex model IDs, budgets, and runtime validation for direct routing, fallback, and health checks; incomplete configuration fails closed.",
+            "Fixed the abort/resubmit race, blocked production preview flags, and separated administrator role, unlimited AI entitlement, and Clodex state in the profile.",
+            "Updated security headers, operations documentation, and the automatic pipeline: production deploy starts after a push to main and uses the validated Worker artifact.",
+          ],
+        },
         {
           date: "05 Aug 2026",
           version: "v0.8.0",
@@ -1184,6 +1246,20 @@ export const dictionaries: Record<Locale, Dictionary> = {
         invalid: "The promo code was not accepted.",
         unavailable: "The access service is temporarily unavailable.",
       },
+      membership: {
+        platinum: "PLATINUM",
+        gold: "GOLD",
+        administrator: "Administrator",
+        member: "Member",
+        aiAccess: "AI access",
+        unlimited: "Unlimited",
+        standard: "Standard",
+        clodex: "Clodex",
+        active: "Active",
+        inactive: "Inactive",
+        disabled: "Disabled",
+        unavailable: "Unavailable",
+      },
     },
     status: {
       eyebrow: "Platform monitoring",
@@ -1230,9 +1306,7 @@ export const dictionaries: Record<Locale, Dictionary> = {
       ready: "System ready",
       streaming: "Receiving response",
       thinking: "Thinking...",
-      reasoningLabel: "Reasoning trace",
-      reasoningShow: "Show reasoning trace",
-      reasoningHide: "Hide reasoning trace",
+      reasoningUsed: "Deep processing used",
       clodexReady: "Erma + Clodex available",
       newDialog: "New conversation",
       history: "Browser sessions",
@@ -1269,7 +1343,7 @@ export const dictionaries: Record<Locale, Dictionary> = {
       promptPlaceholder: "Ask anything…",
       fallbackNotice: "The selected model is temporarily unavailable. This answer was produced by a fallback mode.",
       input: {
-        effort: "Reasoning level",
+        effort: "Response depth",
         effortLow: "Fast",
         effortMedium: "Balanced",
         effortHigh: "Deep",

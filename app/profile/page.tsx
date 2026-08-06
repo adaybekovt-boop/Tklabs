@@ -9,17 +9,22 @@ import { ScrollReveal } from "@/components/ui/scroll-reveal";
 import { getDictionary } from "@/lib/i18n";
 import { getLocale } from "@/lib/locale";
 import { isClodexEnabled } from "@/lib/feature-flags";
-import { isAdminEmail, isClodexPromoEligible, isPrivilegedAiEmail } from "@/lib/privileged-access";
+import { isClodexPromoEligible } from "@/lib/privileged-access";
 import { PromoCodePanel } from "@/components/profile/PromoCodePanel";
+import { MembershipCard } from "@/components/profile/MembershipCard";
+import { getProfileAccess } from "@/lib/profile-access";
 
 export default async function ProfilePage() {
   const session = await auth();
   if (!session?.user && process.env.NODE_ENV !== "development") redirect("/login");
 
   const text = getDictionary(await getLocale());
-  const unlimited = isPrivilegedAiEmail(session?.user?.email);
-  const isAdmin = isAdminEmail(session?.user?.email);
-  const promoEligible = isClodexEnabled() && isClodexPromoEligible(session?.user?.email);
+  const email = session?.user?.email?.trim().toLowerCase() ?? "";
+  const access = await getProfileAccess(email);
+  const unlimited = access.unlimitedAi;
+  const isAdmin = access.isAdmin;
+  const promoEligible = isClodexEnabled() && isClodexPromoEligible(email);
+  const clodexLabel = access.clodexState === "active" ? text.profile.membership.active : access.clodexState === "disabled" ? text.profile.membership.disabled : access.clodexState === "unavailable" ? text.profile.membership.unavailable : text.profile.membership.inactive;
   const profileImage = session?.user?.image?.trim();
   const profileInitials = (session?.user?.name ?? session?.user?.email ?? "TK")
     .split(/\s+/)
@@ -47,10 +52,23 @@ export default async function ProfilePage() {
               <p className="mt-5 text-[18px] text-on-surface-variant">{session?.user?.email ?? text.profile.localEmail}</p>
             </div>
             <div className="mt-14 grid grid-cols-1 gap-px overflow-hidden rounded-2xl border border-primary bg-primary sm:grid-cols-2">
-              <div className="bg-surface p-7"><span className="label-caps text-secondary">{text.profile.accessLevel}</span><p className="mt-5 font-serif text-[25px]">{unlimited ? text.profile.adminAccess : text.profile.standardAccess}</p></div>
-              <div className="bg-surface p-7"><span className="label-caps text-secondary">{text.profile.state}</span><p className="mt-5 font-serif text-[25px]">{unlimited ? text.profile.adminState : text.profile.active}</p></div>
+              <div className="bg-surface p-7"><span className="label-caps text-secondary">{text.profile.accessLevel}</span><p className="mt-5 font-serif text-[25px]">{isAdmin ? text.profile.adminAccess : unlimited ? text.profile.unlimitedModelsValue : text.profile.standardAccess}</p></div>
+              <div className="bg-surface p-7"><span className="label-caps text-secondary">{text.profile.state}</span><p className="mt-5 font-serif text-[25px]">{isAdmin ? text.profile.adminState : text.profile.active}</p></div>
             </div>
           </ScrollReveal>
+        </section>
+        <section className="mb-section-gap grid gap-6 md:grid-cols-12">
+          <div className="md:col-span-8 md:col-start-5">
+            <MembershipCard isAdmin={isAdmin} displayName={session?.user?.name ?? text.profile.fallbackName} email={email || text.profile.localEmail} unlimitedAi={unlimited} clodexState={access.clodexState} labels={text.profile.membership} />
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2 md:col-span-8 md:col-start-5 lg:grid-cols-4">
+            {[
+              [text.profile.membership.aiAccess, unlimited ? text.profile.membership.unlimited : text.profile.membership.standard],
+              [text.profile.membership.clodex, clodexLabel],
+              [text.profile.state, isAdmin ? text.profile.membership.administrator : text.profile.membership.member],
+              [text.profile.archive, text.profile.archiveValue],
+            ].map(([label, value]) => <div key={label} className="rounded-2xl border border-outline-variant bg-surface-container-lowest p-4"><p className="label-caps text-secondary">{label}</p><p className="mt-3 text-sm font-medium text-primary">{value}</p></div>)}
+          </div>
         </section>
         <section className="grid gap-12 md:grid-cols-12">
           <ScrollReveal className="md:col-span-4">
@@ -62,7 +80,7 @@ export default async function ProfilePage() {
               [text.profile.availableModels, unlimited ? text.profile.unlimitedModelsValue : text.profile.modelsValue],
               [text.profile.dailyLimit, unlimited ? text.profile.unlimitedDailyValue : text.profile.dailyValue],
               [text.profile.archive, text.profile.archiveValue],
-              [text.profile.clodex, unlimited ? text.profile.clodexUnlimitedValue : text.profile.clodexValue],
+              [text.profile.clodex, clodexLabel],
             ].map(([item, value]) => (
               <div key={item} className="flex flex-col items-start gap-2 border-b-[0.5px] border-primary/25 py-6 sm:flex-row sm:items-center sm:justify-between sm:gap-6">
                 <span>{item}</span><span className="label-caps max-w-full break-words text-secondary sm:text-right">{value}</span>

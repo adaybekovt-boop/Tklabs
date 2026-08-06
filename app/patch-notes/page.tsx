@@ -32,8 +32,8 @@ export default async function PatchNotesPage() {
         <section aria-labelledby="patch-notes-list-title">
           <ScrollReveal>
             <div className="mb-10 flex items-end justify-between border-b-[0.5px] border-primary pb-6">
-              <h2 id="patch-notes-list-title" className="headline-title">Release history</h2>
-              <span className="label-caps text-secondary">{text.patchNotes.entries.length} releases</span>
+              <h2 id="patch-notes-list-title" className="headline-title">{text.patchNotes.historyTitle}</h2>
+              <span className="label-caps text-secondary">{text.patchNotes.entries.length} {text.patchNotes.releaseCount}</span>
             </div>
           </ScrollReveal>
           <StaggerContainer className="border-t-[0.5px] border-primary">
@@ -60,8 +60,8 @@ export default async function PatchNotesPage() {
         <ScrollReveal>
           <section className="mt-section-gap flex flex-col items-start justify-between gap-6 overflow-hidden rounded-3xl border border-primary bg-white p-8 md:flex-row md:items-center md:p-10">
             <div>
-              <p className="label-caps text-secondary">TK LAB / WORKSPACE</p>
-              <p className="mt-3 font-serif text-[26px]">Keep building with the latest system version.</p>
+              <p className="label-caps text-secondary">{text.patchNotes.workspaceLabel}</p>
+              <p className="mt-3 font-serif text-[26px]">{text.patchNotes.workspaceTitle}</p>
             </div>
             <FlowButton href="/playground" text={text.patchNotes.openLaboratory} dark />
           </section>

@@ -3,7 +3,6 @@
 import { Check, Copy, Volume2 } from "lucide-react";
 
 import AIThinkingBlock from "@/components/ui/ai-thinking-block";
-import { ReasoningTrace } from "@/components/ui/reasoning-trace";
 import type { AiResponseMeta } from "@/lib/ai/types";
 import { getDictionary, type Locale } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
@@ -12,7 +11,6 @@ export type ChatMessage = {
   id: string;
   role: "user" | "assistant";
   content: string;
-  thinking?: string;
   error?: boolean;
   meta?: AiResponseMeta;
 };
@@ -59,9 +57,6 @@ export function MessageList({
                 </span>
                 <span className="label-caps text-on-secondary-container">TK LABS AI</span>
               </div>
-              {message.thinking && (
-                <ReasoningTrace thinking={message.thinking} label={text.chat.reasoningLabel} showLabel={text.chat.reasoningShow} hideLabel={text.chat.reasoningHide} />
-              )}
               <div className={cn("whitespace-pre-wrap text-[15px] leading-[1.75]", message.error ? "text-error" : "text-primary")}>
                 {message.content || (isPending && message.id === lastMessage?.id ? <AIThinkingBlock label={text.chat.thinking} /> : null)}
               </div>
@@ -76,6 +71,7 @@ export function MessageList({
                     {speakingMessageId === message.id ? text.chat.stopSpeaking : text.chat.speak}
                   </button>
                   {message.meta?.fallbackReason && <span className="basis-full text-error">{text.chat.fallbackNotice}</span>}
+                  {message.meta?.reasoningUsed && <span className="basis-full text-on-secondary-container">{text.chat.reasoningUsed}</span>}
                   {speechNotice && message.id === lastMessage?.id && <span className="text-error">{speechNotice}</span>}
                 </div>
               )}

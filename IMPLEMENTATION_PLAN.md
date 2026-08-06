@@ -80,11 +80,23 @@ npm run build
 npm audit --omit=dev --audit-level=high
 ```
 
-Final follow-up result: local `npm ci`, production audit, typecheck, lint, 12 unit tests, 33 integration/contract tests, `npm test`, production build with `AUTH_URL=https://tklabs.uk` and `AUTH_TRUST_HOST=true`, `wrangler deploy --dry-run`, generated config checks, and `git diff --check` pass. The production dependency audit reports zero vulnerabilities. The integration suite uses a small Cloudflare binding loader and mocked NVIDIA/fake Durable Object providers; it never calls a paid provider or production database. Cloudflare build `0b43d7c8-7270-4a7e-b060-65b0309637a0` first failed with API error `10181` because the generated `DB` binding used stale database ID `7b481442-f635-41f2-ba5d-a62f106c518c`. After switching to the verified live `tklabs` database `c4085a86-0fec-49f2-b2ed-5999190fcc30`, build `9160d75a-23d9-435a-a4c3-e8242626f372` built and packaged successfully but the duplicate Cloudflare Git Integration failed with API error `10211`: its version upload cannot apply the Worker’s Durable Object migration. Git Integration was then disconnected in the dashboard; GitHub Actions remains the sole production deployment path. The deployment workflow now runs on direct `main` pushes and validates/builds its own commit, avoiding reliance on the repository default branch for `workflow_run`. The name-only Cloudflare secret preflight is covered by unit tests; the local Wrangler token is authenticated to a different Cloudflare account, so target-account verification remains a deployment-owner action.
+Final follow-up result: local `npm ci`, production audit, typecheck, lint, 21 unit tests, 39 integration/contract tests, `npm test`, production build with `AUTH_URL=https://tklabs.uk` and `AUTH_TRUST_HOST=true`, `wrangler deploy --dry-run`, generated config checks, and `git diff --check` pass. The production dependency audit reports zero vulnerabilities. The integration suite uses a small Cloudflare binding loader and mocked NVIDIA/fake Durable Object providers; it never calls a paid provider or production database. Cloudflare build `0b43d7c8-7270-4a7e-b060-65b0309637a0` first failed with API error `10181` because the generated `DB` binding used stale database ID `7b481442-f635-41f2-ba5d-a62f106c518c`. After switching to the verified live `tklabs` database `c4085a86-0fec-49f2-b2ed-5999190fcc30`, build `9160d75a-23d9-435a-a4c3-e8242626f372` built and packaged successfully but the duplicate Cloudflare Git Integration failed with API error `10211`: its version upload cannot apply the Worker’s Durable Object migration. Git Integration was then disconnected in the dashboard; GitHub Actions remains the sole production deployment path. The deployment workflow now runs on direct `main` pushes and validates/builds its own commit, avoiding reliance on the repository default branch for `workflow_run`. The current PR #28 head passed GitHub Validate twice and Cloudflare Workers Build `4285c7ab-8858-4ad7-8eee-72c2565d2cf9`. The name-only Cloudflare secret preflight is covered by unit tests; the local Wrangler token is authenticated to a different Cloudflare account, so target-account verification remains a deployment-owner action.
 
 ## Rollback
 
 Rollback is a revert of the draft PR. Durable Object schema changes are additive and retain legacy columns/lookup paths. New D1 migration files are idempotent; do not manually delete production tables. If deployment fails, keep the last known-good Worker and revert the code/config change before retrying.
+
+## PR #28 final review follow-up
+
+- [x] Keep provider reasoning transient: evaluate it server-side, strip tagged blocks and reasoning-only responses, and expose only `answer`, `meta`, and the generic `reasoningUsed` flag.
+- [x] Restrict local preview switches to development and fail production builds when either preview flag is enabled.
+- [x] Make request cleanup ownership-aware so an aborted request cannot clear a newer chat generation.
+- [x] Make reasoning opt-in through the explicit request flag; response-effort selection no longer enables hidden provider reasoning.
+- [x] Centralize Clodex provider model IDs, budgets, environment keys, and validation for direct routing, fallback routing, health, and tests.
+- [x] Separate profile role, unlimited-AI entitlement, Clodex state, and account availability; membership cards are presentational and never grant access.
+- [x] Mask the normalized Cloudflare API token before exporting it to GitHub Actions environment state.
+- [x] Add HSTS, COOP, `X-Content-Type-Options`, Referrer-Policy, and restrictive Permissions-Policy headers.
+- [x] Document automatic deployment after a push to `main`, single-pipeline ownership, branch protection, and remaining owner-only Cloudflare/GitHub actions.
 
 ## Manual GitHub / Cloudflare actions
 

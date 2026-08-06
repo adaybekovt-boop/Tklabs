@@ -24,6 +24,9 @@ jobs:
       CLODEX_ENABLED: ${{ vars.CLODEX_ENABLED || 'false' }}
       CLODEX_GRANT_TTL_DAYS: ${{ vars.CLODEX_GRANT_TTL_DAYS || '30' }}
       CLODEX_GRANT_VERSION: ${{ vars.CLODEX_GRANT_VERSION || 'v2' }}
+      CLODEX_MODEL_FAST: ${{ vars.CLODEX_MODEL_FAST || '' }}
+      CLODEX_MODEL_REASONING: ${{ vars.CLODEX_MODEL_REASONING || '' }}
+      CLODEX_MODEL_PRO: ${{ vars.CLODEX_MODEL_PRO || '' }}
       TTS_REQUEST_LIMIT: ${{ vars.TTS_REQUEST_LIMIT || '5' }}
       TTS_DAILY_CHARACTER_QUOTA: ${{ vars.TTS_DAILY_CHARACTER_QUOTA || '10000' }}
       TTS_PRIVILEGED_REQUEST_LIMIT: ${{ vars.TTS_PRIVILEGED_REQUEST_LIMIT || '30' }}
@@ -48,6 +51,7 @@ jobs:
           api_token="${api_token//$'\n'/}"
           account_id="${CLOUDFLARE_ACCOUNT_ID//$'\r'/}"
           account_id="${account_id//$'\n'/}"
+          echo "::add-mask::$api_token"
           test -n "$api_token"
           test -n "$account_id"
           {
@@ -72,7 +76,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          npx wrangler deploy --var "AUTH_URL:$AUTH_URL" --var "AUTH_TRUST_HOST:$AUTH_TRUST_HOST" --var "CLODEX_ENABLED:$CLODEX_ENABLED" --var "CLODEX_GRANT_TTL_DAYS:$CLODEX_GRANT_TTL_DAYS" --var "CLODEX_GRANT_VERSION:$CLODEX_GRANT_VERSION" --var "TTS_REQUEST_LIMIT:$TTS_REQUEST_LIMIT" --var "TTS_DAILY_CHARACTER_QUOTA:$TTS_DAILY_CHARACTER_QUOTA" --var "TTS_PRIVILEGED_REQUEST_LIMIT:$TTS_PRIVILEGED_REQUEST_LIMIT" --var "TTS_PRIVILEGED_DAILY_CHARACTER_QUOTA:$TTS_PRIVILEGED_DAILY_CHARACTER_QUOTA" --config dist/server/wrangler.json 2>&1 | tee deploy.log
+          npx wrangler deploy --var "AUTH_URL:$AUTH_URL" --var "AUTH_TRUST_HOST:$AUTH_TRUST_HOST" --var "CLODEX_ENABLED:$CLODEX_ENABLED" --var "CLODEX_GRANT_TTL_DAYS:$CLODEX_GRANT_TTL_DAYS" --var "CLODEX_GRANT_VERSION:$CLODEX_GRANT_VERSION" --var "CLODEX_MODEL_FAST:$CLODEX_MODEL_FAST" --var "CLODEX_MODEL_REASONING:$CLODEX_MODEL_REASONING" --var "CLODEX_MODEL_PRO:$CLODEX_MODEL_PRO" --var "TTS_REQUEST_LIMIT:$TTS_REQUEST_LIMIT" --var "TTS_DAILY_CHARACTER_QUOTA:$TTS_DAILY_CHARACTER_QUOTA" --var "TTS_PRIVILEGED_REQUEST_LIMIT:$TTS_PRIVILEGED_REQUEST_LIMIT" --var "TTS_PRIVILEGED_DAILY_CHARACTER_QUOTA:$TTS_PRIVILEGED_DAILY_CHARACTER_QUOTA" --config dist/server/wrangler.json 2>&1 | tee deploy.log
           url="$(grep -Eo 'https://[A-Za-z0-9._-]+\.workers\.dev' deploy.log | tail -n 1 || true)"
           if [ -z "$url" ]; then
             echo "Cloudflare did not return a workers.dev URL"

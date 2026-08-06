@@ -23,6 +23,8 @@ test("production deployment and browser capabilities match the current app", asy
   assert.doesNotMatch(workflow, /Download validated Worker build/);
   assert.match(workflow, /Normalize Cloudflare deployment credentials/);
   assert.match(workflow, /GITHUB_ENV/);
+  assert.match(workflow, /::add-mask::\$api_token/);
+  assert.doesNotMatch(workflow, /TKLABS_LOCAL_PREVIEW|NEXT_PUBLIC_TKLABS_LOCAL_PREVIEW/);
   assert.match(workflow, /npm run check/);
   assert.match(workflow, /npm audit --omit=dev --audit-level=high/);
   assert.match(workflow, /concurrency:/);
@@ -53,7 +55,7 @@ test("status page uses live health checks", async () => {
   assert.match(worker, /PROVIDER_TIMEOUT_MS = 2_500/);
   assert.match(worker, /integrate\.api\.nvidia\.com\/v1\/models/);
   assert.match(worker, /clodex\.xyz\/v1\/models/);
-  assert.match(worker, /clodexEnabled && Boolean\(clodexKey\), false\)/);
+  assert.match(worker, /clodexEnabled && clodexModelsConfigured && Boolean\(clodexKey\), false\)/);
   assert.match(worker, /LIVE_TTL_MS = 60_000/);
   assert.match(worker, /STALE_TTL_MS = 5 \* 60_000/);
   assert.match(route, /cache-control/);
@@ -221,6 +223,8 @@ test("local archive is bounded, sanitized, and observable by the archive UI", as
   assert.match(mobileHistory, /md:hidden/);
   assert.match(historyDropdown, /ConversationArchive/);
   assert.match(playground, /PlaygroundChat/);
+  assert.match(archive, /removedLegacyReasoning/);
+  assert.doesNotMatch(archive, /message\.thinking/);
 });
 
 test("developers section is available in both navigation surfaces", async () => {
@@ -249,11 +253,13 @@ test("patch notes are linked and written as an English release log", async () =>
   const translations = await text("lib/i18n.ts");
 
   assert.match(page, /text\.patchNotes\.entries/);
-  assert.match(page, /Release history/);
+  assert.match(page, /text\.patchNotes\.historyTitle/);
+  assert.match(page, /text\.patchNotes\.workspaceTitle/);
   assert.match(nav, /href: "\/patch-notes"/);
   assert.match(footer, /href="\/patch-notes"/);
   assert.match(translations, /patchNotes: "Patch Notes"/);
   assert.match(translations, /version: "v0\.8\.0"/);
+  assert.match(translations, /version: "v0\.8\.1"/);
   assert.match(translations, /version: "v0\.7\.1"/);
   assert.match(translations, /version: "v0\.7\.0"/);
   assert.match(translations, /version: "v0\.6\.3"/);
@@ -327,11 +333,40 @@ test("privileged workspace access is reflected in the client and profile", async
   assert.match(publicModels, /PUBLIC_MAX_PROMPT_LENGTH = 2_000/);
   assert.match(playground, /clodexAccess\?\.unlimited \? PRIVILEGED_MAX_PROMPT_LENGTH/);
   assert.match(playground, /maxLength=\{promptLimit\}/);
-  assert.match(profile, /isPrivilegedAiEmail/);
+  assert.match(profile, /getProfileAccess/);
+  assert.match(profile, /unlimitedAi/);
+  assert.match(profile, /MembershipCard/);
+  assert.match(profile, /isAdmin/);
   assert.match(profile, /unlimitedDailyValue/);
   assert.match(input, /try \{\r?\n\s+recognition\.start\(\);/);
   assert.match(accessRoute, /if \(isPrivilegedAiEmail\(email\)\) return Response\.json\(privilegedAccessStatus\(\)/);
-  assert.match(accessRoute, /privilegedAccessStatus\(\)[\s\S]*if \(!isClodexEnabled\(\)\) return disabledResponse\(\)/);
+  assert.match(accessRoute, /profileAccessResponse/);
+  assert.match(accessRoute, /clodexState/);
+});
+
+test("preview authorization is development-only", async () => {
+  const preview = await text("lib/local-preview.ts");
+  const serverPage = await text("app/playground/page.tsx");
+  const clientPage = await text("components/playground/PlaygroundChat.tsx");
+  const vite = await text("vite.config.ts");
+  assert.match(preview, /NODE_ENV === "development"/);
+  assert.match(serverPage, /isLocalPreviewEnabled/);
+  assert.match(clientPage, /isClientLocalPreviewEnabled/);
+  assert.match(vite, /assertProductionPreviewDisabled/);
+  assert.match(vite, /areClodexModelIdsConfigured/);
+});
+
+test("profile membership separates role, AI entitlement and Clodex state", async () => {
+  const profile = await text("app/profile/page.tsx");
+  const card = await text("components/profile/MembershipCard.tsx");
+  const access = await text("lib/profile-access.ts");
+  assert.match(profile, /MembershipCard/);
+  assert.match(card, /membership-card--platinum/);
+  assert.match(card, /membership-card--gold/);
+  assert.match(access, /isAdmin/);
+  assert.match(access, /unlimitedAi/);
+  assert.match(access, /clodexState/);
+  assert.doesNotMatch(profile, /unlimited \? text\.profile\.admin/);
 });
 
 test("unlimited access stays in server-only paths", async () => {
@@ -376,4 +411,27 @@ test("chat uses one JSON response contract and keeps model selection mobile-safe
   assert.match(input, /items-center gap-2/);
   assert.match(toolbar, /overflow-x-auto/);
   assert.doesNotMatch(css, /response-meta-enter/);
+});
+
+test("aborted requests cannot clear a newer generation", async () => {
+  const hook = await text("hooks/use-chat-request.ts");
+  assert.match(hook, /activeRequestRef\.current === controller/);
+  assert.match(hook, /activeConversationRef\.current = null;[\s\S]*setIsPending\(false\);/);
+  assert.match(hook, /activeController\?\.abort\(\);/);
+});
+
+test("raw provider reasoning never enters public or client contracts", async () => {
+  const nvidia = await text("lib/ai/providers/nvidia.ts");
+  const clodex = await text("lib/ai/providers/clodex.ts");
+  const demo = await text("app/api/demo/route.ts");
+  const clodexRoute = await text("app/api/clodex/route.ts");
+  const hook = await text("hooks/use-chat-request.ts");
+  const messageList = await text("components/playground/MessageList.tsx");
+  const logging = await text("lib/ai/logging.ts");
+  assert.match(nvidia, /reasoning_content/);
+  assert.match(clodex, /thinking/);
+  for (const source of [demo, clodexRoute, hook, messageList, logging]) assert.doesNotMatch(source, /payload\.thinking|message\.thinking|\bthinking:/);
+  assert.match(demo, /jsonResponse\(\{ answer: result\.answer, meta \}/);
+  assert.doesNotMatch(messageList, /ReasoningTrace|reasoning-trace/);
+  assert.doesNotMatch(logging, /thinking|reasoning_content/);
 });

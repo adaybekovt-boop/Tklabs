@@ -5,9 +5,10 @@ import { auth } from "@/auth";
 import { PlaygroundChat } from "@/components/playground/PlaygroundChat";
 import { StitchHeader } from "@/components/site/StitchHeader";
 import { getLocale } from "@/lib/locale";
+import { isLocalPreviewEnabled } from "@/lib/local-preview";
 
 export default async function PlaygroundPage() {
-  const localPreview = process.env.TKLABS_LOCAL_PREVIEW === "true";
+  const localPreview = isLocalPreviewEnabled();
   const session = localPreview ? { user: { name: "TK Labs Preview" } } : await auth();
   if (!session?.user) redirect("/login");
 

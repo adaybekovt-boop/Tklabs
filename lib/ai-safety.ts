@@ -113,20 +113,22 @@ export function evaluateAssistantOutput(answer: string, options: SafetyOptions =
 
 export type AssistantContentVerdict =
   | { verdict: "unsafe" }
-  | { verdict: "ok"; answer: string; thinking?: string };
+  | { verdict: "empty" }
+  | { verdict: "ok"; answer: string; reasoningUsed: boolean };
 
 /**
  * A reasoning model's chain-of-thought block is real model output, not UI
- * chrome — it gets the same safety and length checks as the answer before
- * either is shown, so a jailbreak can't hide in the "thinking" block.
+ * chrome — it gets the same safety and length checks as the answer before the
+ * answer is returned, so a jailbreak can't hide in discarded provider data.
  */
 export function evaluateAssistantContent(content: { answer: string; thinking?: string }, options: SafetyOptions = {}): AssistantContentVerdict {
+  if (!content.answer.trim()) return { verdict: "empty" };
   const answerEvaluation = evaluateAssistantOutput(content.answer, options);
   if (answerEvaluation.verdict === "unsafe") return { verdict: "unsafe" };
-  if (!content.thinking) return { verdict: "ok", answer: answerEvaluation.text };
+  if (!content.thinking) return { verdict: "ok", answer: answerEvaluation.text, reasoningUsed: false };
   const thinkingEvaluation = evaluateAssistantOutput(content.thinking, options);
   if (thinkingEvaluation.verdict === "unsafe") return { verdict: "unsafe" };
-  return { verdict: "ok", answer: answerEvaluation.text, thinking: thinkingEvaluation.text };
+  return { verdict: "ok", answer: answerEvaluation.text, reasoningUsed: true };
 }
 
 export function safetyRefusal(language: SafetyLanguage, reason: SafetyReason = "code_generation") {

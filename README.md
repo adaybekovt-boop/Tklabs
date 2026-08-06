@@ -6,6 +6,7 @@ TK LAB is a bilingual AI workspace built around a small, explicit Cloudflare Wor
 
 - Erma Lite, Erma Core, and Erma Pro are the only public Erma modes. Their provider mappings and system prompts stay server-side.
 - AI routes return one JSON contract: `{ answer, meta }`. The metadata identifies the requested model, actual provider/model, request ID, latency, status, and any fallback reason.
+- Provider reasoning is evaluated transiently on the server and is never returned, rendered, archived, logged, or sent to analytics. The client may receive only the generic `meta.reasoningUsed` boolean.
 - Fallbacks are visible. A local fallback is labeled `local-fallback`; it is never presented as NVIDIA, Clodex, or the selected Erma model.
 - Chat sessions are bounded browser-local archives. They are not a server-side conversation backup.
 - Voice input uses the browser Web Speech API when available. Authenticated ElevenLabs speech is optional; its key and voice configuration never reach the client.
@@ -116,12 +117,14 @@ Provider and feature configuration:
 - `CLODEX_ENABLED=true|false`
 - `CLODEX_GRANT_TTL_DAYS` is a bounded non-secret variable (default 30 days) for newly redeemed grants.
 - `CLODEX_GRANT_VERSION` is a bounded non-secret policy version (default `v2`); changing it intentionally invalidates grants from older policies.
+- `CLODEX_MODEL_FAST`, `CLODEX_MODEL_REASONING`, and `CLODEX_MODEL_PRO` are non-secret provider model IDs. They must all be valid and present as Actions variables when `CLODEX_ENABLED=true`; the runtime fails closed instead of silently substituting an undocumented model.
 - `TTS_REQUEST_LIMIT`, `TTS_DAILY_CHARACTER_QUOTA`, `TTS_PRIVILEGED_REQUEST_LIMIT`, and `TTS_PRIVILEGED_DAILY_CHARACTER_QUOTA` are bounded non-secret quota variables with production defaults of `5`, `10000`, `30`, and `100000`.
 - `CLODEX_API_KEY`, `CLODEX_ACCESS_CODE`, and `CLODEX_PROMO_EMAILS` only when the Clodex experiment is enabled
 - `ELEVENLABS_API_KEY`, `ELEVENLABS_VOICE_ID`, and optional `ELEVENLABS_MODEL_ID`
 - `AUTH_URL` is a public origin variable, not a secret; production is `https://tklabs.uk`
 - `AUTH_TRUST_HOST=true` is a public Auth.js/Cloudflare variable emitted into the Worker configuration and passed explicitly by production deployment
 - `D1_DATABASE_ID` is an optional routing-ID override, not a credential
+- `TKLABS_LOCAL_PREVIEW` and `NEXT_PUBLIC_TKLABS_LOCAL_PREVIEW` are development-only preview switches. Production builds fail if either is enabled, and they never bypass production authentication.
 
 ## Commands
 
@@ -139,7 +142,7 @@ Provider and feature configuration:
 
 ## Cloudflare deployment
 
-The [Validate workflow](.github/workflows/ci.yml) runs on pull requests and branches. [The deployment workflow](.github/workflows/deploy-cloudflare.yml) runs automatically on every push to `main` and validates the production commit before deploying. It:
+The [Validate workflow](.github/workflows/ci.yml) runs on pull requests and branches. [The deployment workflow](.github/workflows/deploy-cloudflare.yml) runs automatically on every push to `main` and validates the production commit before deploying. A draft or feature-branch push intentionally does not deploy production. After the reviewed PR is merged, the resulting `main` push is the automatic production trigger. It:
 
 1. installs the lockfile with `npm ci`;
 2. verifies Cloudflare deployment credentials;
@@ -149,6 +152,8 @@ The [Validate workflow](.github/workflows/ci.yml) runs on pull requests and bran
 6. deploys the generated Wrangler configuration while explicitly managing non-secret production variables.
 
 Public values such as `AUTH_URL`, `CLODEX_ENABLED`, `CLODEX_GRANT_VERSION`, and TTS quota values are Wrangler vars. API keys, HMAC keys, OAuth secrets, access codes, and allowlists are runtime secrets.
+
+When Clodex is enabled, set the three `CLODEX_MODEL_*` values as non-secret GitHub Actions variables. They are injected into the generated Worker config; they are not sent with `wrangler secret put` and are not exposed by the public model catalog.
 
 Cloudflare is the source of truth for runtime Worker secrets. The deployment preflight checks only their names. GitHub Actions stores only the Cloudflare deployment credentials and never runs `wrangler secret put` for application secrets.
 
@@ -171,3 +176,7 @@ The project is licensed under the MIT License. See [LICENSE](LICENSE).
 ## Operational notes
 
 The Cloudflare account used by GitHub Actions must own the `tklabs.uk` zone and the intended Worker. A successful deploy to a different `workers.dev` account does not make the custom domain healthy. Verify the account ID, Worker route/custom domain, D1 binding, OAuth callback URI, and runtime secrets together before diagnosing an AI or login failure.
+
+## Owner-only repository settings
+
+The code cannot safely change repository administration settings. Before production use, the owner should set `main` as the default branch, require the `Validate / check` status on pull requests, restrict direct pushes, enable automatic deletion of merged head branches, and keep the PR workflow in review until required checks are green. Cloudflare Git Integration should remain disconnected when GitHub Actions is the production deploy path; otherwise two systems can deploy different Worker versions.
