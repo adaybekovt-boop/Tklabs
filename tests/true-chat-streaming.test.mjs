@@ -6,12 +6,13 @@ const read = (path) => readFile(new URL(`../${path}`, import.meta.url), "utf8");
 
 test("v0.13.0 client sends conversation history and consumes typed SSE", async () => {
   const hook = await read("hooks/use-chat-request.ts");
-  assert.match(hook, /history: contextHistory\(messagesRef\.current\)/);
+  assert.match(hook, /const history = contextHistory\(messagesRef\.current\)/);
+  assert.match(hook, /body: JSON\.stringify\(\{[\s\S]*?history,/);
   assert.match(hook, /endpoint = streaming \? "\/api\/demo\/stream"/);
   assert.match(hook, /readAiEventStream\(response\.body/);
   assert.match(hook, /event\.type === "delta"/);
   assert.match(hook, /streamedContent \+= event\.text/);
-  assert.doesNotMatch(hook, /throw new Error\("The AI response was empty\."\);\s*const next = current/);
+  assert.doesNotMatch(hook, /setMessages\(\(current\) => \{\s*const assistant[\s\S]*?throw new Error/);
 });
 
 test("stream route keeps request security, quotas, safety, and no-store SSE headers", async () => {
