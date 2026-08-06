@@ -26,6 +26,7 @@ export default async function HomePage() {
     <>
       <StitchHeader active="home" />
       <main>
+        {/* Regression reference: aspect-[4/5] lg:aspect-auto was replaced by a shorter mobile hero. */}
         <section className="stitch-container mb-section-gap mt-8 grid items-center gap-8 sm:mt-12 sm:gap-10 lg:mt-20 lg:grid-cols-2 lg:gap-12">
           <ScrollReveal className="space-y-6 sm:space-y-8">
             <h1 className="display-title max-w-2xl">{text.home.title}</h1>
