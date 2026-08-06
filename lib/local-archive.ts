@@ -9,6 +9,7 @@ export type ArchivedMessage = {
   id: string;
   role: "user" | "assistant";
   content: string;
+  excludedFromContext?: boolean;
   meta?: AiResponseMeta;
 };
 
@@ -38,6 +39,44 @@ function isBrowser() {
   return typeof window !== "undefined";
 }
 
+function optionalNumber(value: unknown) {
+  return typeof value === "number" && Number.isFinite(value) ? Math.max(0, Math.round(value)) : undefined;
+}
+
+function sanitizeMeta(value: unknown): AiResponseMeta | undefined {
+  if (!value || typeof value !== "object") return undefined;
+  const meta = value as Partial<AiResponseMeta>;
+  if (
+    typeof meta.requestId !== "string"
+    || typeof meta.requestedModel !== "string"
+    || (meta.actualProvider !== "nvidia" && meta.actualProvider !== "clodex" && meta.actualProvider !== "edge-fallback")
+    || typeof meta.actualModel !== "string"
+  ) return undefined;
+  const inputTokens = optionalNumber(meta.inputTokens);
+  const outputTokens = optionalNumber(meta.outputTokens);
+  const timeToFirstTokenMs = optionalNumber(meta.timeToFirstTokenMs);
+  const contextMessageCount = optionalNumber(meta.contextMessageCount);
+  const contextAttachmentCount = optionalNumber(meta.contextAttachmentCount);
+  const contextLimit = optionalNumber(meta.contextLimit);
+  return {
+    requestId: meta.requestId.slice(0, 120),
+    requestedModel: meta.requestedModel.slice(0, 120),
+    actualProvider: meta.actualProvider,
+    actualModel: meta.actualModel.slice(0, 160),
+    latencyMs: optionalNumber(meta.latencyMs) ?? 0,
+    httpStatus: typeof meta.httpStatus === "number" ? Math.round(meta.httpStatus) : 200,
+    ...(meta.reasoningUsed === true ? { reasoningUsed: true } : {}),
+    ...(typeof meta.fallbackReason === "string" ? { fallbackReason: meta.fallbackReason.slice(0, 120) } : {}),
+    ...(inputTokens !== undefined ? { inputTokens } : {}),
+    ...(outputTokens !== undefined ? { outputTokens } : {}),
+    ...(timeToFirstTokenMs !== undefined ? { timeToFirstTokenMs } : {}),
+    ...(contextMessageCount !== undefined ? { contextMessageCount } : {}),
+    ...(contextAttachmentCount !== undefined ? { contextAttachmentCount } : {}),
+    ...(contextLimit !== undefined ? { contextLimit } : {}),
+    ...(meta.contextCompacted === true ? { contextCompacted: true } : {}),
+  };
+}
+
 export function loadArchive(): ArchivedSession[] {
   if (!isBrowser()) return [];
   if (archiveCache) return archiveCache;
@@ -62,13 +101,13 @@ export function loadArchive(): ArchivedSession[] {
         const message = value as Partial<ArchivedMessage> & Record<string, unknown>;
         if ((message.role !== "user" && message.role !== "assistant") || typeof message.content !== "string") return [];
         if (Object.prototype.hasOwnProperty.call(message, "thinking")) removedLegacyReasoning = true;
+        const meta = sanitizeMeta(message.meta);
         return [{
           id: typeof message.id === "string" ? message.id : `${session.id}-${Math.random().toString(36).slice(2, 8)}`,
           role: message.role,
           content: message.content.slice(0, MAX_MESSAGE_CONTENT_LENGTH),
-          ...(message.meta && typeof message.meta === "object" && typeof message.meta.requestId === "string" && typeof message.meta.requestedModel === "string" && typeof message.meta.actualProvider === "string" && typeof message.meta.actualModel === "string"
-            ? { meta: { requestId: message.meta.requestId.slice(0, 120), requestedModel: message.meta.requestedModel.slice(0, 120), actualProvider: message.meta.actualProvider.slice(0, 40) as AiResponseMeta["actualProvider"], actualModel: message.meta.actualModel.slice(0, 160), latencyMs: typeof message.meta.latencyMs === "number" ? Math.max(0, Math.round(message.meta.latencyMs)) : 0, httpStatus: typeof message.meta.httpStatus === "number" ? message.meta.httpStatus : 200, ...(message.meta.reasoningUsed === true ? { reasoningUsed: true } : {}), ...(typeof message.meta.fallbackReason === "string" ? { fallbackReason: message.meta.fallbackReason.slice(0, 120) } : {}) } }
-            : {}),
+          ...(message.excludedFromContext === true ? { excludedFromContext: true } : {}),
+          ...(meta ? { meta } : {}),
         }];
       }).slice(-MAX_MESSAGES_PER_SESSION);
       return [{
@@ -125,12 +164,16 @@ export function saveSession(session: ArchivedSession) {
     title: session.title.slice(0, 120),
     model: session.model.slice(0, 120),
     updatedAt: Number.isFinite(session.updatedAt) ? session.updatedAt : Date.now(),
-    messages: session.messages.slice(-MAX_MESSAGES_PER_SESSION).map((message) => ({
-      id: message.id.slice(0, 120),
-      role: message.role,
-      content: message.content.slice(0, MAX_MESSAGE_CONTENT_LENGTH),
-      ...(message.meta ? { meta: { requestId: message.meta.requestId.slice(0, 120), requestedModel: message.meta.requestedModel.slice(0, 120), actualProvider: message.meta.actualProvider.slice(0, 40) as AiResponseMeta["actualProvider"], actualModel: message.meta.actualModel.slice(0, 160), latencyMs: Math.max(0, Math.round(message.meta.latencyMs)), httpStatus: message.meta.httpStatus, ...(message.meta.reasoningUsed ? { reasoningUsed: true } : {}), ...(message.meta.fallbackReason ? { fallbackReason: message.meta.fallbackReason.slice(0, 120) } : {}) } } : {}),
-    })),
+    messages: session.messages.slice(-MAX_MESSAGES_PER_SESSION).map((message) => {
+      const meta = sanitizeMeta(message.meta);
+      return {
+        id: message.id.slice(0, 120),
+        role: message.role,
+        content: message.content.slice(0, MAX_MESSAGE_CONTENT_LENGTH),
+        ...(message.excludedFromContext === true ? { excludedFromContext: true } : {}),
+        ...(meta ? { meta } : {}),
+      };
+    }),
   };
   const sessions = [safeSession, ...loadArchive().filter((entry) => entry.id !== safeSession.id)].slice(0, MAX_SESSIONS);
   try {
