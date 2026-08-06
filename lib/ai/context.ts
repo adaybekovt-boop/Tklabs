@@ -129,7 +129,7 @@ export function prepareChatContext(input: {
 
   const originalMessageCount = normalizedHistory.length + 1;
   let compacted = normalizedHistory.length > MAX_CONTEXT_MESSAGES;
-  let history = normalizedHistory.slice(-MAX_CONTEXT_MESSAGES);
+  const history = normalizedHistory.slice(-MAX_CONTEXT_MESSAGES);
   let messages = [...history, { role: "user" as const, content: currentUserContent }];
   let summary = "";
   let estimatedTokens = estimateMessagesTokens(messages);
