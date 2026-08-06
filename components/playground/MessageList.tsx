@@ -21,6 +21,7 @@ import {
 } from "lucide-react";
 
 import { ChatOverlay } from "@/components/playground/ChatOverlay";
+import { ToolCallCards } from "@/components/playground/ToolCallCards";
 import AIThinkingBlock from "@/components/ui/ai-thinking-block";
 import type { AiResponseMeta } from "@/lib/ai/types";
 import { getDictionary, type Locale } from "@/lib/i18n";
@@ -186,6 +187,7 @@ export function MessageList({
               ) : <AnswerBody content={message.content} pending={isPending && message.id === lastMessage?.id} error={message.error} />}
 
               {message.stopped && <p className="mt-3 rounded-xl bg-surface-container-low px-3 py-2 text-[11px] text-on-secondary-container">{ui.stopped}</p>}
+              <ToolCallCards calls={message.meta?.toolCalls} locale={locale} />
 
               {message.error ? (
                 <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-error/20 pt-4 text-[11px]">
