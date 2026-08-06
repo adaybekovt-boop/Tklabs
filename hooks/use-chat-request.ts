@@ -1,12 +1,14 @@
 import { useEffect, useMemo, useReducer, useRef, useState } from "react";
 
 import { DEFAULT_CONTEXT_LIMIT_TOKENS, estimateMessagesTokens, type ChatContextMessage } from "@/lib/ai/context";
+import { shouldIncludeLocalArchive } from "@/lib/ai/tools/intents";
 import type { AiResponseMeta } from "@/lib/ai/types";
 import { chatResponseModeInstruction, type ChatResponseMode } from "@/lib/chat-modes";
 import type { Locale } from "@/lib/i18n";
 import { getDictionary } from "@/lib/i18n";
 import type { ArchivedMessage, ArchivedMessageVersion } from "@/lib/local-archive";
 import { buildLocalArchiveSearchIndex } from "@/lib/local-archive-search";
+import { AUTO_ERMA_MODEL_KEY, resolveAutoErmaModelKey } from "@/lib/models/public";
 import type { ChatInputSubmitMeta } from "@/components/ui/ai-chat-input";
 import type { ChatMessage } from "@/components/playground/MessageList";
 
@@ -124,6 +126,10 @@ function responseSnapshot(message: ChatMessage): ArchivedMessageVersion {
     ...(message.requestId ? { requestId: message.requestId } : {}),
     ...(message.meta ? { meta: message.meta } : {}),
   };
+}
+
+function modelForPrompt(model: string, prompt: string, reasoning: boolean, effort: ChatInputSubmitMeta["effort"]) {
+  return model === AUTO_ERMA_MODEL_KEY ? resolveAutoErmaModelKey(prompt, { reasoning, effort }) : model;
 }
 
 export function useChatRequest(options: {
@@ -271,8 +277,9 @@ export function useChatRequest(options: {
     const assistantId = configuration.reuseAssistantId ?? crypto.randomUUID();
     const controller = new AbortController();
     const history = toContextMessages(configuration.historyOverride ?? messagesRef.current);
+    const requestModel = modelForPrompt(submitMeta.model, prompt, options.reasonEnabled, submitMeta.effort);
     const conversation: ActiveConversation = { prompt, model: submitMeta.model, assistantId, requestId };
-    const localArchive = buildLocalArchiveSearchIndex();
+    const localArchive = shouldIncludeLocalArchive(prompt) ? buildLocalArchiveSearchIndex() : [];
 
     setServerContextStats(null);
     if (configuration.reuseAssistantId) {
@@ -290,7 +297,7 @@ export function useChatRequest(options: {
     armWatchdog(controller, conversation);
 
     try {
-      const endpoint = submitMeta.model.startsWith("clodex:") ? "/api/clodex" : "/api/demo";
+      const endpoint = requestModel.startsWith("clodex:") ? "/api/clodex" : "/api/demo";
       const response = await fetch(endpoint, {
         method: "POST",
         headers: { "content-type": "application/json", accept: "text/event-stream, application/json" },
@@ -298,13 +305,13 @@ export function useChatRequest(options: {
         body: JSON.stringify({
           prompt,
           messages: history,
-          model: submitMeta.model,
+          model: requestModel,
           locale: options.locale,
           reasonEnabled: options.reasonEnabled,
           effort: submitMeta.effort,
           tone: options.tone,
           attachments: modeAttachments(submitMeta.attachments, options.responseMode, options.locale),
-          ...(endpoint === "/api/demo" ? { localArchive } : {}),
+          ...(endpoint === "/api/demo" && localArchive.length ? { localArchive } : {}),
         }),
       });
       armWatchdog(controller, conversation);
@@ -407,23 +414,25 @@ export function useChatRequest(options: {
     if (userIndex < 0) return;
     const prompt = current[userIndex].content;
     const requestId = crypto.randomUUID();
+    const requestModel = modelForPrompt(model, prompt, options.reasonEnabled, "medium");
+    const localArchive = shouldIncludeLocalArchive(prompt) ? buildLocalArchiveSearchIndex() : [];
     setMessages((entries) => entries.map((message) => message.id === messageId ? { ...message, comparison: { model, content: "", requestId, pending: true } } : message));
 
     try {
-      const endpoint = model.startsWith("clodex:") ? "/api/clodex" : "/api/demo";
+      const endpoint = requestModel.startsWith("clodex:") ? "/api/clodex" : "/api/demo";
       const response = await fetch(endpoint, {
         method: "POST",
         headers: { "content-type": "application/json", accept: "application/json" },
         body: JSON.stringify({
           prompt,
           messages: toContextMessages(current.slice(0, userIndex)),
-          model,
+          model: requestModel,
           locale: options.locale,
           reasonEnabled: options.reasonEnabled,
           effort: "medium",
           tone: options.tone,
           attachments: modeAttachments([], options.responseMode, options.locale),
-          ...(endpoint === "/api/demo" ? { localArchive: buildLocalArchiveSearchIndex() } : {}),
+          ...(endpoint === "/api/demo" && localArchive.length ? { localArchive } : {}),
         }),
       });
       const payload = await response.json().catch(() => null) as { answer?: unknown; error?: unknown; meta?: unknown; requestId?: unknown } | null;

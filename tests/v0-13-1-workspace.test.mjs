@@ -27,22 +27,22 @@ test("v0.13.1 persists workspace metadata, versions, comparisons, and branches",
   assert.match(archive, /Number\(right\.pinned === true\) - Number\(left\.pinned === true\)/);
 });
 
-test("desktop chat uses three zones and a contextual right drawer", async () => {
+test("desktop chat keeps archive, transcript, and an optional contextual drawer", async () => {
   const chat = await text("components/playground/PlaygroundChat.tsx");
   const drawer = await text("components/playground/ChatContextDrawer.tsx");
 
-  assert.match(chat, /data-three-zone-chat-workspace/);
+  assert.match(chat, /data-calm-chat-workspace/);
   assert.match(chat, /chat-desktop-sidebar/);
   assert.match(chat, /<ChatContextDrawer/);
   assert.match(chat, /drawerOpen/);
   assert.match(drawer, /data-chat-context-drawer/);
-  assert.match(drawer, /"context" \| "files" \| "sources" \| "settings"/);
+  assert.match(drawer, /type DrawerTab = "activity" \| "context"/);
   assert.match(drawer, /GitCompareArrows/);
   assert.match(drawer, /onProjectChange/);
   assert.match(drawer, /xl:flex/);
 });
 
-test("conversation workspace supports search, pinning, rename, duplicate, projects, delete, and safe clearing", async () => {
+test("conversation workspace preserves search, pinning, rename, duplicate, projects, delete, and safe clearing", async () => {
   const workspace = await text("components/playground/ConversationArchive.tsx");
   const titleHook = await text("hooks/use-conversation-archive.ts");
 
@@ -52,14 +52,14 @@ test("conversation workspace supports search, pinning, rename, duplicate, projec
   assert.match(workspace, /toggleSessionPinned/);
   assert.match(workspace, /duplicateSession/);
   assert.match(workspace, /session\.project/);
-  assert.match(workspace, /aria-pressed=\{session\.pinned === true\}/);
+  assert.match(workspace, /MoreHorizontal/);
   assert.match(workspace, /Trash2/);
   assert.doesNotMatch(workspace, /window\.confirm/);
   assert.match(titleHook, /replace\(\/```\[\\s\\S\]\*\?```\/g/);
   assert.match(titleHook, /firstSentence/);
 });
 
-test("answers support regeneration, previous versions, branching, and side-by-side comparison", async () => {
+test("answers preserve regeneration, previous versions, branching, and side-by-side comparison", async () => {
   const hook = await text("hooks/use-chat-request.ts");
   const messages = await text("components/playground/MessageList.tsx");
 
@@ -75,18 +75,19 @@ test("answers support regeneration, previous versions, branching, and side-by-si
   assert.match(messages, /GitCompareArrows/);
 });
 
-test("technical metadata is collapsed behind Details", async () => {
+test("technical provider diagnostics are removed from normal messages", async () => {
   const messages = await text("components/playground/MessageList.tsx");
 
-  assert.match(messages, /data-message-details/);
-  assert.match(messages, /<details/);
-  assert.match(messages, /Provider:/);
-  assert.match(messages, /Request ID:/);
-  assert.match(messages, /data-compact-message-actions/);
-  assert.doesNotMatch(messages, /message\.meta\?\.actualProvider && <span className="ml-auto/);
+  assert.doesNotMatch(messages, /Provider:/);
+  assert.doesNotMatch(messages, /Request ID:/);
+  assert.doesNotMatch(messages, /Latency:/);
+  assert.doesNotMatch(messages, /TTFT:/);
+  assert.doesNotMatch(messages, /actualProvider/);
+  assert.match(messages, /MoreHorizontal/);
+  assert.match(messages, /AgentActivity/);
 });
 
-test("mobile composer keeps only plus, message, voice, and send while settings move into a bottom sheet", async () => {
+test("mobile composer keeps plus, message, voice, and send while settings stay in a sheet", async () => {
   const input = await text("components/ui/ai-chat-input.tsx");
   const modes = await text("lib/chat-modes.ts");
 
@@ -101,17 +102,16 @@ test("mobile composer keeps only plus, message, voice, and send while settings m
   assert.match(modes, /Do not invent browsing or citations/);
 });
 
-test("mobile gestures and long-press actions are explicit", async () => {
+test("mobile history and message actions are explicit while swipe remains optional", async () => {
   const chat = await text("components/playground/PlaygroundChat.tsx");
-  const overlay = await text("components/playground/ChatOverlay.tsx");
   const messages = await text("components/playground/MessageList.tsx");
 
+  assert.match(chat, /<HistoryDropdown/);
   assert.match(chat, /deltaX > 72/);
   assert.match(chat, /setMobileHistoryOpen\(true\)/);
-  assert.match(overlay, /deltaY > 72/);
-  assert.match(messages, /holdTimerRef/);
-  assert.match(messages, /520/);
-  assert.match(messages, /mobile-message-actions-title/);
+  assert.match(messages, /MoreHorizontal/);
+  assert.match(messages, /ActionMenu/);
+  assert.doesNotMatch(messages, /holdTimerRef/);
 });
 
 test("stream stop preserves partial text, tables scroll, and code can open fullscreen", async () => {
@@ -127,16 +127,15 @@ test("stream stop preserves partial text, tables scroll, and code can open fulls
 
 test("RU and EN controls stay directly reachable on mobile site and chat screens", async () => {
   const header = await text("components/site/StitchHeader.tsx");
-  const chatPage = await text("app/playground/page.tsx");
+  const chat = await text("components/playground/PlaygroundChat.tsx");
 
   assert.match(header, /flex shrink-0 items-center gap-2 lg:hidden/);
   assert.match(header, /<LanguageToggle locale=\{locale\} label=\{text\.nav\.language\} \/>/);
-  assert.match(chatPage, /fixed right-14 top-2/);
-  assert.match(chatPage, /sm:hidden/);
-  assert.match(chatPage, /<LanguageToggle locale=\{locale\} label=\{text\.nav\.language\} \/>/);
+  assert.match(chat, /sm:hidden/);
+  assert.match(chat, /<LanguageToggle locale=\{locale\} label=\{text\.nav\.language\} \/>/);
 });
 
-test("every v0.13 release has public Patch Notes and a release document", async () => {
+test("every v0.13 release retains public Patch Notes and a release document", async () => {
   const releases = await text("lib/latest-release.ts");
   const page = await text("app/patch-notes/page.tsx");
   const v0130 = await text("docs/releases/v0.13.0.md");

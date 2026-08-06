@@ -1,8 +1,10 @@
+import { shouldOfferPlanner } from "@/lib/ai/tools/intents";
 import { READ_ONLY_AI_TOOLS } from "@/lib/models/capabilities";
 import type { AiToolName } from "@/lib/ai/types";
 
 export const MAX_AI_TOOL_CALLS = 4;
-export const MAX_AI_TOOL_ROUNDS = 3;
+export const MAX_AI_TOOL_ROUNDS = 1;
+export const DEFAULT_AI_TOOL_CALLS = 2;
 export const AI_TOOL_TIMEOUT_MS = 3_000;
 
 export type NvidiaToolDefinition = {
@@ -79,7 +81,7 @@ export const NVIDIA_READ_ONLY_TOOLS: readonly NvidiaToolDefinition[] = [
     type: "function",
     function: {
       name: "search_local_archive",
-      description: "Search the limited on-device conversation index supplied with this request. It never reads server storage.",
+      description: "Search the limited on-device conversation results supplied with this request. It never reads server storage.",
       parameters: limitedSearchSchema,
     },
   },
@@ -103,9 +105,7 @@ export function isAllowedAiToolName(value: unknown): value is AiToolName {
   return typeof value === "string" && TOOL_NAME_SET.has(value);
 }
 
+/** Backwards-compatible name for planner eligibility. Direct recipes are handled before this check. */
 export function shouldOfferReadOnlyTools(prompt: string) {
-  const normalized = prompt.toLocaleLowerCase();
-  if (/\bv?\d+\.\d+\.\d+\b/.test(normalized)) return true;
-  if (/[0-9][0-9\s.+\-*/%^()]{2,}/.test(normalized)) return true;
-  return /(?:patch\s*notes?|release|version|changelog|что нового|релиз|верси|обновлен|documentation|docs?|guide|help|документац|инструкц|справк|service\s*status|health|status|статус|доступност|работает ли|archive|history|conversation|архив|истори|диалог|model capabilit|tool calling|tools?|возможност.*модел|инструмент)/i.test(normalized);
+  return shouldOfferPlanner(prompt);
 }
