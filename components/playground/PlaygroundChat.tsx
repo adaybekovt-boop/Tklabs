@@ -94,12 +94,29 @@ export function PlaygroundChat({ locale }: { locale: Locale }) {
     : PUBLIC_MAX_PROMPT_LENGTH;
   const selectedModel = models.find((model) => model.id === modelKey) ?? models[0];
   const archive = useConversationArchive();
-  const chat = useChatRequest({ locale, tone, reasonEnabled, promptLimit, saveConversation: archive.save });
+  const chat = useChatRequest({
+    locale,
+    tone,
+    reasonEnabled,
+    promptLimit,
+    currentModel: selectedModel?.id ?? DEFAULT_ERMA_MODEL_KEY,
+    saveConversation: archive.save,
+  });
   const speech = useSpeech(locale, ttsAvailable, {
     voiceUnsupported: text.chat.voiceUnsupported,
     speechFailed: text.chat.speechFailed,
     copyFailed: text.chat.copyFailed,
   });
+  const numberFormat = useMemo(() => new Intl.NumberFormat(locale === "ru" ? "ru-RU" : "en-US"), [locale]);
+  const contextRatio = chat.contextStats.estimatedTokens / Math.max(1, chat.contextStats.limit);
+  const contextWarning = contextRatio >= 0.8;
+  const statusLabel = chat.requestStatus === "connecting"
+    ? locale === "ru" ? "Подключение" : "Connecting"
+    : chat.requestStatus === "analyzing"
+      ? locale === "ru" ? "Анализ" : "Analyzing"
+      : chat.requestStatus === "generating"
+        ? locale === "ru" ? "Генерация" : "Generating"
+        : selectedModel?.name ?? (clodexAccess?.active || localPreview ? text.chat.clodexReady : text.chat.ready);
 
   useEffect(() => {
     let cancelled = false;
@@ -240,9 +257,7 @@ export function PlaygroundChat({ locale }: { locale: Locale }) {
               <p className="label-caps hidden text-on-secondary-container sm:block">AI CHAT</p>
               <div className="flex items-center gap-2">
                 <span className={cn("chat-status-dot size-2 rounded-full bg-primary", chat.isPending && "animate-pulse")} />
-                <span className="truncate text-[12px] text-on-secondary-container sm:text-[13px]">
-                  {chat.isPending ? text.chat.generating : selectedModel?.name ?? (clodexAccess?.active || localPreview ? text.chat.clodexReady : text.chat.ready)}
-                </span>
+                <span className="truncate text-[12px] text-on-secondary-container sm:text-[13px]">{statusLabel}</span>
               </div>
             </div>
           </div>
@@ -301,6 +316,7 @@ export function PlaygroundChat({ locale }: { locale: Locale }) {
                   focusComposer();
                 }}
                 onCopyRequestId={copyRequestId}
+                onToggleContext={(message) => chat.toggleMessageContext(message.id)}
               />
             )}
           </div>
@@ -338,6 +354,25 @@ export function PlaygroundChat({ locale }: { locale: Locale }) {
                   focusComposer();
                 }}
               />
+            )}
+          </div>
+          <div
+            className={cn(
+              "mx-auto mb-2 flex w-full max-w-[780px] flex-wrap items-center gap-x-2 gap-y-1 px-1 text-[10px] text-on-secondary-container sm:text-[11px]",
+              contextWarning && "text-error",
+            )}
+            role="status"
+          >
+            <span>
+              {locale === "ru" ? "Контекст" : "Context"}: {numberFormat.format(chat.contextStats.estimatedTokens)} {locale === "ru" ? "токенов" : "tokens"}
+              {" · "}{chat.contextStats.messages} {locale === "ru" ? "сообщений" : "messages"}
+              {" · "}{chat.contextStats.attachments} {locale === "ru" ? "файлов" : "files"}
+            </span>
+            {chat.contextStats.compacted && (
+              <span>{locale === "ru" ? "Старые сообщения свёрнуты." : "Older messages compacted."}</span>
+            )}
+            {contextWarning && (
+              <span>{locale === "ru" ? "Контекст близок к лимиту." : "Context is close to the limit."}</span>
             )}
           </div>
           <PromptInput
