@@ -205,9 +205,11 @@ export function useChatRequest(options: {
         if (!response.body) throw new Error("The AI stream was empty.");
         let responseMeta: AiResponseMeta | undefined;
         let streamError = "";
+        let streamedContent = "";
         await readAiEventStream(response.body, (event) => {
           if (activeRequestRef.current !== controller) return;
           if (event.type === "delta") {
+            streamedContent += event.text;
             appendAssistant(assistantId, (message) => ({ ...message, content: `${message.content}${event.text}` }));
           } else if (event.type === "meta" && isResponseMeta(event.meta)) {
             responseMeta = event.meta;
@@ -217,10 +219,9 @@ export function useChatRequest(options: {
           }
         });
         if (streamError) throw new Error(streamError);
+        if (!streamedContent.trim()) throw new Error("The AI response was empty.");
 
         setMessages((current) => {
-          const assistant = current.find((message) => message.id === assistantId);
-          if (!assistant?.content.trim()) throw new Error("The AI response was empty.");
           const next = current.map((message) => message.id === assistantId && responseMeta
             ? { ...message, meta: responseMeta, requestId: responseMeta.requestId }
             : message);
