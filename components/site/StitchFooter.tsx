@@ -3,67 +3,17 @@ import Link from "next/link";
 import { getDictionary } from "@/lib/i18n";
 import { getLocale } from "@/lib/locale";
 
+const footerLinkClass = "flex min-h-11 items-center rounded-xl px-3 text-sm text-on-surface-variant transition-colors hover:bg-surface-container-low hover:text-primary";
+const desktopLinkClass = "text-on-surface-variant transition-colors hover:text-primary";
+
 export async function StitchFooter() {
   const locale = await getLocale();
   const text = getDictionary(locale);
   const footerLabel = locale === "ru" ? "Частная AI-среда" : "Private AI workspace";
-  const groups = locale === "ru"
-    ? [
-        {
-          title: "Продукт",
-          links: [
-            ["/models", text.footer.models],
-            ["/access", text.footer.access],
-            ["/playground", "AI-чат"],
-            ["/status", text.footer.status],
-          ],
-        },
-        {
-          title: "Ресурсы",
-          links: [
-            ["/documentation", text.footer.documentation],
-            ["/developers", text.footer.developers],
-            ["/patch-notes", text.footer.patchNotes],
-            ["/truth", text.footer.truth],
-          ],
-        },
-        {
-          title: "Правовая информация",
-          links: [
-            ["/privacy", text.footer.privacy],
-            ["/legal/terms", text.footer.terms],
-            ["/legal/api", text.footer.api],
-          ],
-        },
-      ]
-    : [
-        {
-          title: "Product",
-          links: [
-            ["/models", text.footer.models],
-            ["/access", text.footer.access],
-            ["/playground", "AI chat"],
-            ["/status", text.footer.status],
-          ],
-        },
-        {
-          title: "Resources",
-          links: [
-            ["/documentation", text.footer.documentation],
-            ["/developers", text.footer.developers],
-            ["/patch-notes", text.footer.patchNotes],
-            ["/truth", text.footer.truth],
-          ],
-        },
-        {
-          title: "Legal",
-          links: [
-            ["/privacy", text.footer.privacy],
-            ["/legal/terms", text.footer.terms],
-            ["/legal/api", text.footer.api],
-          ],
-        },
-      ];
+  const productTitle = locale === "ru" ? "Продукт" : "Product";
+  const resourcesTitle = locale === "ru" ? "Ресурсы" : "Resources";
+  const legalTitle = locale === "ru" ? "Правовая информация" : "Legal";
+  const chatLabel = locale === "ru" ? "AI-чат" : "AI chat";
 
   return (
     <footer className="mt-section-gap border-t-[0.5px] border-primary bg-surface">
@@ -71,25 +21,43 @@ export async function StitchFooter() {
         <div className="md:hidden">
           <p className="label-caps mb-5 text-secondary">{footerLabel}</p>
           <div className="divide-y divide-outline-variant border-y border-outline-variant">
-            {groups.map((group, index) => (
-              <details key={group.title} open={index === 0} className="group">
-                <summary className="flex min-h-14 cursor-pointer list-none items-center justify-between gap-4 py-3 text-sm font-medium text-primary">
-                  {group.title}
-                  <span className="text-lg leading-none transition-transform group-open:rotate-45" aria-hidden="true">+</span>
-                </summary>
-                <nav className="grid gap-1 pb-4" aria-label={group.title}>
-                  {group.links.map(([href, label]) => (
-                    <Link
-                      key={href}
-                      className="flex min-h-11 items-center rounded-xl px-3 text-sm text-on-surface-variant transition-colors hover:bg-surface-container-low hover:text-primary"
-                      href={href}
-                    >
-                      {label}
-                    </Link>
-                  ))}
-                </nav>
-              </details>
-            ))}
+            <details open className="group">
+              <summary className="flex min-h-14 cursor-pointer list-none items-center justify-between gap-4 py-3 text-sm font-medium text-primary">
+                {productTitle}
+                <span className="text-lg leading-none transition-transform group-open:rotate-45" aria-hidden="true">+</span>
+              </summary>
+              <nav className="grid w-full grid-cols-2 gap-1 pb-4" aria-label={productTitle}>
+                <Link className={footerLinkClass} href="/models">{text.footer.models}</Link>
+                <Link className={footerLinkClass} href="/access">{text.footer.access}</Link>
+                <Link className={footerLinkClass} href="/playground">{chatLabel}</Link>
+                <Link className={footerLinkClass} href="/status">{text.footer.status}</Link>
+              </nav>
+            </details>
+
+            <details className="group">
+              <summary className="flex min-h-14 cursor-pointer list-none items-center justify-between gap-4 py-3 text-sm font-medium text-primary">
+                {resourcesTitle}
+                <span className="text-lg leading-none transition-transform group-open:rotate-45" aria-hidden="true">+</span>
+              </summary>
+              <nav className="grid w-full grid-cols-2 gap-1 pb-4" aria-label={resourcesTitle}>
+                <Link className={footerLinkClass} href="/documentation">{text.footer.documentation}</Link>
+                <Link className={footerLinkClass} href="/developers">{text.footer.developers}</Link>
+                <Link className={footerLinkClass} href="/patch-notes">{text.footer.patchNotes}</Link>
+                <Link className={footerLinkClass} href="/truth">{text.footer.truth}</Link>
+              </nav>
+            </details>
+
+            <details className="group">
+              <summary className="flex min-h-14 cursor-pointer list-none items-center justify-between gap-4 py-3 text-sm font-medium text-primary">
+                {legalTitle}
+                <span className="text-lg leading-none transition-transform group-open:rotate-45" aria-hidden="true">+</span>
+              </summary>
+              <nav className="grid w-full grid-cols-2 gap-1 pb-4" aria-label={legalTitle}>
+                <Link className={footerLinkClass} href="/privacy">{text.footer.privacy}</Link>
+                <Link className={footerLinkClass} href="/legal/terms">{text.footer.terms}</Link>
+                <Link className={footerLinkClass} href="/legal/api">{text.footer.api}</Link>
+              </nav>
+            </details>
           </div>
         </div>
 
@@ -103,18 +71,32 @@ export async function StitchFooter() {
             </p>
           </div>
           <div className="grid min-w-[620px] grid-cols-3 gap-10">
-            {groups.map((group) => (
-              <nav key={group.title} aria-label={group.title}>
-                <p className="label-caps mb-4 text-secondary">{group.title}</p>
-                <div className="grid gap-3 text-sm">
-                  {group.links.map(([href, label]) => (
-                    <Link key={href} className="text-on-surface-variant transition-colors hover:text-primary" href={href}>
-                      {label}
-                    </Link>
-                  ))}
-                </div>
-              </nav>
-            ))}
+            <nav aria-label={productTitle}>
+              <p className="label-caps mb-4 text-secondary">{productTitle}</p>
+              <div className="grid gap-3 text-sm">
+                <Link className={desktopLinkClass} href="/models">{text.footer.models}</Link>
+                <Link className={desktopLinkClass} href="/access">{text.footer.access}</Link>
+                <Link className={desktopLinkClass} href="/playground">{chatLabel}</Link>
+                <Link className={desktopLinkClass} href="/status">{text.footer.status}</Link>
+              </div>
+            </nav>
+            <nav aria-label={resourcesTitle}>
+              <p className="label-caps mb-4 text-secondary">{resourcesTitle}</p>
+              <div className="grid gap-3 text-sm">
+                <Link className={desktopLinkClass} href="/documentation">{text.footer.documentation}</Link>
+                <Link className={desktopLinkClass} href="/developers">{text.footer.developers}</Link>
+                <Link className={desktopLinkClass} href="/patch-notes">{text.footer.patchNotes}</Link>
+                <Link className={desktopLinkClass} href="/truth">{text.footer.truth}</Link>
+              </div>
+            </nav>
+            <nav aria-label={legalTitle}>
+              <p className="label-caps mb-4 text-secondary">{legalTitle}</p>
+              <div className="grid gap-3 text-sm">
+                <Link className={desktopLinkClass} href="/privacy">{text.footer.privacy}</Link>
+                <Link className={desktopLinkClass} href="/legal/terms">{text.footer.terms}</Link>
+                <Link className={desktopLinkClass} href="/legal/api">{text.footer.api}</Link>
+              </div>
+            </nav>
           </div>
         </div>
 
