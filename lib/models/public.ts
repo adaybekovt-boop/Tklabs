@@ -16,6 +16,22 @@ export type PublicErmaModel = {
 
 const READ_ONLY_TOOLS_ENABLED = true;
 
+export const AUTO_ERMA_MODEL_KEY = "erma-auto";
+
+/** Virtual user-facing route. The server selects a concrete Erma tier per request. */
+export const PUBLIC_ERMA_AUTO_MODEL: PublicErmaModel = {
+  key: AUTO_ERMA_MODEL_KEY,
+  name: "Erma · Auto",
+  tier: "medium",
+  status: "available",
+  available: true,
+  reasoning: true,
+  vision: false,
+  tools: READ_ONLY_TOOLS_ENABLED,
+  toolMode: "read-only",
+  textAttachments: true,
+};
+
 /** Safe UI catalog. Provider IDs and server prompts intentionally do not live here. */
 export const PUBLIC_ERMA_MODELS: readonly PublicErmaModel[] = [
   { key: "erma-spark-lite", name: "Erma Lite", tier: "light", status: "available", available: true, reasoning: false, vision: false, tools: READ_ONLY_TOOLS_ENABLED, toolMode: "read-only", textAttachments: true },
@@ -23,7 +39,7 @@ export const PUBLIC_ERMA_MODELS: readonly PublicErmaModel[] = [
   { key: "erma-apolon", name: "Erma Pro", tier: "heavy", status: "available", available: true, reasoning: true, vision: false, tools: READ_ONLY_TOOLS_ENABLED, toolMode: "read-only", textAttachments: true },
 ] as const;
 
-export const DEFAULT_ERMA_MODEL_KEY = "erma-spark-lite";
+export const DEFAULT_ERMA_MODEL_KEY = AUTO_ERMA_MODEL_KEY;
 export const PUBLIC_MAX_PROMPT_LENGTH = 2_000;
 export const PRIVILEGED_MAX_PROMPT_LENGTH = 16_000;
 export const DEMO_MAX_PROMPT_LENGTH = PUBLIC_MAX_PROMPT_LENGTH;
