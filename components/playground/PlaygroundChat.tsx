@@ -6,13 +6,15 @@ import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { ArrowDown, FolderKanban, PanelRightOpen, SquarePen } from "lucide-react";
+import { ArrowDown, FolderKanban, Menu, PanelRightOpen, SquarePen } from "lucide-react";
 
 import { ChatContextDrawer } from "@/components/playground/ChatContextDrawer";
 import { ConversationArchive } from "@/components/playground/ConversationArchive";
-import { HistoryDropdown } from "@/components/playground/HistoryDropdown";
-import { MessageList, type ChatMessage } from "@/components/playground/MessageList";
-import { PromptInput, type ChatInputAttachment, type ChatInputModel } from "@/components/ui/ai-chat-input";
+import { MobileChatDrawer } from "@/components/playground/MobileChatDrawer";
+import { ResponsiveChatComposer } from "@/components/playground/ResponsiveChatComposer";
+import { ResponsiveMessageList, type ResponsiveMessageListProps } from "@/components/playground/ResponsiveMessageList";
+import type { ChatMessage } from "@/components/playground/MessageList";
+import type { ChatInputAttachment, ChatInputModel } from "@/components/ui/ai-chat-input";
 import { LanguageToggle } from "@/components/site/LanguageToggle";
 import { SiteLogo } from "@/components/site/SiteLogo";
 import { ThemeToggle } from "@/components/site/ThemeToggle";
@@ -42,7 +44,15 @@ import { cn } from "@/lib/utils";
 const TIER_LABEL: Record<ErmaTier, string> = { light: "Fast", medium: "Balanced", heavy: "Deep" };
 type DrawerTab = "activity" | "context" | "settings";
 
-export function PlaygroundChat({ locale }: { locale: Locale }) {
+export function PlaygroundChat({
+  locale,
+  onOpenArtifacts,
+  onOpenRuns,
+}: {
+  locale: Locale;
+  onOpenArtifacts?: () => void;
+  onOpenRuns?: () => void;
+}) {
   const text = getDictionary(locale);
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -106,6 +116,7 @@ export function PlaygroundChat({ locale }: { locale: Locale }) {
   });
   const contextRatio = chat.contextStats.estimatedTokens / Math.max(1, chat.contextStats.limit);
   const contextWarning = contextRatio >= 0.8;
+  const conversationTitle = currentProject || (locale === "ru" ? "Новый диалог" : "New conversation");
   const statusLabel = chat.requestStatus === "connecting"
     ? locale === "ru" ? "Подключаюсь" : "Connecting"
     : chat.requestStatus === "analyzing"
@@ -131,10 +142,20 @@ export function PlaygroundChat({ locale }: { locale: Locale }) {
   }, []);
 
   useEffect(() => {
-    const savedMode = window.localStorage.getItem("tklabs.response-mode");
-    if (savedMode === "normal" || savedMode === "analysis" || savedMode === "code" || savedMode === "search" || savedMode === "document") setResponseMode(savedMode);
+    try {
+      const savedMode = window.localStorage.getItem("tklabs.response-mode");
+      if (savedMode === "normal" || savedMode === "analysis" || savedMode === "code" || savedMode === "search" || savedMode === "document") setResponseMode(savedMode);
+    } catch {
+      // The chat remains usable when browser storage is unavailable.
+    }
   }, []);
-  useEffect(() => { window.localStorage.setItem("tklabs.response-mode", responseMode); }, [responseMode]);
+  useEffect(() => {
+    try {
+      window.localStorage.setItem("tklabs.response-mode", responseMode);
+    } catch {
+      // Response mode remains available for the active tab.
+    }
+  }, [responseMode]);
 
   useEffect(() => {
     const sessionParam = searchParams.get("session");
@@ -198,6 +219,7 @@ export function PlaygroundChat({ locale }: { locale: Locale }) {
     setCurrentProject("");
     setShowJumpLatest(false);
     setDrawerOpen(false);
+    setMobileHistoryOpen(false);
     shouldFollowRef.current = true;
     speech.stopSpeech();
     router.replace("/playground");
@@ -243,68 +265,83 @@ export function PlaygroundChat({ locale }: { locale: Locale }) {
     setSessionProject(archive.sessionId, project);
   }
 
+  const messageListProps: ResponsiveMessageListProps = {
+    messages: chat.messages,
+    isPending: chat.isPending,
+    locale,
+    text,
+    copiedMessageId: speech.copiedMessageId,
+    speakingMessageId: speech.speechMessageId,
+    speechNotice: speech.speechNotice,
+    onCopy: (message) => void speech.copyMessage(message),
+    onSpeak: (message) => void speech.speakMessage(message),
+    onRetry: chat.retryMessage,
+    onRegenerate: chat.regenerateMessage,
+    onRestorePrevious: (message) => chat.restorePreviousVersion(message.id),
+    onEdit: (message) => { setInput(message.content); focusComposer(); },
+    onBranch: branchFromMessage,
+    onOpenWorkspace: (message) => openWorkspace(message, "settings"),
+    onToggleContext: (message) => chat.toggleMessageContext(message.id),
+  };
+
   return (
     <div className="chat-workspace flex h-full min-h-0 flex-1 overflow-hidden" data-calm-chat-workspace>
-      <aside className="chat-desktop-sidebar hidden w-[280px] shrink-0 flex-col border-r border-outline-variant bg-surface/70 p-4 lg:flex" aria-label={text.chat.history}>
+      <aside className="chat-desktop-sidebar hidden w-[268px] shrink-0 flex-col border-r border-outline-variant bg-surface/70 p-4 lg:flex" aria-label={text.chat.history}>
         <div className="mb-3 flex items-center gap-2 px-2"><Image src={modelMark} alt="" width={28} height={28} className="size-7 object-contain" /><div><span className="label-caps block text-on-secondary-container">{text.chat.history}</span><span className="mt-1 block text-[11px] text-on-secondary-container">{locale === "ru" ? "Диалоги и проекты" : "Conversations and projects"}</span></div></div>
         <ConversationArchive locale={locale} headingId="desktop-chat-history-title" compact />
       </aside>
 
       <section
         className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden"
-        onTouchStart={(event) => { const touch = event.touches[0]; swipeStartRef.current = touch && touch.clientX <= 32 ? { x: touch.clientX, y: touch.clientY } : null; }}
-        onTouchEnd={(event) => { const start = swipeStartRef.current; const touch = event.changedTouches[0]; swipeStartRef.current = null; if (!start || !touch || window.innerWidth >= 1024) return; const deltaX = touch.clientX - start.x; const deltaY = touch.clientY - start.y; if (deltaX > 72 && Math.abs(deltaY) < 60) setMobileHistoryOpen(true); }}
+        onTouchStart={(event) => { const touch = event.touches[0]; swipeStartRef.current = touch && touch.clientX <= 28 ? { x: touch.clientX, y: touch.clientY } : null; }}
+        onTouchEnd={(event) => { const start = swipeStartRef.current; const touch = event.changedTouches[0]; swipeStartRef.current = null; if (!start || !touch || window.innerWidth >= 768) return; const deltaX = touch.clientX - start.x; const deltaY = touch.clientY - start.y; if (deltaX > 72 && Math.abs(deltaY) < 60) setMobileHistoryOpen(true); }}
       >
-        <header className="playground-header hairline-b flex min-h-14 shrink-0 items-center justify-between gap-2 bg-surface/92 px-3 backdrop-blur-md sm:min-h-16 sm:px-5">
-          <div className="flex min-w-0 items-center gap-2 sm:gap-3">
-            <Link href="/" aria-label="TK LAB" className="shrink-0"><SiteLogo showWordmark={false} className="origin-left scale-75" /></Link>
-            <div className="lg:hidden"><HistoryDropdown locale={locale} open={mobileHistoryOpen} onOpenChange={setMobileHistoryOpen} /></div>
-            <div className="min-w-0">
-              <p className="truncate text-[13px] font-medium text-primary">{currentProject || (locale === "ru" ? "Новый диалог" : "New conversation")}</p>
-              <div className="flex min-w-0 items-center gap-2"><span className={cn("chat-status-dot size-2 shrink-0 rounded-full bg-primary", chat.isPending && "animate-pulse")} /><span className="truncate text-[11px] text-on-secondary-container sm:text-[12px]">{statusLabel}</span>{currentProject && <span className="hidden min-w-0 items-center gap-1 truncate rounded-full bg-surface-container-low px-2 py-1 text-[10px] text-on-secondary-container md:flex"><FolderKanban size={11} /><span className="truncate">{currentProject}</span></span>}</div>
+        <header className="playground-header shrink-0 border-b border-outline-variant bg-surface/94 backdrop-blur-md">
+          <div className="flex min-h-14 items-center justify-between gap-2 px-3 md:hidden">
+            <button type="button" onClick={() => setMobileHistoryOpen(true)} className="grid size-11 shrink-0 place-items-center rounded-full text-primary hover:bg-surface-container-low" aria-label={text.chat.history} aria-expanded={mobileHistoryOpen}><Menu size={19} /></button>
+            <div className="min-w-0 flex-1 text-center">
+              <p className="truncate text-[13px] font-semibold text-primary">{conversationTitle}</p>
+              <div className="mt-0.5 flex min-w-0 items-center justify-center gap-2"><span className={cn("chat-status-dot size-1.5 shrink-0 rounded-full bg-primary", chat.isPending && "animate-pulse")} /><span className="truncate text-[11px] text-on-secondary-container">{statusLabel}</span></div>
             </div>
+            <button type="button" onClick={startNewDialog} disabled={chat.messages.length === 0} className="grid size-11 shrink-0 place-items-center rounded-full text-primary hover:bg-surface-container-low disabled:pointer-events-none disabled:opacity-30" aria-label={text.chat.newDialog}><SquarePen size={18} /></button>
           </div>
 
-          <div className="flex shrink-0 items-center gap-1 sm:gap-2">
-            <span className="sm:hidden"><LanguageToggle locale={locale} label={text.nav.language} /></span>
-            <span className="hidden sm:block"><ThemeToggle lightLabel={text.nav.themeLight} darkLabel={text.nav.themeDark} /></span>
-            <span className="hidden sm:block"><LanguageToggle locale={locale} label={text.nav.language} /></span>
-            <button type="button" onClick={() => openWorkspace(undefined, "activity")} className={cn("hidden size-10 place-items-center rounded-full border border-outline-variant text-on-secondary-container hover:border-primary hover:bg-surface-container-low hover:text-primary xl:grid", drawerOpen && "border-primary bg-surface-container-low text-primary")} aria-label={locale === "ru" ? "Открыть рабочую область" : "Open workspace"} aria-pressed={drawerOpen}><PanelRightOpen size={15} /></button>
-            <button type="button" onClick={startNewDialog} disabled={chat.messages.length === 0} className="grid size-10 place-items-center rounded-full border border-outline-variant text-on-secondary-container hover:border-primary hover:bg-surface-container-low hover:text-primary disabled:pointer-events-none disabled:opacity-30" aria-label={text.chat.newDialog}><SquarePen size={15} /></button>
+          <div className="hidden min-h-16 items-center justify-between gap-3 px-5 md:flex">
+            <div className="flex min-w-0 items-center gap-3">
+              <Link href="/" aria-label="TK LAB" className="shrink-0"><SiteLogo showWordmark={false} className="origin-left scale-75" /></Link>
+              <div className="min-w-0">
+                <p className="truncate text-[13px] font-medium text-primary">{conversationTitle}</p>
+                <div className="flex min-w-0 items-center gap-2"><span className={cn("chat-status-dot size-2 shrink-0 rounded-full bg-primary", chat.isPending && "animate-pulse")} /><span className="truncate text-[12px] text-on-secondary-container">{statusLabel}</span>{currentProject && <span className="hidden min-w-0 items-center gap-1 truncate rounded-full bg-surface-container-low px-2 py-1 text-[10px] text-on-secondary-container lg:flex"><FolderKanban size={11} /><span className="truncate">{currentProject}</span></span>}</div>
+              </div>
+            </div>
+            <div className="flex shrink-0 items-center gap-2">
+              <ThemeToggle lightLabel={text.nav.themeLight} darkLabel={text.nav.themeDark} />
+              <LanguageToggle locale={locale} label={text.nav.language} />
+              <button type="button" onClick={() => openWorkspace(undefined, "activity")} className={cn("hidden size-10 place-items-center rounded-full border border-outline-variant text-on-secondary-container hover:border-primary hover:bg-surface-container-low hover:text-primary xl:grid", drawerOpen && "border-primary bg-surface-container-low text-primary")} aria-label={locale === "ru" ? "Открыть рабочую область" : "Open workspace"} aria-pressed={drawerOpen}><PanelRightOpen size={15} /></button>
+              <button type="button" onClick={startNewDialog} disabled={chat.messages.length === 0} className="grid size-10 place-items-center rounded-full border border-outline-variant text-on-secondary-container hover:border-primary hover:bg-surface-container-low hover:text-primary disabled:pointer-events-none disabled:opacity-30" aria-label={text.chat.newDialog}><SquarePen size={15} /></button>
+            </div>
           </div>
         </header>
 
         <div className="relative min-h-0 flex-1">
-          <div ref={scrollRef} onScroll={handleTranscriptScroll} className="playground-transcript absolute inset-0 overflow-y-auto overscroll-contain px-4 py-5 sm:px-6 sm:py-8 md:px-10" role="region" aria-label={text.chat.currentSession}>
+          <div ref={scrollRef} onScroll={handleTranscriptScroll} className="playground-transcript absolute inset-0 overflow-y-auto overscroll-contain px-4 py-4 sm:px-6 sm:py-8 md:px-10" role="region" aria-label={text.chat.currentSession}>
             {chat.messages.length === 0 ? (
-              <div className="mx-auto flex min-h-full w-full max-w-3xl items-center justify-center py-8"><div className="w-full max-w-2xl px-2 sm:px-6"><div className="mb-5 flex size-12 items-center justify-center overflow-hidden rounded-2xl border border-outline-variant bg-surface-container-low p-2.5"><Image src={modelMark} alt="" width={36} height={36} className="size-full object-contain" /></div><p className="label-caps mb-3 text-on-secondary-container">ERMA · AUTO</p><h2 className="mb-3 max-w-2xl font-serif text-[36px] leading-[1.12] text-primary md:text-[48px]">{text.chat.emptyTitle}</h2><p className="max-w-xl text-[15px] leading-[1.65] text-on-secondary-container">{locale === "ru" ? "Опишите задачу. Erma сама выберет подходящую глубину ответа и при необходимости использует безопасный инструмент." : "Describe the task. Erma will choose an appropriate depth and use a safe tool when needed."}</p></div></div>
-            ) : (
-              <MessageList
-                messages={chat.messages}
-                isPending={chat.isPending}
-                locale={locale}
-                text={text}
-                copiedMessageId={speech.copiedMessageId}
-                speakingMessageId={speech.speechMessageId}
-                speechNotice={speech.speechNotice}
-                onCopy={(message) => void speech.copyMessage(message)}
-                onSpeak={(message) => void speech.speakMessage(message)}
-                onRetry={chat.retryMessage}
-                onRegenerate={chat.regenerateMessage}
-                onRestorePrevious={(message) => chat.restorePreviousVersion(message.id)}
-                onEdit={(message) => { setInput(message.content); focusComposer(); }}
-                onBranch={branchFromMessage}
-                onOpenWorkspace={(message) => openWorkspace(message, "settings")}
-                onToggleContext={(message) => chat.toggleMessageContext(message.id)}
-              />
-            )}
+              <div className="mx-auto flex min-h-full w-full max-w-3xl items-center justify-center py-8">
+                <div className="w-full max-w-2xl px-1 sm:px-6">
+                  <div className="mb-4 flex size-11 items-center justify-center overflow-hidden rounded-2xl border border-outline-variant bg-surface-container-low p-2.5 sm:mb-5 sm:size-12"><Image src={modelMark} alt="" width={36} height={36} className="size-full object-contain" /></div>
+                  <p className="label-caps mb-3 text-on-secondary-container">ERMA · AUTO</p>
+                  <h2 className="mb-3 max-w-2xl font-serif text-[31px] leading-[1.12] text-primary sm:text-[36px] md:text-[48px]">{text.chat.emptyTitle}</h2>
+                  <p className="max-w-xl text-[15px] leading-[1.65] text-on-secondary-container">{locale === "ru" ? "Опишите задачу. Erma сама выберет подходящую глубину ответа и при необходимости использует безопасный инструмент." : "Describe the task. Erma will choose an appropriate depth and use a safe tool when needed."}</p>
+                </div>
+              </div>
+            ) : <ResponsiveMessageList {...messageListProps} />}
           </div>
-          {showJumpLatest && <button type="button" onClick={jumpLatest} className="absolute bottom-3 left-1/2 z-20 flex min-h-11 -translate-x-1/2 items-center gap-2 rounded-full border border-outline-variant bg-surface-container-lowest px-4 text-[12px] font-medium text-primary shadow-lg sm:bottom-4"><ArrowDown size={14} /> {locale === "ru" ? "К последнему" : "Jump to latest"}</button>}
+          {showJumpLatest && <button type="button" onClick={jumpLatest} className="absolute bottom-3 left-1/2 z-20 flex min-h-11 -translate-x-1/2 items-center gap-2 rounded-full border border-outline-variant bg-surface-container-lowest px-4 text-[12px] font-medium text-primary shadow-lg sm:bottom-4"><ArrowDown size={14} />{locale === "ru" ? "К последнему" : "Jump to latest"}</button>}
         </div>
 
-        <div className="chat-composer-area hairline-t safe-area-bottom w-full shrink-0 bg-surface/96 px-3 pb-2 pt-2 backdrop-blur-md sm:px-5 sm:pb-3 sm:pt-3 md:px-8">
+        <div className="chat-composer-area safe-area-bottom w-full shrink-0 border-t border-outline-variant bg-surface/96 px-3 pb-2 pt-2 backdrop-blur-md sm:px-5 sm:pb-3 sm:pt-3 md:px-8">
           {contextWarning && <button type="button" onClick={() => openWorkspace(undefined, "context")} className="mx-auto mb-2 flex w-full max-w-[780px] items-center justify-center rounded-xl px-2 py-1 text-[10px] text-error hover:bg-error-container sm:text-[11px]">{locale === "ru" ? "Контекст близок к лимиту — открыть управление" : "Context is close to the limit — review"}</button>}
-          <PromptInput
+          <ResponsiveChatComposer
             ref={promptRef}
             value={input}
             onChange={setInput}
@@ -350,6 +387,15 @@ export function PlaygroundChat({ locale }: { locale: Locale }) {
         onResponseModeChange={setResponseMode}
         onReasonEnabledChange={setReasonEnabled}
         onProjectChange={updateProject}
+      />
+
+      <MobileChatDrawer
+        open={mobileHistoryOpen}
+        locale={locale}
+        onClose={() => setMobileHistoryOpen(false)}
+        onNewChat={startNewDialog}
+        onOpenArtifacts={onOpenArtifacts}
+        onOpenRuns={onOpenRuns}
       />
     </div>
   );
