@@ -14,18 +14,18 @@ export default async function OfflinePage() {
     ? {
         eyebrow: "Режим без сети",
         title: "Подключение отсутствует",
-        description: "Статические элементы приложения доступны из локального кэша. AI-запросы, авторизация и данные аккаунта требуют подключения к интернету.",
-        retry: "Попробовать снова",
-        updates: "Открыть сохранённые обновления",
-        note: "Незавершённые черновики AI-чата остаются в этом браузере.",
+        description: "Статические элементы приложения доступны из локального кэша. AI-запросы, авторизация, страницы аккаунта и загрузка новых данных требуют подключения к интернету.",
+        retry: "Проверить подключение",
+        home: "Вернуться на главную",
+        note: "Незавершённые черновики AI-чата остаются в этом браузере и не отправляются до восстановления сети.",
       }
     : {
         eyebrow: "Offline mode",
         title: "No network connection",
-        description: "Static application assets remain available from the local cache. AI requests, authentication, and account data require an internet connection.",
-        retry: "Try again",
-        updates: "Open cached updates",
-        note: "Unfinished AI chat drafts remain in this browser.",
+        description: "Static application assets remain available from the local cache. AI requests, authentication, account pages, and new data loading require an internet connection.",
+        retry: "Check connection",
+        home: "Return home",
+        note: "Unfinished AI chat drafts remain in this browser and are not submitted until the connection is restored.",
       };
 
   return (
@@ -42,8 +42,8 @@ export default async function OfflinePage() {
           <Link href="/" className="flex min-h-12 items-center justify-center gap-2 rounded-xl bg-primary px-4 text-sm font-medium text-on-primary">
             {text.retry}<ArrowUpRight size={15} aria-hidden="true" />
           </Link>
-          <Link href="/patch-notes" className="flex min-h-12 items-center justify-center gap-2 rounded-xl border border-outline-variant px-4 text-center text-sm font-medium text-primary">
-            {text.updates}
+          <Link href="/" className="flex min-h-12 items-center justify-center gap-2 rounded-xl border border-outline-variant px-4 text-center text-sm font-medium text-primary">
+            {text.home}
           </Link>
         </div>
       </section>
