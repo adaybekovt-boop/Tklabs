@@ -10,13 +10,12 @@ const NVIDIA_KEY_COOLDOWN_MS = 15 * 60 * 1000;
 
 type Language = "ru" | "en";
 type ReasoningEffort = "low" | "medium" | "high";
-type NvidiaStreamChunk = {
-  choices?: Array<{
-    delta?: { content?: string | null; reasoning_content?: string | null };
-    message?: { content?: string | null; reasoning_content?: string | null };
-    text?: string | null;
-  }>;
+type NvidiaChoice = {
+  delta?: { content?: string | null; reasoning_content?: string | null };
+  message?: { content?: string | null; reasoning_content?: string | null };
+  text?: string | null;
 };
+type NvidiaPayload = { choices?: NvidiaChoice[] };
 
 export class NvidiaKeyRotationError extends Error {
   readonly cooldownMs: number;
@@ -77,6 +76,7 @@ export function buildNvidiaBody(
   allowCode: boolean,
   tone: ErmaTone,
   history: ProviderChatMessage[] = [],
+  stream = false,
 ) {
   const reasoningEnabled = requestedReasoning;
   const responseLanguage = inferResponseLanguage(prompt, interfaceLanguage);
@@ -86,13 +86,20 @@ export function buildNvidiaBody(
     temperature: tone === "erma" ? (reasoningEnabled ? 0.62 : 0.7) : tone === "character" ? (reasoningEnabled ? 0.58 : 0.65) : (reasoningEnabled ? 0.42 : 0.32),
     top_p: tone === "erma" ? 0.95 : tone === "character" ? 0.93 : 0.88,
     max_tokens: maxTokensFor(model, effort),
-    stream: true,
+    stream,
   };
   if (reasoningEnabled && model.nvidiaModel?.startsWith("nvidia/nemotron")) {
     body.chat_template_kwargs = { enable_thinking: true };
     body.reasoning_budget = reasoningBudgetFor(model, effort);
   }
   return body;
+}
+
+function choiceText(choice: NvidiaChoice | undefined) {
+  return {
+    answer: choice?.delta?.content ?? choice?.message?.content ?? choice?.text ?? "",
+    thinking: choice?.delta?.reasoning_content ?? choice?.message?.reasoning_content ?? "",
+  };
 }
 
 async function collectNvidiaStream(response: Response) {
@@ -103,37 +110,35 @@ async function collectNvidiaStream(response: Response) {
   let answer = "";
   let thinking = "";
 
+  function consume(line: string) {
+    if (!line.startsWith("data:")) return;
+    const data = line.slice(5).trim();
+    if (!data || data === "[DONE]") return;
+    const payload = JSON.parse(data) as NvidiaPayload;
+    const text = choiceText(payload.choices?.[0]);
+    answer += text.answer;
+    thinking += text.thinking;
+  }
+
   while (true) {
     const { done, value } = await reader.read();
     if (done) break;
     buffer += decoder.decode(value, { stream: true });
     let newline = buffer.indexOf("\n");
     while (newline >= 0) {
-      const line = buffer.slice(0, newline).trim();
+      consume(buffer.slice(0, newline).trim());
       buffer = buffer.slice(newline + 1);
       newline = buffer.indexOf("\n");
-      if (!line.startsWith("data:")) continue;
-      const data = line.slice(5).trim();
-      if (!data || data === "[DONE]") continue;
-      const payload = JSON.parse(data) as NvidiaStreamChunk;
-      const choice = payload.choices?.[0];
-      answer += choice?.delta?.content ?? choice?.message?.content ?? choice?.text ?? "";
-      thinking += choice?.delta?.reasoning_content ?? choice?.message?.reasoning_content ?? "";
     }
   }
-
   buffer += decoder.decode();
-  const trailing = buffer.trim();
-  if (trailing.startsWith("data:")) {
-    const data = trailing.slice(5).trim();
-    if (data && data !== "[DONE]") {
-      const payload = JSON.parse(data) as NvidiaStreamChunk;
-      const choice = payload.choices?.[0];
-      answer += choice?.delta?.content ?? choice?.message?.content ?? choice?.text ?? "";
-      thinking += choice?.delta?.reasoning_content ?? choice?.message?.reasoning_content ?? "";
-    }
-  }
+  if (buffer.trim()) consume(buffer.trim());
   return { answer, thinking };
+}
+
+async function collectNvidiaJson(response: Response) {
+  const payload = (await withTimeout(response.json().catch(() => null))) as NvidiaPayload | null;
+  return choiceText(payload?.choices?.[0]);
 }
 
 async function fetchWithKey(
@@ -146,13 +151,18 @@ async function fetchWithKey(
   allowCode: boolean,
   tone: ErmaTone,
   history: ProviderChatMessage[],
+  stream: boolean,
   signal?: AbortSignal,
 ) {
   const response = await fetchWithTimeout(NVIDIA_ENDPOINT, {
     method: "POST",
     signal,
-    headers: { authorization: `Bearer ${apiKey}`, "content-type": "application/json", accept: "text/event-stream" },
-    body: JSON.stringify(buildNvidiaBody(prompt, language, model, requestedReasoning, effort, allowCode, tone, history)),
+    headers: {
+      authorization: `Bearer ${apiKey}`,
+      "content-type": "application/json",
+      accept: stream ? "text/event-stream" : "application/json",
+    },
+    body: JSON.stringify(buildNvidiaBody(prompt, language, model, requestedReasoning, effort, allowCode, tone, history, stream)),
   });
   if (!response.ok) {
     const errorText = await response.text().catch(() => "");
@@ -161,8 +171,10 @@ async function fetchWithKey(
     throw Object.assign(new Error("nvidia_http_error"), { status: response.status });
   }
 
-  const streamed = await withTimeout(collectNvidiaStream(response), PROVIDER_TIMEOUT_MS);
-  const normalized = normalizeAiTextPair({ answer: streamed.answer.trim(), thinking: streamed.thinking.trim() || undefined });
+  const providerOutput = stream
+    ? await withTimeout(collectNvidiaStream(response), PROVIDER_TIMEOUT_MS)
+    : await withTimeout(collectNvidiaJson(response), PROVIDER_TIMEOUT_MS);
+  const normalized = normalizeAiTextPair({ answer: providerOutput.answer.trim(), thinking: providerOutput.thinking.trim() || undefined });
   if (!normalized.answer) throw new Error("nvidia_empty_response");
   const evaluation = evaluateAssistantContent(normalized, { allowCode });
   if (evaluation.verdict === "unsafe") throw new Error("nvidia_output_blocked");
@@ -179,6 +191,7 @@ export async function generateWithNvidia(input: {
   allowCode: boolean;
   tone: ErmaTone;
   history?: ProviderChatMessage[];
+  stream?: boolean;
   signal?: AbortSignal;
 }) {
   const keys = getNvidiaApiKeys();
@@ -198,6 +211,7 @@ export async function generateWithNvidia(input: {
         input.allowCode,
         input.tone,
         input.history ?? [],
+        input.stream === true,
         input.signal,
       ), PROVIDER_TIMEOUT_MS);
       preferredNvidiaKeyIndex = index;
