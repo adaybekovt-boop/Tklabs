@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 
 import { auth } from "@/auth";
 import { MembershipCard } from "@/components/profile/MembershipCard";
+import { MobileProfileSummary } from "@/components/profile/MobileProfileSummary";
 import { ProfileLocalData } from "@/components/profile/ProfileLocalData";
 import { PromoCodePanel } from "@/components/profile/PromoCodePanel";
 import { StitchFooter } from "@/components/site/StitchFooter";
@@ -57,6 +58,8 @@ export default async function ProfilePage() {
         overview: "Состояние аккаунта",
         role: "Роль",
         details: "Подробные параметры",
+        account: "Аккаунт",
+        localData: "Данные",
         membershipNote: isAdmin
           ? "Platinum выдаётся только сервером для администраторских аккаунтов. Оба основателя получают одинаковую Founders Edition."
           : "Gold — стандартная карта участника. Цвет карты не изменяет права доступа.",
@@ -75,6 +78,8 @@ export default async function ProfilePage() {
         overview: "Account overview",
         role: "Role",
         details: "Detailed parameters",
+        account: "Account",
+        localData: "Local data",
         membershipNote: isAdmin
           ? "Platinum is assigned server-side to administrator accounts. Both founders receive the same Founders Edition."
           : "Gold is the standard member card. Card color never changes authorization.",
@@ -96,8 +101,33 @@ export default async function ProfilePage() {
           .membership-card button { min-height: 260px; }
         }
       `}</style>
-      <main className="stitch-container min-h-screen pb-section-gap pt-8 sm:pt-12">
-        <section className="mb-12 grid items-start gap-8 border-b-[0.5px] border-primary pb-12 md:mb-16 md:grid-cols-12 md:gap-8 md:pb-16">
+      <main className="stitch-container min-h-screen pb-section-gap pt-6 sm:pt-12">
+        <MobileProfileSummary
+          displayName={displayName}
+          email={email || text.profile.localEmail}
+          avatarSrc={profileImage}
+          initials={profileInitials}
+          isAdmin={isAdmin}
+          unlimitedAi={unlimited}
+          clodexLabel={clodexLabel}
+          archiveLabel={text.profile.archiveValue}
+          labels={{
+            account: ui.account,
+            administrator: text.profile.membership.administrator,
+            member: text.profile.membership.member,
+            aiAccess: text.profile.membership.aiAccess,
+            unlimited: text.profile.membership.unlimited,
+            standard: text.profile.membership.standard,
+            clodex: text.profile.membership.clodex,
+            archive: text.profile.archive,
+            details: ui.details,
+            openChat: ui.openChat,
+            releases: ui.releaseNotes,
+            localData: ui.localData,
+          }}
+        />
+
+        <section className="mb-12 hidden items-start gap-8 border-b-[0.5px] border-primary pb-12 md:mb-16 md:grid md:grid-cols-12 md:gap-8 md:pb-16">
           <ScrollReveal className="md:col-span-4">
             <p className="label-caps mb-5 text-secondary md:mb-7">{text.profile.eyebrow}</p>
             <h1 className="display-title">{displayName}</h1>
@@ -132,7 +162,7 @@ export default async function ProfilePage() {
           </ScrollReveal>
         </section>
 
-        <section className="mb-section-gap" aria-labelledby="profile-overview-title">
+        <section className="mb-section-gap hidden md:block" aria-labelledby="profile-overview-title">
           <ScrollReveal>
             <div className="mb-6 border-b-[0.5px] border-primary pb-5 sm:mb-7 sm:flex sm:items-end sm:justify-between sm:gap-5 sm:pb-6">
               <div>
