@@ -1,5 +1,5 @@
-import { ChatContextValidationError } from "@/lib/ai/context";
-import { promptValidationMessage, PromptValidationError } from "@/lib/chat-prompt";
+import type { ChatContextValidationError } from "@/lib/ai/context";
+import { promptValidationMessage, type PromptValidationError } from "@/lib/chat-prompt";
 
 import type { Language } from "./contracts";
 
