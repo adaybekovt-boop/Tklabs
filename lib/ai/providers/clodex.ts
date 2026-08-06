@@ -1,3 +1,4 @@
+import type { ProviderChatMessage } from "@/lib/ai/chat-context";
 import { AI_PRIVILEGED_SYSTEM_PROMPT, AI_SAFETY_SYSTEM_PROMPT, evaluateAssistantContent } from "@/lib/ai-safety";
 import { fetchWithTimeout, withTimeout } from "@/lib/ai/provider-http";
 import { normalizeAiTextPair } from "@/lib/ai/reasoning";
@@ -10,7 +11,16 @@ type ClodexResponse = { content?: ClodexContentBlock[] | string };
 
 export type ClodexGenerationResult = { answer: string; reasoningUsed?: boolean; actualModel: string };
 
-export async function generateWithClodex(prompt: string, apiKey: string, model: string, maxTokens: number, interfaceLanguage: "ru" | "en", allowCode: boolean, signal?: AbortSignal): Promise<ClodexGenerationResult> {
+export async function generateWithClodex(
+  prompt: string,
+  apiKey: string,
+  model: string,
+  maxTokens: number,
+  interfaceLanguage: "ru" | "en",
+  allowCode: boolean,
+  signal?: AbortSignal,
+  history: ProviderChatMessage[] = [],
+): Promise<ClodexGenerationResult> {
   const responseLanguage = inferResponseLanguage(prompt, interfaceLanguage);
   const response = await fetchWithTimeout(CLODEX_ENDPOINT, {
     method: "POST",
@@ -20,7 +30,10 @@ export async function generateWithClodex(prompt: string, apiKey: string, model: 
       model,
       max_tokens: maxTokens,
       system: `${responseLanguageInstruction(responseLanguage)}\n\nОтвечай ясно и не выдумывай технические возможности объекта. Answer clearly and do not invent technical capabilities for the facility.\n\n${allowCode ? AI_PRIVILEGED_SYSTEM_PROMPT : AI_SAFETY_SYSTEM_PROMPT}`,
-      messages: [{ role: "user", content: prompt }],
+      messages: [
+        ...history.map((message) => ({ role: message.role, content: message.content })),
+        { role: "user", content: prompt },
+      ],
     }),
   });
   const payload = (await withTimeout(response.json().catch(() => null))) as ClodexResponse | null;
