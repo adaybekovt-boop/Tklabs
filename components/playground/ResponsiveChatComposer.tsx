@@ -1,5 +1,7 @@
 "use client";
 
+/* eslint-disable react-hooks/set-state-in-effect -- viewport and browser network state hydrate after mount. */
+
 import * as React from "react";
 import { ArrowUp, ChevronDown, FileText, Mic, Plus, SlidersHorizontal, Square, WifiOff, X } from "lucide-react";
 
@@ -256,15 +258,19 @@ const MobileChatComposer = React.forwardRef<HTMLDivElement, PromptInputProps>(fu
       onStop?.();
       return;
     }
+    if (recording) {
+      stopRecording();
+      return;
+    }
     if (value.trim()) {
       submit();
       return;
     }
-    if (recording) stopRecording();
-    else startRecording();
+    startRecording();
   }
 
-  const primaryLabel = busy ? labels.stopGeneration : value.trim() ? labels.send : recording ? labels.stopRecording : labels.voiceInput;
+  const primaryLabel = busy ? labels.stopGeneration : recording ? labels.stopRecording : value.trim() ? labels.send : labels.voiceInput;
+  const primaryDisabled = disabled || (busy ? !onStop : recording ? false : value.trim() ? !canSubmit : !online);
 
   return (
     <div ref={forwardedRef} data-testid="mobile-prompt-input" className={cn("relative mx-auto w-full max-w-[780px]", className)}>
@@ -317,7 +323,7 @@ const MobileChatComposer = React.forwardRef<HTMLDivElement, PromptInputProps>(fu
           <button
             type="button"
             onClick={handlePrimaryAction}
-            disabled={disabled || (!busy && !value.trim() && !online && !recording) || (busy && !onStop)}
+            disabled={primaryDisabled}
             className={cn(
               "grid size-11 shrink-0 place-items-center rounded-full shadow-sm disabled:opacity-25",
               busy || value.trim() ? "bg-primary text-on-primary" : "bg-surface-container-low text-primary",
@@ -369,7 +375,7 @@ const MobileChatComposer = React.forwardRef<HTMLDivElement, PromptInputProps>(fu
           ))}
         </div>
 
-        {onOpenWorkspace && <button type="button" onClick={() => { setSettingsOpen(false); onOpenWorkspace(); }} className="mx-2 mb-2 flex min-h-11 w-[calc(100%-1rem)] items-center justify-center rounded-xl border border-outline-variant text-sm text-primary">{locale === "ru" ? "Контекст и файлы" : "Context and files"}</button>}
+        {onOpenWorkspace && <button type="button" onClick={() => { setSettingsOpen(false); onOpenWorkspace(); }} className="mx-2 mb-2 flex min-h-11 w-auto items-center justify-center rounded-xl border border-outline-variant text-sm text-primary">{locale === "ru" ? "Контекст и файлы" : "Context and files"}</button>}
       </ChatOverlay>
 
       <ChatOverlay open={Boolean(activeAttachment)} onClose={() => setActiveAttachment(null)} labelledBy="mobile-attachment-preview-title" className="p-0" closeLabel={labels.close}>
