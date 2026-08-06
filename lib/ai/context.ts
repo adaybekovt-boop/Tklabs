@@ -128,17 +128,19 @@ export function prepareChatContext(input: {
   if (!currentUserContent) throw new ChatContextValidationError("The current user message is empty.");
 
   const originalMessageCount = normalizedHistory.length + 1;
-  let compacted = normalizedHistory.length > MAX_CONTEXT_MESSAGES;
-  const history = normalizedHistory.slice(-MAX_CONTEXT_MESSAGES);
+  const overflowCount = Math.max(0, normalizedHistory.length - MAX_CONTEXT_MESSAGES);
+  const overflowHistory = overflowCount > 0 ? normalizedHistory.slice(0, overflowCount) : [];
+  const history = normalizedHistory.slice(overflowCount);
+  let compacted = overflowHistory.length > 0;
+  let summary = buildSummary(overflowHistory);
   let messages = [...history, { role: "user" as const, content: currentUserContent }];
-  let summary = "";
-  let estimatedTokens = estimateMessagesTokens(messages);
+  let estimatedTokens = estimateMessagesTokens(messages, summary);
 
   if (estimatedTokens > inputBudget) {
     compacted = true;
     const recent = history.slice(-RECENT_MESSAGES_TO_KEEP);
     const older = history.slice(0, Math.max(0, history.length - recent.length));
-    summary = buildSummary(older);
+    summary = buildSummary([...overflowHistory, ...older]);
     messages = [...recent, { role: "user", content: currentUserContent }];
     estimatedTokens = estimateMessagesTokens(messages, summary);
 
