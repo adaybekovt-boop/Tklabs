@@ -34,13 +34,13 @@ test("local profile data actions use cancellable in-page confirmation", async ()
   assert.doesNotMatch(localData, /window\.confirm/);
 });
 
-test("mobile releases focus one version and keep stable shareable history", async () => {
+test("mobile releases focus one version and use the complete stable release registry", async () => {
   const page = await text("app/patch-notes/page.tsx");
   const mobile = await text("components/site/MobileReleaseBrowser.tsx");
   const releases = await text("lib/latest-release.ts");
 
   assert.match(page, /MobileReleaseBrowser/);
-  assert.match(page, /getPreviousReleaseV0110/);
+  assert.match(page, /getReleaseHistory/);
   assert.match(page, /hidden lg:block/);
   assert.match(mobile, /data-mobile-release-browser/);
   assert.match(mobile, /navigator\.share/);
@@ -48,7 +48,10 @@ test("mobile releases focus one version and keep stable shareable history", asyn
   assert.match(mobile, /hashchange/);
   assert.match(mobile, /ArrowLeft/);
   assert.match(mobile, /ArrowRight/);
+  assert.match(releases, /version: "v0\.13\.1"/);
+  assert.match(releases, /version: "v0\.13\.0"/);
+  assert.match(releases, /version: "v0\.12\.0"/);
   assert.match(releases, /version: "v0\.11\.1"/);
   assert.match(releases, /version: "v0\.11\.0"/);
-  assert.match(releases, /Mobile Profile and Releases/);
+  assert.match(releases, /getReleaseHistory/);
 });

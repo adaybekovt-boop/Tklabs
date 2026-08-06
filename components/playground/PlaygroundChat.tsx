@@ -4,14 +4,15 @@ import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { ArrowDown, SquarePen } from "lucide-react";
+import { ArrowDown, FolderKanban, PanelRightOpen, SquarePen } from "lucide-react";
 
+import { ChatContextDrawer } from "@/components/playground/ChatContextDrawer";
 import { ConversationArchive } from "@/components/playground/ConversationArchive";
 import { HistoryDropdown } from "@/components/playground/HistoryDropdown";
 import { MessageList, type ChatMessage } from "@/components/playground/MessageList";
 import { ChatToolbar } from "@/components/playground/ChatToolbar";
 import { SuggestionPanel } from "@/components/playground/SuggestionPanel";
-import { PromptInput, type ChatInputModel } from "@/components/ui/ai-chat-input";
+import { PromptInput, type ChatInputAttachment, type ChatInputModel } from "@/components/ui/ai-chat-input";
 import { LanguageToggle } from "@/components/site/LanguageToggle";
 import { SiteLogo } from "@/components/site/SiteLogo";
 import { ThemeToggle } from "@/components/site/ThemeToggle";
@@ -21,9 +22,10 @@ import { useSpeech } from "@/hooks/use-speech";
 import { useVisualViewport } from "@/hooks/use-visual-viewport";
 import type { ClodexAccessStatus } from "@/lib/clodex-access";
 import { readChatDraft, writeChatDraft } from "@/lib/chat-draft";
+import { type ChatResponseMode } from "@/lib/chat-modes";
 import { isNearBottom } from "@/lib/chat-scroll";
 import { getDictionary, type Locale } from "@/lib/i18n";
-import { getSession, loadSettings } from "@/lib/local-archive";
+import { branchSession, getSession, loadSettings, setSessionProject } from "@/lib/local-archive";
 import { isClientLocalPreviewEnabled } from "@/lib/local-preview";
 import { CLODEX_MODELS } from "@/lib/models/clodex-public";
 import {
@@ -38,6 +40,7 @@ import { cn } from "@/lib/utils";
 const TIER_LABEL: Record<ErmaTier, string> = { light: "Light", medium: "Medium", heavy: "Heavy" };
 type SuggestionKind = "learn" | "write";
 type Tone = "professional" | "character" | "erma";
+type DrawerTab = "context" | "files" | "sources" | "settings";
 
 const NEXT_TONE: Record<Tone, Tone> = {
   professional: "character",
@@ -55,49 +58,48 @@ export function PlaygroundChat({ locale }: { locale: Locale }) {
   const [ttsAvailable, setTtsAvailable] = useState(false);
   const [tone, setTone] = useState<Tone>("professional");
   const [reasonEnabled, setReasonEnabled] = useState(false);
+  const [responseMode, setResponseMode] = useState<ChatResponseMode>("normal");
   const [suggestionKind, setSuggestionKind] = useState<SuggestionKind | null>(null);
   const [showJumpLatest, setShowJumpLatest] = useState(false);
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  const [drawerTab, setDrawerTab] = useState<DrawerTab>("context");
+  const [compareModel, setCompareModel] = useState("");
+  const [compareTargetId, setCompareTargetId] = useState<string | null>(null);
+  const [composerAttachments, setComposerAttachments] = useState<ChatInputAttachment[]>([]);
+  const [currentProject, setCurrentProject] = useState("");
+  const [mobileHistoryOpen, setMobileHistoryOpen] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const shouldFollowRef = useRef(true);
   const promptRef = useRef<HTMLDivElement>(null);
+  const swipeStartRef = useRef<{ x: number; y: number } | null>(null);
 
   useVisualViewport();
 
   const localPreview = isClientLocalPreviewEnabled();
   const modelMark = "/images/models/model-mark.png";
   const ermaOptions: ChatInputModel[] = useMemo(
-    () => PUBLIC_ERMA_MODELS.map((model) => ({
-      id: model.key,
-      name: model.name,
-      tierLabel: TIER_LABEL[model.tier],
-      available: model.available,
-      markSrc: modelMark,
-    })),
+    () => PUBLIC_ERMA_MODELS.map((model) => ({ id: model.key, name: model.name, tierLabel: TIER_LABEL[model.tier], available: model.available, markSrc: modelMark })),
     [],
   );
   const clodexOptions: ChatInputModel[] = useMemo(
-    () => CLODEX_MODELS.map((model) => ({
-      id: model.key,
-      name: model.name,
-      tierLabel: "Clodex",
-      available: true,
-      markSrc: modelMark,
-    })),
+    () => CLODEX_MODELS.map((model) => ({ id: model.key, name: model.name, tierLabel: "Clodex", available: true, markSrc: modelMark })),
     [],
   );
-  const models = useMemo(
-    () => clodexAccess?.active || localPreview ? [...ermaOptions, ...clodexOptions] : ermaOptions,
-    [clodexAccess?.active, clodexOptions, ermaOptions, localPreview],
-  );
-  const promptLimit = clodexAccess?.unlimited || localPreview
-    ? PRIVILEGED_MAX_PROMPT_LENGTH
-    : PUBLIC_MAX_PROMPT_LENGTH;
+  const models = useMemo(() => clodexAccess?.active || localPreview ? [...ermaOptions, ...clodexOptions] : ermaOptions, [clodexAccess?.active, clodexOptions, ermaOptions, localPreview]);
+  const promptLimit = clodexAccess?.unlimited || localPreview ? PRIVILEGED_MAX_PROMPT_LENGTH : PUBLIC_MAX_PROMPT_LENGTH;
   const selectedModel = models.find((model) => model.id === modelKey) ?? models[0];
+  const fallbackCompareModel = models.find((model) => model.available && model.id !== selectedModel?.id)?.id ?? selectedModel?.id ?? "";
+  const effectiveCompareModel = compareModel
+    && compareModel !== selectedModel?.id
+    && models.some((model) => model.id === compareModel && model.available)
+    ? compareModel
+    : fallbackCompareModel;
   const archive = useConversationArchive();
   const chat = useChatRequest({
     locale,
     tone,
     reasonEnabled,
+    responseMode,
     promptLimit,
     currentModel: selectedModel?.id ?? DEFAULT_ERMA_MODEL_KEY,
     saveConversation: archive.save,
@@ -121,11 +123,7 @@ export function PlaygroundChat({ locale }: { locale: Locale }) {
   useEffect(() => {
     let cancelled = false;
     fetch("/api/profile/access", { cache: "no-store" })
-      .then(async (response) => {
-        if (!response.ok) return;
-        const payload = (await response.json()) as ClodexAccessStatus;
-        if (!cancelled) setClodexAccess(payload);
-      })
+      .then(async (response) => { if (!response.ok) return; const payload = (await response.json()) as ClodexAccessStatus; if (!cancelled) setClodexAccess(payload); })
       .catch(() => undefined);
     return () => { cancelled = true; };
   }, []);
@@ -133,24 +131,21 @@ export function PlaygroundChat({ locale }: { locale: Locale }) {
   useEffect(() => {
     let cancelled = false;
     fetch("/api/tts", { cache: "no-store" })
-      .then(async (response) => {
-        if (!response.ok) return;
-        const payload = (await response.json()) as { available?: unknown };
-        if (!cancelled) setTtsAvailable(payload.available === true);
-      })
+      .then(async (response) => { if (!response.ok) return; const payload = (await response.json()) as { available?: unknown }; if (!cancelled) setTtsAvailable(payload.available === true); })
       .catch(() => undefined);
     return () => { cancelled = true; };
   }, []);
 
   useEffect(() => {
     const savedTone = window.localStorage.getItem("tklabs.erma-tone");
+    const savedMode = window.localStorage.getItem("tklabs.response-mode");
     // eslint-disable-next-line react-hooks/set-state-in-effect
     if (savedTone === "professional" || savedTone === "character" || savedTone === "erma") setTone(savedTone);
+    if (savedMode === "normal" || savedMode === "analysis" || savedMode === "code" || savedMode === "search" || savedMode === "document") setResponseMode(savedMode);
   }, []);
 
-  useEffect(() => {
-    window.localStorage.setItem("tklabs.erma-tone", tone);
-  }, [tone]);
+  useEffect(() => { window.localStorage.setItem("tklabs.erma-tone", tone); }, [tone]);
+  useEffect(() => { window.localStorage.setItem("tklabs.response-mode", responseMode); }, [responseMode]);
 
   useEffect(() => {
     const sessionParam = searchParams.get("session");
@@ -161,16 +156,15 @@ export function PlaygroundChat({ locale }: { locale: Locale }) {
         archive.setSessionId(saved.id);
         // eslint-disable-next-line react-hooks/set-state-in-effect
         setModelKey(saved.model);
+        setCurrentProject(saved.project ?? "");
         chat.setMessages(saved.messages);
         shouldFollowRef.current = true;
         setShowJumpLatest(false);
         return;
       }
     }
-    if (modelParam && [...ermaOptions, ...clodexOptions].some((model) => model.id === modelParam)) {
-      setModelKey(modelParam);
-      return;
-    }
+    setCurrentProject("");
+    if (modelParam && [...ermaOptions, ...clodexOptions].some((model) => model.id === modelParam)) { setModelKey(modelParam); return; }
     const defaultModel = loadSettings().defaultModel;
     if (defaultModel && ermaOptions.some((model) => model.id === defaultModel)) setModelKey(defaultModel);
     // Search params are the source of truth for session restoration.
@@ -209,10 +203,7 @@ export function PlaygroundChat({ locale }: { locale: Locale }) {
     if (!node) return;
     shouldFollowRef.current = true;
     setShowJumpLatest(false);
-    node.scrollTo({
-      top: node.scrollHeight,
-      behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth",
-    });
+    node.scrollTo({ top: node.scrollHeight, behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
   }
 
   function focusComposer() {
@@ -223,8 +214,10 @@ export function PlaygroundChat({ locale }: { locale: Locale }) {
     archive.reset();
     chat.clearMessages();
     setInput("");
+    setCurrentProject("");
     setSuggestionKind(null);
     setShowJumpLatest(false);
+    setDrawerOpen(false);
     shouldFollowRef.current = true;
     speech.stopSpeech();
     router.replace("/playground");
@@ -236,69 +229,97 @@ export function PlaygroundChat({ locale }: { locale: Locale }) {
     void navigator.clipboard?.writeText(message.requestId);
   }
 
+  function openWorkspace(message?: ChatMessage, tab: DrawerTab = "settings") {
+    if (message?.role === "assistant") setCompareTargetId(message.id);
+    setDrawerTab(tab);
+    setDrawerOpen(true);
+  }
+
+  function handleAttachmentsChange(attachments: ChatInputAttachment[]) {
+    const addedFile = attachments.length > composerAttachments.length;
+    setComposerAttachments(attachments);
+    if (addedFile && window.innerWidth >= 1280) {
+      setDrawerTab("files");
+      setDrawerOpen(true);
+    }
+  }
+
+  function branchFromMessage(message: ChatMessage) {
+    if (chat.isPending) return;
+    const firstPrompt = chat.messages.find((entry) => entry.role === "user")?.content ?? "Conversation";
+    archive.save(firstPrompt, selectedModel?.id ?? DEFAULT_ERMA_MODEL_KEY, chat.messages);
+    const title = getSession(archive.sessionId)?.title ?? firstPrompt.slice(0, 48);
+    const branch = branchSession(archive.sessionId, message.id, `${title} · ${locale === "ru" ? "ветка" : "branch"}`);
+    if (!branch) return;
+    archive.setSessionId(branch.id);
+    chat.setMessages(branch.messages);
+    setCurrentProject(branch.project ?? "");
+    router.push(`/playground?session=${encodeURIComponent(branch.id)}`);
+    shouldFollowRef.current = true;
+  }
+
+  function compareSelectedAnswer() {
+    const target = compareTargetId
+      ? chat.messages.find((message) => message.id === compareTargetId)
+      : [...chat.messages].reverse().find((message) => message.role === "assistant" && message.content && !message.error);
+    if (!target || !effectiveCompareModel) return;
+    void chat.compareMessage(target.id, effectiveCompareModel);
+  }
+
+  function updateProject(project: string) {
+    setCurrentProject(project.trim());
+    setSessionProject(archive.sessionId, project);
+  }
+
   return (
-    <div className="chat-workspace flex h-full min-h-0 flex-1 overflow-hidden">
-      <aside className="chat-desktop-sidebar hidden w-[260px] shrink-0 flex-col border-r border-outline-variant bg-surface/70 p-4 lg:flex" aria-label={text.chat.currentSession}>
-        <div className="mb-5 flex items-center gap-2 px-2">
+    <div className="chat-workspace flex h-full min-h-0 flex-1 overflow-hidden" data-three-zone-chat-workspace>
+      <aside className="chat-desktop-sidebar hidden w-[280px] shrink-0 flex-col border-r border-outline-variant bg-surface/70 p-4 lg:flex" aria-label={text.chat.currentSession}>
+        <div className="mb-4 flex items-center gap-2 px-2">
           <Image src={modelMark} alt="" width={28} height={28} className="size-7 object-contain" />
-          <span className="label-caps text-on-secondary-container">{text.chat.history}</span>
+          <div><span className="label-caps block text-on-secondary-container">{text.chat.history}</span><span className="mt-1 block text-[11px] text-on-secondary-container">{locale === "ru" ? "Диалоги · Проекты" : "Conversations · Projects"}</span></div>
         </div>
         <ConversationArchive locale={locale} headingId="desktop-chat-history-title" />
       </aside>
 
-      <section className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+      <section
+        className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden"
+        onTouchStart={(event) => {
+          const touch = event.touches[0];
+          swipeStartRef.current = touch && touch.clientX <= 32 ? { x: touch.clientX, y: touch.clientY } : null;
+        }}
+        onTouchEnd={(event) => {
+          const start = swipeStartRef.current;
+          const touch = event.changedTouches[0];
+          swipeStartRef.current = null;
+          if (!start || !touch || window.innerWidth >= 1024) return;
+          const deltaX = touch.clientX - start.x;
+          const deltaY = touch.clientY - start.y;
+          if (deltaX > 72 && Math.abs(deltaY) < 60) setMobileHistoryOpen(true);
+        }}
+      >
         <header className="playground-header hairline-b flex min-h-14 shrink-0 items-center justify-between gap-2 bg-surface/92 px-3 backdrop-blur-md sm:min-h-16 sm:px-5">
           <div className="flex min-w-0 items-center gap-2 sm:gap-3">
-            <Link href="/" aria-label="TK LAB" className="shrink-0">
-              <SiteLogo showWordmark={false} className="origin-left scale-75" />
-            </Link>
-            <div className="lg:hidden"><HistoryDropdown locale={locale} /></div>
+            <Link href="/" aria-label="TK LAB" className="shrink-0"><SiteLogo showWordmark={false} className="origin-left scale-75" /></Link>
+            <div className="lg:hidden"><HistoryDropdown locale={locale} open={mobileHistoryOpen} onOpenChange={setMobileHistoryOpen} /></div>
             <div className="min-w-0">
               <p className="label-caps hidden text-on-secondary-container sm:block">AI CHAT</p>
-              <div className="flex items-center gap-2">
-                <span className={cn("chat-status-dot size-2 rounded-full bg-primary", chat.isPending && "animate-pulse")} />
-                <span className="truncate text-[12px] text-on-secondary-container sm:text-[13px]">{statusLabel}</span>
-              </div>
+              <div className="flex min-w-0 items-center gap-2"><span className={cn("chat-status-dot size-2 shrink-0 rounded-full bg-primary", chat.isPending && "animate-pulse")} /><span className="truncate text-[12px] text-on-secondary-container sm:text-[13px]">{statusLabel}</span>{currentProject && <span className="hidden min-w-0 items-center gap-1 truncate rounded-full bg-surface-container-low px-2 py-1 text-[10px] text-on-secondary-container md:flex"><FolderKanban size={11} /><span className="truncate">{currentProject}</span></span>}</div>
             </div>
           </div>
 
           <div className="flex shrink-0 items-center gap-1 sm:gap-2">
             <span className="hidden sm:block"><ThemeToggle lightLabel={text.nav.themeLight} darkLabel={text.nav.themeDark} /></span>
             <span className="hidden sm:block"><LanguageToggle locale={locale} label={text.nav.language} /></span>
-            <Link href="/profile" className="hidden min-h-10 items-center rounded-full px-3 text-[12px] text-on-secondary-container hover:bg-surface-container-low hover:text-primary sm:inline-flex">
-              {text.nav.profile}
-            </Link>
-            <button
-              type="button"
-              onClick={startNewDialog}
-              disabled={chat.messages.length === 0}
-              className="chat-new-button grid size-10 place-items-center rounded-full border border-outline-variant text-on-secondary-container hover:border-primary hover:bg-surface-container-low hover:text-primary disabled:pointer-events-none disabled:opacity-30"
-              aria-label={text.chat.newDialog}
-            >
-              <SquarePen size={15} />
-            </button>
+            <Link href="/profile" className="hidden min-h-10 items-center rounded-full px-3 text-[12px] text-on-secondary-container hover:bg-surface-container-low hover:text-primary sm:inline-flex">{text.nav.profile}</Link>
+            <button type="button" onClick={() => openWorkspace(undefined, "context")} className={cn("hidden size-10 place-items-center rounded-full border border-outline-variant text-on-secondary-container hover:border-primary hover:bg-surface-container-low hover:text-primary xl:grid", drawerOpen && "border-primary bg-surface-container-low text-primary")} aria-label={locale === "ru" ? "Открыть контекст" : "Open context panel"} aria-pressed={drawerOpen}><PanelRightOpen size={15} /></button>
+            <button type="button" onClick={startNewDialog} disabled={chat.messages.length === 0} className="chat-new-button grid size-10 place-items-center rounded-full border border-outline-variant text-on-secondary-container hover:border-primary hover:bg-surface-container-low hover:text-primary disabled:pointer-events-none disabled:opacity-30" aria-label={text.chat.newDialog}><SquarePen size={15} /></button>
           </div>
         </header>
 
         <div className="relative min-h-0 flex-1">
-          <div
-            ref={scrollRef}
-            onScroll={handleTranscriptScroll}
-            className="playground-transcript absolute inset-0 overflow-y-auto overscroll-contain px-4 py-5 sm:px-6 sm:py-8 md:px-10"
-            role="region"
-            aria-label={text.chat.currentSession}
-          >
+          <div ref={scrollRef} onScroll={handleTranscriptScroll} className="playground-transcript absolute inset-0 overflow-y-auto overscroll-contain px-4 py-5 sm:px-6 sm:py-8 md:px-10" role="region" aria-label={text.chat.currentSession}>
             {chat.messages.length === 0 ? (
-              <div className="mx-auto flex min-h-full w-full max-w-3xl items-center justify-center py-8">
-                <div className="w-full max-w-2xl px-2 sm:px-6">
-                  <div className="mb-5 flex size-12 items-center justify-center overflow-hidden rounded-2xl border border-outline-variant bg-surface-container-low p-2.5">
-                    <Image src={modelMark} alt="" width={36} height={36} className="size-full object-contain" />
-                  </div>
-                  <p className="label-caps mb-3 text-on-secondary-container">{text.chat.emptyKicker}</p>
-                  <h2 className="mb-3 max-w-2xl font-serif text-[36px] leading-[1.12] text-primary md:text-[48px]">{text.chat.emptyTitle}</h2>
-                  <p className="max-w-xl text-[15px] leading-[1.65] text-on-secondary-container">{text.chat.emptyDescription}</p>
-                </div>
-              </div>
+              <div className="mx-auto flex min-h-full w-full max-w-3xl items-center justify-center py-8"><div className="w-full max-w-2xl px-2 sm:px-6"><div className="mb-5 flex size-12 items-center justify-center overflow-hidden rounded-2xl border border-outline-variant bg-surface-container-low p-2.5"><Image src={modelMark} alt="" width={36} height={36} className="size-full object-contain" /></div><p className="label-caps mb-3 text-on-secondary-container">{text.chat.emptyKicker}</p><h2 className="mb-3 max-w-2xl font-serif text-[36px] leading-[1.12] text-primary md:text-[48px]">{text.chat.emptyTitle}</h2><p className="max-w-xl text-[15px] leading-[1.65] text-on-secondary-container">{text.chat.emptyDescription}</p></div></div>
             ) : (
               <MessageList
                 messages={chat.messages}
@@ -311,70 +332,43 @@ export function PlaygroundChat({ locale }: { locale: Locale }) {
                 onCopy={(message) => void speech.copyMessage(message)}
                 onSpeak={(message) => void speech.speakMessage(message)}
                 onRetry={chat.retryMessage}
-                onEdit={(message) => {
-                  setInput(message.content);
-                  focusComposer();
-                }}
+                onRegenerate={chat.regenerateMessage}
+                onRestorePrevious={(message) => chat.restorePreviousVersion(message.id)}
+                onEdit={(message) => { setInput(message.content); focusComposer(); }}
+                onBranch={branchFromMessage}
+                onOpenWorkspace={(message) => openWorkspace(message, "settings")}
                 onCopyRequestId={copyRequestId}
                 onToggleContext={(message) => chat.toggleMessageContext(message.id)}
               />
             )}
           </div>
 
-          {showJumpLatest && (
-            <button
-              type="button"
-              onClick={jumpLatest}
-              className="absolute bottom-3 left-1/2 z-20 flex min-h-11 -translate-x-1/2 items-center gap-2 rounded-full border border-outline-variant bg-surface-container-lowest px-4 text-[12px] font-medium text-primary shadow-lg sm:bottom-4"
-            >
-              <ArrowDown size={14} /> {locale === "ru" ? "К последнему" : "Jump to latest"}
-            </button>
-          )}
+          {showJumpLatest && <button type="button" onClick={jumpLatest} className="absolute bottom-3 left-1/2 z-20 flex min-h-11 -translate-x-1/2 items-center gap-2 rounded-full border border-outline-variant bg-surface-container-lowest px-4 text-[12px] font-medium text-primary shadow-lg sm:bottom-4"><ArrowDown size={14} /> {locale === "ru" ? "К последнему" : "Jump to latest"}</button>}
         </div>
 
         <div className="chat-composer-area hairline-t safe-area-bottom w-full shrink-0 bg-surface/96 px-3 pt-2 backdrop-blur-md sm:px-5 sm:pt-3 md:px-8">
           <div className={cn(chat.messages.length > 0 && "hidden sm:block")}>
             <ChatToolbar
               text={text}
+              locale={locale}
+              responseMode={responseMode}
               suggestionKind={suggestionKind}
               reasonEnabled={reasonEnabled}
               tone={tone}
+              onResponseMode={setResponseMode}
               onSuggestion={(kind) => setSuggestionKind((current) => current === kind ? null : kind)}
               onReason={() => setReasonEnabled((enabled) => !enabled)}
               onTone={() => setTone((current) => NEXT_TONE[current])}
             />
-            {suggestionKind && (
-              <SuggestionPanel
-                text={text}
-                kind={suggestionKind}
-                onClose={() => setSuggestionKind(null)}
-                onChoose={(suggestion) => {
-                  setInput(suggestion);
-                  setSuggestionKind(null);
-                  focusComposer();
-                }}
-              />
-            )}
+            {suggestionKind && <SuggestionPanel text={text} kind={suggestionKind} onClose={() => setSuggestionKind(null)} onChoose={(suggestion) => { setInput(suggestion); setSuggestionKind(null); focusComposer(); }} />}
           </div>
-          <div
-            className={cn(
-              "mx-auto mb-2 flex w-full max-w-[780px] flex-wrap items-center gap-x-2 gap-y-1 px-1 text-[10px] text-on-secondary-container sm:text-[11px]",
-              contextWarning && "text-error",
-            )}
-            role="status"
-          >
-            <span>
-              {locale === "ru" ? "Контекст" : "Context"}: {numberFormat.format(chat.contextStats.estimatedTokens)} {locale === "ru" ? "токенов" : "tokens"}
-              {" · "}{chat.contextStats.messages} {locale === "ru" ? "сообщений" : "messages"}
-              {" · "}{chat.contextStats.attachments} {locale === "ru" ? "файлов" : "files"}
-            </span>
-            {chat.contextStats.compacted && (
-              <span>{locale === "ru" ? "Старые сообщения свёрнуты." : "Older messages compacted."}</span>
-            )}
-            {contextWarning && (
-              <span>{locale === "ru" ? "Контекст близок к лимиту." : "Context is close to the limit."}</span>
-            )}
-          </div>
+
+          <button type="button" onClick={() => openWorkspace(undefined, "context")} className={cn("mx-auto mb-2 hidden w-full max-w-[780px] flex-wrap items-center gap-x-2 gap-y-1 rounded-xl px-1 text-left text-[10px] text-on-secondary-container hover:text-primary sm:flex sm:text-[11px]", contextWarning && "text-error")}>
+            <span>{locale === "ru" ? "Контекст" : "Context"}: {numberFormat.format(chat.contextStats.estimatedTokens)} {locale === "ru" ? "токенов" : "tokens"}{" · "}{chat.contextStats.messages} {locale === "ru" ? "сообщений" : "messages"}{" · "}{composerAttachments.length} {locale === "ru" ? "файлов" : "files"}</span>
+            {chat.contextStats.compacted && <span>{locale === "ru" ? "Старые сообщения свёрнуты." : "Older messages compacted."}</span>}
+            {contextWarning && <span>{locale === "ru" ? "Контекст близок к лимиту." : "Context is close to the limit."}</span>}
+          </button>
+
           <PromptInput
             ref={promptRef}
             value={input}
@@ -383,18 +377,45 @@ export function PlaygroundChat({ locale }: { locale: Locale }) {
             models={models}
             selectedModelId={selectedModel?.id ?? DEFAULT_ERMA_MODEL_KEY}
             onModelChange={setModelKey}
+            responseMode={responseMode}
+            onResponseModeChange={setResponseMode}
+            reasonEnabled={reasonEnabled}
+            onReasonEnabledChange={setReasonEnabled}
+            onAttachmentsChange={handleAttachmentsChange}
+            onOpenWorkspace={() => openWorkspace(undefined, "settings")}
             busy={chat.isPending}
             onStop={chat.stopGeneration}
             maxLength={promptLimit}
             placeholder={text.chat.promptPlaceholder}
             attachmentsEnabled
             maxAttachmentBytes={clodexAccess?.unlimited ? 64 * 1024 : 16 * 1024}
-            maxAttachmentContextLength={clodexAccess?.unlimited ? 32_000 : 8_000}
+            maxAttachmentContextLength={clodexAccess?.unlimited ? 31_500 : 7_500}
             labels={text.chat.input}
             voiceLanguage={locale === "ru" ? "ru-RU" : "en-US"}
           />
         </div>
       </section>
+
+      <ChatContextDrawer
+        key={drawerTab}
+        open={drawerOpen}
+        initialTab={drawerTab}
+        locale={locale}
+        messages={chat.messages}
+        contextStats={chat.contextStats}
+        attachments={composerAttachments}
+        models={models}
+        compareModel={effectiveCompareModel}
+        responseMode={responseMode}
+        reasonEnabled={reasonEnabled}
+        project={currentProject}
+        onClose={() => setDrawerOpen(false)}
+        onCompareModelChange={setCompareModel}
+        onCompareLast={compareSelectedAnswer}
+        onResponseModeChange={setResponseMode}
+        onReasonEnabledChange={setReasonEnabled}
+        onProjectChange={updateProject}
+      />
     </div>
   );
 }

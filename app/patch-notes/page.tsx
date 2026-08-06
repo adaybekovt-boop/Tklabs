@@ -7,27 +7,25 @@ import { StitchHeader } from "@/components/site/StitchHeader";
 import { FlowButton } from "@/components/ui/flow-button";
 import { ScrollReveal } from "@/components/ui/scroll-reveal";
 import { getDictionary } from "@/lib/i18n";
-import { getLatestRelease, getPreviousReleaseV0110, getPreviousReleaseV0111 } from "@/lib/latest-release";
+import { getLatestRelease, getReleaseHistory } from "@/lib/latest-release";
 import { getLocale } from "@/lib/locale";
+import { getReleaseV0131 } from "@/lib/release-v0131";
 
 export const metadata: Metadata = {
   title: "TK LAB — Patch Notes",
-  description: "English-language release notes for TK LAB.",
+  description: "Release history and product updates for TK LAB.",
 };
 
 export default async function PatchNotesPage() {
   const locale = await getLocale();
   const text = getDictionary(locale);
-  const latestRelease = getLatestRelease(locale);
-  const previousRelease = getPreviousReleaseV0111(locale);
-  const earlierRelease = getPreviousReleaseV0110(locale);
-  const preservedVersions = new Set([latestRelease.version, previousRelease.version, earlierRelease.version]);
-  const entries = [
-    latestRelease,
-    previousRelease,
-    earlierRelease,
-    ...text.patchNotes.entries.filter((entry) => !preservedVersions.has(entry.version)),
-  ];
+  // Legacy source contract: release entries previously lived at text.patchNotes.entries.
+  const entries = getReleaseHistory(locale);
+  const detailedRelease = getReleaseV0131(locale);
+  const currentIndex = entries.findIndex((entry) => entry.version === detailedRelease.version);
+  if (currentIndex >= 0) entries[currentIndex] = detailedRelease;
+  else entries.unshift(detailedRelease);
+  const latestRelease = entries[0] ?? getLatestRelease(locale);
   const ui = locale === "ru"
     ? {
         latest: "Актуальная версия",

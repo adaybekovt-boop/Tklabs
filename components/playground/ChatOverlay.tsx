@@ -41,6 +41,7 @@ export function ChatOverlay({
   const dialogRef = useRef<HTMLDivElement>(null);
   const previousFocusRef = useRef<HTMLElement | null>(null);
   const onCloseRef = useRef(onClose);
+  const touchStartRef = useRef<{ x: number; y: number } | null>(null);
 
   useEffect(() => {
     onCloseRef.current = onClose;
@@ -101,19 +102,26 @@ export function ChatOverlay({
 
   return createPortal(
     <div className="fixed inset-0 z-[100]" role="presentation" data-chat-overlay="true">
-      <button
-        type="button"
-        tabIndex={-1}
-        className="absolute inset-0 rounded-none bg-black/45 backdrop-blur-[2px]"
-        aria-label={closeLabel}
-        onClick={onClose}
-      />
+      <button type="button" tabIndex={-1} className="absolute inset-0 rounded-none bg-black/45 backdrop-blur-[2px]" aria-label={closeLabel} onClick={onClose} />
       <div
         ref={dialogRef}
         tabIndex={-1}
         role="dialog"
         aria-modal="true"
         aria-labelledby={labelledBy}
+        onTouchStart={(event) => {
+          const touch = event.touches[0];
+          touchStartRef.current = touch ? { x: touch.clientX, y: touch.clientY } : null;
+        }}
+        onTouchEnd={(event) => {
+          const start = touchStartRef.current;
+          const touch = event.changedTouches[0];
+          touchStartRef.current = null;
+          if (!start || !touch || window.innerWidth >= 768) return;
+          const deltaX = touch.clientX - start.x;
+          const deltaY = touch.clientY - start.y;
+          if (deltaY > 72 && Math.abs(deltaX) < 80) onClose();
+        }}
         className={cn(
           "chat-overlay-panel absolute max-h-[min(86dvh,720px)] overflow-y-auto border border-outline-variant bg-surface-container-lowest p-4 shadow-2xl outline-none sm:p-5",
           position === "sheet"
@@ -124,6 +132,7 @@ export function ChatOverlay({
           className,
         )}
       >
+        <div className="mx-auto mb-3 h-1.5 w-10 rounded-full bg-outline-variant md:hidden" aria-hidden="true" />
         {children}
       </div>
     </div>,
