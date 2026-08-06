@@ -2,7 +2,7 @@ import { getErmaSystemPrompt, type ErmaModel, type ErmaTone } from "@/lib/models
 import { AI_PRIVILEGED_SYSTEM_PROMPT, AI_SAFETY_SYSTEM_PROMPT, evaluateAssistantContent } from "@/lib/ai-safety";
 import { fetchWithTimeout, PROVIDER_TIMEOUT_MS, withTimeout } from "@/lib/ai/provider-http";
 import { normalizeAiTextPair } from "@/lib/ai/reasoning";
-import { responseLanguageInstruction } from "@/lib/ai/response-language";
+import { inferResponseLanguage, responseLanguageInstruction } from "@/lib/ai/response-language";
 
 export const NVIDIA_ENDPOINT = "https://integrate.api.nvidia.com/v1/chat/completions";
 const NVIDIA_KEY_COOLDOWN_MS = 15 * 60 * 1000;
@@ -61,12 +61,13 @@ function systemPrompt(language: Language, model: ErmaModel, allowCode: boolean, 
   return `${getErmaSystemPrompt(model, tone)}\n\n${responseLanguageInstruction(language)}\n\n${allowCode ? AI_PRIVILEGED_SYSTEM_PROMPT : AI_SAFETY_SYSTEM_PROMPT}`;
 }
 
-export function buildNvidiaBody(prompt: string, language: Language, model: ErmaModel, requestedReasoning: boolean, effort: ReasoningEffort, allowCode: boolean, tone: ErmaTone) {
+export function buildNvidiaBody(prompt: string, interfaceLanguage: Language, model: ErmaModel, requestedReasoning: boolean, effort: ReasoningEffort, allowCode: boolean, tone: ErmaTone) {
   const reasoningEnabled = requestedReasoning;
+  const responseLanguage = inferResponseLanguage(prompt, interfaceLanguage);
   const body: Record<string, unknown> = {
     model: model.nvidiaModel,
     messages: [
-      { role: "system", content: systemPrompt(language, model, allowCode, tone) },
+      { role: "system", content: systemPrompt(responseLanguage, model, allowCode, tone) },
       { role: "user", content: prompt },
     ],
     temperature: tone === "erma" ? (reasoningEnabled ? 0.62 : 0.7) : tone === "character" ? (reasoningEnabled ? 0.58 : 0.65) : (reasoningEnabled ? 0.42 : 0.32),
