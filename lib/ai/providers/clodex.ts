@@ -1,7 +1,7 @@
 import { AI_PRIVILEGED_SYSTEM_PROMPT, AI_SAFETY_SYSTEM_PROMPT, evaluateAssistantContent } from "@/lib/ai-safety";
 import { fetchWithTimeout, withTimeout } from "@/lib/ai/provider-http";
 import { normalizeAiTextPair } from "@/lib/ai/reasoning";
-import { responseLanguageInstruction } from "@/lib/ai/response-language";
+import { inferResponseLanguage, responseLanguageInstruction } from "@/lib/ai/response-language";
 
 const CLODEX_ENDPOINT = "https://clodex.xyz/v1/messages";
 
@@ -10,7 +10,8 @@ type ClodexResponse = { content?: ClodexContentBlock[] | string };
 
 export type ClodexGenerationResult = { answer: string; reasoningUsed?: boolean; actualModel: string };
 
-export async function generateWithClodex(prompt: string, apiKey: string, model: string, maxTokens: number, language: "ru" | "en", allowCode: boolean, signal?: AbortSignal): Promise<ClodexGenerationResult> {
+export async function generateWithClodex(prompt: string, apiKey: string, model: string, maxTokens: number, interfaceLanguage: "ru" | "en", allowCode: boolean, signal?: AbortSignal): Promise<ClodexGenerationResult> {
+  const responseLanguage = inferResponseLanguage(prompt, interfaceLanguage);
   const response = await fetchWithTimeout(CLODEX_ENDPOINT, {
     method: "POST",
     signal,
@@ -18,7 +19,7 @@ export async function generateWithClodex(prompt: string, apiKey: string, model: 
     body: JSON.stringify({
       model,
       max_tokens: maxTokens,
-      system: `${responseLanguageInstruction(language)}\n\nОтвечай ясно и не выдумывай технические возможности объекта. Answer clearly and do not invent technical capabilities for the facility.\n\n${allowCode ? AI_PRIVILEGED_SYSTEM_PROMPT : AI_SAFETY_SYSTEM_PROMPT}`,
+      system: `${responseLanguageInstruction(responseLanguage)}\n\nОтвечай ясно и не выдумывай технические возможности объекта. Answer clearly and do not invent technical capabilities for the facility.\n\n${allowCode ? AI_PRIVILEGED_SYSTEM_PROMPT : AI_SAFETY_SYSTEM_PROMPT}`,
       messages: [{ role: "user", content: prompt }],
     }),
   });
