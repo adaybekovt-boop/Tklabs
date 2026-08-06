@@ -2,7 +2,7 @@ import { getErmaSystemPrompt, type ErmaModel, type ErmaTone } from "@/lib/models
 import { AI_PRIVILEGED_SYSTEM_PROMPT, AI_SAFETY_SYSTEM_PROMPT, evaluateAssistantContent } from "@/lib/ai-safety";
 import { fetchWithTimeout, PROVIDER_TIMEOUT_MS, withTimeout } from "@/lib/ai/provider-http";
 import { normalizeAiTextPair } from "@/lib/ai/reasoning";
-import { inferResponseLanguage, responseLanguageInstruction } from "@/lib/ai/response-language";
+import { inferResponseLanguage, responseLanguageInstruction, type ResponseLanguage } from "@/lib/ai/response-language";
 
 export const NVIDIA_ENDPOINT = "https://integrate.api.nvidia.com/v1/chat/completions";
 const NVIDIA_KEY_COOLDOWN_MS = 15 * 60 * 1000;
@@ -57,7 +57,7 @@ function reasoningBudgetFor(model: ErmaModel, effort: ReasoningEffort) {
   return Math.min(2048, maxBudget);
 }
 
-function systemPrompt(language: Language, model: ErmaModel, allowCode: boolean, tone: ErmaTone) {
+function systemPrompt(language: ResponseLanguage, model: ErmaModel, allowCode: boolean, tone: ErmaTone) {
   return `${getErmaSystemPrompt(model, tone)}\n\n${responseLanguageInstruction(language)}\n\n${allowCode ? AI_PRIVILEGED_SYSTEM_PROMPT : AI_SAFETY_SYSTEM_PROMPT}`;
 }
 
