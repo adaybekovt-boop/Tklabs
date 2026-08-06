@@ -17,7 +17,10 @@ export type ArchivedSession = {
   id: string;
   title: string;
   model: string;
+  createdAt?: number;
   updatedAt: number;
+  pinned?: boolean;
+  customTitle?: boolean;
   messages: ArchivedMessage[];
 };
 
@@ -41,6 +44,14 @@ function isBrowser() {
 
 function optionalNumber(value: unknown) {
   return typeof value === "number" && Number.isFinite(value) ? Math.max(0, Math.round(value)) : undefined;
+}
+
+function sortSessions(sessions: ArchivedSession[]) {
+  return [...sessions].sort((left, right) => {
+    const pinnedDifference = Number(right.pinned === true) - Number(left.pinned === true);
+    if (pinnedDifference !== 0) return pinnedDifference;
+    return right.updatedAt - left.updatedAt;
+  });
 }
 
 function sanitizeMeta(value: unknown): AiResponseMeta | undefined {
@@ -110,23 +121,31 @@ export function loadArchive(): ArchivedSession[] {
           ...(meta ? { meta } : {}),
         }];
       }).slice(-MAX_MESSAGES_PER_SESSION);
+      const updatedAt = typeof session.updatedAt === "number" && Number.isFinite(session.updatedAt) ? session.updatedAt : 0;
+      const createdAt = typeof session.createdAt === "number" && Number.isFinite(session.createdAt)
+        ? session.createdAt
+        : updatedAt;
       return [{
-        id: session.id,
+        id: session.id.slice(0, 120),
         title: typeof session.title === "string" ? session.title.slice(0, 120) : "Untitled conversation",
         model: typeof session.model === "string" ? session.model.slice(0, 120) : "",
-        updatedAt: typeof session.updatedAt === "number" ? session.updatedAt : 0,
+        createdAt,
+        updatedAt,
+        ...(session.pinned === true ? { pinned: true } : {}),
+        ...(session.customTitle === true ? { customTitle: true } : {}),
         messages,
       }];
     }).slice(0, MAX_SESSIONS);
+    const sortedSessions = sortSessions(sessions);
     if (removedLegacyReasoning) {
       try {
-        window.localStorage.setItem(ARCHIVE_KEY, JSON.stringify(sessions));
+        window.localStorage.setItem(ARCHIVE_KEY, JSON.stringify(sortedSessions));
       } catch {
         // A storage failure must not make the current session unusable.
       }
     }
-    archiveCache = sessions;
-    return sessions;
+    archiveCache = sortedSessions;
+    return sortedSessions;
   } catch {
     archiveCache = [];
     return archiveCache;
@@ -153,17 +172,43 @@ function scheduleArchiveWrite(sessions: ArchivedSession[]) {
   }, 350);
 }
 
+function persistArchive(sessions: ArchivedSession[]) {
+  if (!isBrowser()) return;
+  const next = sortSessions(sessions).slice(0, MAX_SESSIONS);
+  while (next.length > 1 && JSON.stringify(next).length > MAX_ARCHIVE_JSON_LENGTH) next.pop();
+  archiveCache = next;
+  scheduleArchiveWrite(next);
+  window.dispatchEvent(new Event("tklab:archive-updated"));
+}
+
+function updateSession(id: string, update: (session: ArchivedSession) => ArchivedSession) {
+  if (!isBrowser()) return false;
+  const sessions = loadArchive();
+  const index = sessions.findIndex((session) => session.id === id);
+  if (index < 0) return false;
+  const next = [...sessions];
+  next[index] = update(next[index]);
+  persistArchive(next);
+  return true;
+}
+
 export function getSession(id: string): ArchivedSession | undefined {
   return loadArchive().find((session) => session.id === id);
 }
 
 export function saveSession(session: ArchivedSession) {
   if (!isBrowser() || session.messages.length === 0) return;
+  const existing = getSession(session.id);
+  const now = Date.now();
+  const generatedTitle = session.title.trim().slice(0, 120) || "Untitled conversation";
   const safeSession: ArchivedSession = {
     id: session.id.slice(0, 120),
-    title: session.title.slice(0, 120),
+    title: existing?.customTitle ? existing.title : generatedTitle,
     model: session.model.slice(0, 120),
-    updatedAt: Number.isFinite(session.updatedAt) ? session.updatedAt : Date.now(),
+    createdAt: existing?.createdAt ?? session.createdAt ?? now,
+    updatedAt: Number.isFinite(session.updatedAt) ? session.updatedAt : now,
+    ...(existing?.pinned === true || session.pinned === true ? { pinned: true } : {}),
+    ...(existing?.customTitle === true || session.customTitle === true ? { customTitle: true } : {}),
     messages: session.messages.slice(-MAX_MESSAGES_PER_SESSION).map((message) => {
       const meta = sanitizeMeta(message.meta);
       return {
@@ -175,24 +220,35 @@ export function saveSession(session: ArchivedSession) {
       };
     }),
   };
-  const sessions = [safeSession, ...loadArchive().filter((entry) => entry.id !== safeSession.id)].slice(0, MAX_SESSIONS);
   try {
-    while (sessions.length > 1 && JSON.stringify(sessions).length > MAX_ARCHIVE_JSON_LENGTH) sessions.pop();
-    archiveCache = sessions;
-    scheduleArchiveWrite(sessions);
-    window.dispatchEvent(new Event("tklab:archive-updated"));
+    persistArchive([safeSession, ...loadArchive().filter((entry) => entry.id !== safeSession.id)]);
   } catch {
     // Storage can be unavailable or full. Chat generation must remain usable.
   }
 }
 
+export function renameSession(id: string, title: string) {
+  const normalizedTitle = title.trim().replace(/\s+/g, " ").slice(0, 120);
+  if (!normalizedTitle) return false;
+  return updateSession(id, (session) => ({
+    ...session,
+    title: normalizedTitle,
+    customTitle: true,
+    updatedAt: Date.now(),
+  }));
+}
+
+export function toggleSessionPinned(id: string) {
+  return updateSession(id, (session) => ({
+    ...session,
+    pinned: session.pinned !== true,
+  }));
+}
+
 export function deleteSession(id: string) {
   if (!isBrowser()) return;
   try {
-    const next = loadArchive().filter((entry) => entry.id !== id);
-    archiveCache = next;
-    scheduleArchiveWrite(next);
-    window.dispatchEvent(new Event("tklab:archive-updated"));
+    persistArchive(loadArchive().filter((entry) => entry.id !== id));
   } catch {
     // Ignore storage errors in private browsing or restricted environments.
   }
