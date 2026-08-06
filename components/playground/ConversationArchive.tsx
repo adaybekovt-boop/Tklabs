@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Check, CopyPlus, FolderKanban, Pencil, Pin, Search, Trash2, X } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 
@@ -26,6 +26,7 @@ type ConversationArchiveProps = {
 
 export function ConversationArchive({ locale, onNavigate, headingId = "conversation-history-title", compact = false }: ConversationArchiveProps) {
   const text = getDictionary(locale);
+  const router = useRouter();
   const searchParams = useSearchParams();
   const [sessions, setSessions] = useState<ArchivedSession[]>([]);
   const [query, setQuery] = useState("");
@@ -115,7 +116,7 @@ export function ConversationArchive({ locale, onNavigate, headingId = "conversat
     const duplicate = duplicateSession(session.id, `${session.title} · ${ui.copySuffix}`);
     if (!duplicate) return;
     onNavigate?.();
-    window.location.assign(`/playground?session=${encodeURIComponent(duplicate.id)}`);
+    router.push(`/playground?session=${encodeURIComponent(duplicate.id)}`);
   }
 
   return (
