@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import { lazy, Suspense } from "react";
+import { lazy, Suspense, type ReactNode } from "react";
 import {
   Check,
   Copy,
@@ -66,7 +66,7 @@ function AnswerBody({ content, pending, error = false }: { content: string; pend
   );
 }
 
-function ActionMenu({ children, label }: { children: React.ReactNode; label: string }) {
+function ActionMenu({ children, label }: { children: ReactNode; label: string }) {
   return (
     <details className="group relative">
       <summary className="grid size-9 cursor-pointer list-none place-items-center rounded-full text-on-secondary-container hover:bg-surface-container-low hover:text-primary [&::-webkit-details-marker]:hidden" aria-label={label}>
@@ -119,6 +119,9 @@ export function MessageList({
   const ui = locale === "ru"
     ? { actions: "Действия", branch: "Создать ветку", regenerate: "Повторить ответ", previous: "Предыдущая версия", compare: "Сравнить модель", stopped: "Генерация остановлена. Частичный ответ сохранён.", versions: "версий", original: "Основной ответ", comparison: "Сравнение", edit: "Редактировать запрос", speak: "Озвучить" }
     : { actions: "Actions", branch: "Create branch", regenerate: "Regenerate", previous: "Previous version", compare: "Compare model", stopped: "Generation stopped. The partial answer was preserved.", versions: "versions", original: "Primary answer", comparison: "Comparison", edit: "Edit prompt", speak: "Read aloud" };
+  const fallbackNotice = locale === "ru"
+    ? "Основная модель была временно недоступна. Ответ подготовлен резервным безопасным режимом."
+    : "The primary model was temporarily unavailable. A safe fallback produced this answer.";
 
   return (
     <div className="mx-auto flex w-full max-w-4xl flex-col gap-7 pb-10 md:gap-9 md:pb-8" role="log" aria-label={text.chat.currentSession} lang={locale}>
@@ -154,6 +157,7 @@ export function MessageList({
             ) : <AnswerBody content={message.content} pending={isPending && message.id === lastMessage?.id} error={message.error} />}
 
             {message.stopped && <p className="mt-3 rounded-xl bg-surface-container-low px-3 py-2 text-[11px] text-on-secondary-container">{ui.stopped}</p>}
+            {message.meta?.fallbackReason && <p className="mt-3 rounded-xl border border-outline-variant bg-surface-container-low px-3 py-2 text-[11px] leading-5 text-on-secondary-container">{fallbackNotice}</p>}
             <AgentActivity calls={message.meta?.toolCalls} locale={locale} />
 
             {message.error ? (
