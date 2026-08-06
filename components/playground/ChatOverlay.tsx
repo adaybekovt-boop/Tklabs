@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useRef, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 
 import { cn } from "@/lib/utils";
@@ -38,19 +38,16 @@ export function ChatOverlay({
   position?: "sheet" | "popover" | "responsive";
   closeLabel?: string;
 }) {
-  const [mounted, setMounted] = useState(false);
   const dialogRef = useRef<HTMLDivElement>(null);
   const previousFocusRef = useRef<HTMLElement | null>(null);
   const onCloseRef = useRef(onClose);
-
-  useEffect(() => setMounted(true), []);
 
   useEffect(() => {
     onCloseRef.current = onClose;
   }, [onClose]);
 
   useEffect(() => {
-    if (!open || !mounted) return;
+    if (!open) return;
 
     previousFocusRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     lockBodyScroll();
@@ -98,9 +95,9 @@ export function ChatOverlay({
       unlockBodyScroll();
       previousFocusRef.current?.focus();
     };
-  }, [mounted, open]);
+  }, [open]);
 
-  if (!mounted || !open) return null;
+  if (!open || typeof document === "undefined") return null;
 
   return createPortal(
     <div className="fixed inset-0 z-[100]" role="presentation" data-chat-overlay="true">
