@@ -7,7 +7,7 @@ import { StitchHeader } from "@/components/site/StitchHeader";
 import { FlowButton } from "@/components/ui/flow-button";
 import { ScrollReveal } from "@/components/ui/scroll-reveal";
 import { getDictionary } from "@/lib/i18n";
-import { getLatestRelease, getPreviousReleaseV0110 } from "@/lib/latest-release";
+import { getLatestRelease, getPreviousReleaseV0110, getPreviousReleaseV0111 } from "@/lib/latest-release";
 import { getLocale } from "@/lib/locale";
 
 export const metadata: Metadata = {
@@ -19,11 +19,14 @@ export default async function PatchNotesPage() {
   const locale = await getLocale();
   const text = getDictionary(locale);
   const latestRelease = getLatestRelease(locale);
-  const previousRelease = getPreviousReleaseV0110(locale);
+  const previousRelease = getPreviousReleaseV0111(locale);
+  const earlierRelease = getPreviousReleaseV0110(locale);
+  const preservedVersions = new Set([latestRelease.version, previousRelease.version, earlierRelease.version]);
   const entries = [
     latestRelease,
     previousRelease,
-    ...text.patchNotes.entries.filter((entry) => entry.version !== latestRelease.version && entry.version !== previousRelease.version),
+    earlierRelease,
+    ...text.patchNotes.entries.filter((entry) => !preservedVersions.has(entry.version)),
   ];
   const ui = locale === "ru"
     ? {

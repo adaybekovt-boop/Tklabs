@@ -14,7 +14,8 @@
     "test:unit": "tsx --test tests/behavior.test.ts",
     "test:integration": "node --import tsx --experimental-loader ./tests/cloudflare-loader.mjs --test tests/*.test.mjs",
     "test": "npm run test:unit && npm run test:integration",
-    "check": "npm run typecheck && npm run lint && npm test && npm run build",
+    "perf:budget": "node scripts/check-performance-budget.mjs",
+    "check": "npm run typecheck && npm run lint && npm test && npm run build && npm run perf:budget",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "node scripts/migrate-d1.mjs",
     "cloudflare:check-secrets": "node scripts/check-cloudflare-secrets.mjs"

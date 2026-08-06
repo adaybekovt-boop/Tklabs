@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 
 import "@/app/globals.css";
+import { PwaRuntime } from "@/components/pwa/PwaRuntime";
 import { getLocale } from "@/lib/locale";
 
 const THEME_INIT_SCRIPT = `try {
@@ -9,8 +10,8 @@ const THEME_INIT_SCRIPT = `try {
 } catch {}`;
 
 const SITE_ICONS = {
-  icon: "/images/brand/tk-logo.png",
-  shortcut: "/images/brand/tk-logo.png",
+  icon: "/images/brand/tk-app-icon.svg",
+  shortcut: "/images/brand/tk-app-icon.svg",
   apple: "/images/brand/tk-logo.png",
 };
 
@@ -33,6 +34,8 @@ export async function generateMetadata(): Promise<Metadata> {
         icons: SITE_ICONS,
         manifest: "/manifest.webmanifest",
         appleWebApp: { capable: true, title: "TK Lab", statusBarStyle: "black-translucent" },
+        applicationName: "TK Lab",
+        formatDetection: { telephone: false },
       }
     : {
         title: "TK Lab — Тихая точность",
@@ -40,6 +43,8 @@ export async function generateMetadata(): Promise<Metadata> {
         icons: SITE_ICONS,
         manifest: "/manifest.webmanifest",
         appleWebApp: { capable: true, title: "TK Lab", statusBarStyle: "black-translucent" },
+        applicationName: "TK Lab",
+        formatDetection: { telephone: false },
       };
 }
 
@@ -50,7 +55,10 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
       <head>
         <script dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }} />
       </head>
-      <body>{children}</body>
+      <body>
+        {children}
+        <PwaRuntime />
+      </body>
     </html>
   );
 }

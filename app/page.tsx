@@ -12,8 +12,8 @@ import { getLatestRelease } from "@/lib/latest-release";
 import { getLocale } from "@/lib/locale";
 import { cn } from "@/lib/utils";
 
-const HERO_IMAGE = "https://lh3.googleusercontent.com/aida-public/AB6AXuAYTVB_xIAGfQ1GmdoErspMpmszNyjX_bx_I0kf8cC0os8aetwXwoYoEsN8t8fBBgNJMQplpbGHuSFprZYXkzuFm8rLy6vRhJkhKHRHNRBC-dV-Jg6KyeSA0jjtPHYL5E-mGoFtlIahWoSz443B7RQMHivURhnPhEBkRctiCFkYPYwCqlXEe2-scdz4JuuHFVn2ebUWmRJOnykO4n25FtZa-mrt4EXDrCrArb59WcxZMv4lqYBHgcg0";
-const LAB_IMAGE = "https://lh3.googleusercontent.com/aida-public/AB6AXuCO03sRJnzhXJQCipz5tILXfn2MqcyWD_QUSBtCkp01NeZ66JwFPbzsiFE_peCk0Xw0TAXB75_v7W91GmR5bn3TxjWqkxORjcMKwA0SbV_KtLHa8CYRWNxpzRBQhTaG3-p0PJ-x2o6Ug4RVWBB-Vu65It4UWODNdOknGxorZPh9phPqgNcE6HfNpt_XoOgyY1n0at9IAyiBUbq_pvkteGlfp7QsNGZuNTbniMFnMJ5-h1hgKv3Qg-J8";
+const HERO_IMAGE = "/images/home/hero-lab.svg";
+const LAB_IMAGE = "/images/home/lab-cluster.svg";
 
 export default async function HomePage() {
   const locale = await getLocale();
@@ -36,7 +36,16 @@ export default async function HomePage() {
             </div>
           </ScrollReveal>
           <ScrollReveal delay={0.15} className="relative aspect-[16/10] overflow-hidden rounded-3xl sm:aspect-[4/3] lg:aspect-auto lg:min-h-[500px]">
-            <Image src={HERO_IMAGE} alt={text.home.heroAlt} fill sizes="(min-width: 1024px) 50vw, 100vw" unoptimized className="object-cover grayscale" />
+            <Image
+              src={HERO_IMAGE}
+              alt={text.home.heroAlt}
+              fill
+              priority
+              fetchPriority="high"
+              sizes="(min-width: 1024px) 50vw, 100vw"
+              unoptimized
+              className="object-cover grayscale"
+            />
           </ScrollReveal>
         </section>
 
@@ -49,7 +58,15 @@ export default async function HomePage() {
           <div className="grid items-center gap-6 sm:gap-8 lg:grid-cols-2">
             <ScrollReveal delay={0.1}>
               <div className="relative aspect-[16/10] overflow-hidden rounded-3xl sm:aspect-video">
-                <Image src={LAB_IMAGE} alt={text.home.labAlt} fill sizes="(min-width: 1024px) 50vw, 100vw" unoptimized className="object-cover grayscale" />
+                <Image
+                  src={LAB_IMAGE}
+                  alt={text.home.labAlt}
+                  fill
+                  loading="lazy"
+                  sizes="(min-width: 1024px) 50vw, 100vw"
+                  unoptimized
+                  className="object-cover grayscale"
+                />
               </div>
             </ScrollReveal>
             <ScrollReveal delay={0.2} className="flex items-center justify-center py-3 sm:py-8 lg:py-0">

@@ -46,6 +46,10 @@ jobs:
         run: npm run test:integration
       - name: Production build
         run: npm run build
+      - name: Performance budget
+        run: npm run perf:budget
+      - name: Cloudflare Worker dry-run
+        run: npx wrangler deploy --dry-run --config dist/server/wrangler.json
       - name: Upload validated Worker build
         uses: actions/upload-artifact@v4
         with:
