@@ -1,3 +1,4 @@
+/** Server-only provider payload. Never import this module from client code. */
 export type AiTextPair = {
   answer: string;
   thinking?: string;
@@ -5,9 +6,14 @@ export type AiTextPair = {
 
 const INLINE_REASONING_BLOCK = /<(think|thinking|analysis|reasoning|thought)\b[^>]*>([\s\S]*?)<\/\1\s*>/gi;
 const MIN_DUPLICATE_REASONING_LENGTH = 80;
+export const MAX_PROVIDER_TEXT_LENGTH = 64_000;
 
 function comparisonText(value: string) {
   return value.replace(/\s+/gu, " ").trim().toLocaleLowerCase();
+}
+
+function boundProviderText(value: string) {
+  return value.slice(0, MAX_PROVIDER_TEXT_LENGTH).trim();
 }
 
 function mergeThinking(parts: Array<string | undefined>) {
@@ -41,16 +47,17 @@ function stripDuplicatePrefix(answer: string, thinking: string) {
 }
 
 /**
- * Keeps provider reasoning in the collapsed reasoning field and removes a
- * repeated reasoning prefix from the answer shown to the user.
+ * Normalizes provider text before server-side safety evaluation. The returned
+ * thinking field is transient server data and must never cross an API or UI
+ * boundary.
  */
 export function normalizeAiTextPair({ answer, thinking }: AiTextPair): AiTextPair {
   const extractedThinking: string[] = [];
-  let normalizedAnswer = answer.trim().replace(INLINE_REASONING_BLOCK, (_match, _tag, block: string) => {
+  let normalizedAnswer = boundProviderText(answer).replace(INLINE_REASONING_BLOCK, (_match, _tag, block: string) => {
     if (block.trim()) extractedThinking.push(block.trim());
     return "\n";
   }).trim();
-  const normalizedThinking = mergeThinking([thinking, ...extractedThinking]);
+  const normalizedThinking = mergeThinking([boundProviderText(thinking ?? ""), ...extractedThinking]);
 
   const answerForComparison = comparisonText(normalizedAnswer);
   const thinkingForComparison = comparisonText(normalizedThinking);

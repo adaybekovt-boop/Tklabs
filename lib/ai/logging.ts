@@ -8,6 +8,7 @@ export function logAiRequest(meta: AiResponseMeta) {
     actualModel: meta.actualModel,
     latencyMs: meta.latencyMs,
     httpStatus: meta.httpStatus,
+    ...(meta.reasoningUsed ? { reasoningUsed: true } : {}),
     ...(meta.fallbackReason ? { fallbackReason: meta.fallbackReason } : {}),
   });
 }

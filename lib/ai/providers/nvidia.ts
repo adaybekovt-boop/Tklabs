@@ -1,5 +1,5 @@
 import { getErmaSystemPrompt, type ErmaModel, type ErmaTone } from "@/lib/models/server";
-import { AI_PRIVILEGED_SYSTEM_PROMPT, AI_SAFETY_SYSTEM_PROMPT } from "@/lib/ai-safety";
+import { AI_PRIVILEGED_SYSTEM_PROMPT, AI_SAFETY_SYSTEM_PROMPT, evaluateAssistantContent } from "@/lib/ai-safety";
 import { fetchWithTimeout, PROVIDER_TIMEOUT_MS, withTimeout } from "@/lib/ai/provider-http";
 import { normalizeAiTextPair } from "@/lib/ai/reasoning";
 
@@ -62,7 +62,7 @@ function systemPrompt(language: Language, model: ErmaModel, allowCode: boolean, 
 }
 
 export function buildNvidiaBody(prompt: string, language: Language, model: ErmaModel, requestedReasoning: boolean, effort: ReasoningEffort, allowCode: boolean, tone: ErmaTone) {
-  const reasoningEnabled = model.reasoning || requestedReasoning || effort === "high";
+  const reasoningEnabled = requestedReasoning;
   const body: Record<string, unknown> = {
     model: model.nvidiaModel,
     messages: [
@@ -101,7 +101,12 @@ async function fetchWithKey(prompt: string, language: Language, model: ErmaModel
   // Nemotron reasoning models return their chain of thought in a separate
   // `reasoning_content` field when `chat_template_kwargs.enable_thinking` is set.
   const thinking = typeof message?.reasoning_content === "string" ? message.reasoning_content.trim() : "";
-  return normalizeAiTextPair({ answer: answer.trim(), thinking: thinking || undefined });
+  const normalized = normalizeAiTextPair({ answer: answer.trim(), thinking: thinking || undefined });
+  if (!normalized.answer) throw new Error("nvidia_empty_response");
+  const evaluation = evaluateAssistantContent(normalized, { allowCode });
+  if (evaluation.verdict === "unsafe") throw new Error("nvidia_output_blocked");
+  if (evaluation.verdict === "empty") throw new Error("nvidia_empty_response");
+  return { answer: evaluation.answer, reasoningUsed: evaluation.reasoningUsed };
 }
 
 export async function generateWithNvidia(input: { prompt: string; language: Language; model: ErmaModel; requestedReasoning: boolean; effort: ReasoningEffort; allowCode: boolean; tone: ErmaTone; signal?: AbortSignal }) {
@@ -113,9 +118,8 @@ export async function generateWithNvidia(input: { prompt: string; language: Lang
   for (const index of indexes) {
     try {
       const result = await withTimeout(fetchWithKey(input.prompt, input.language, input.model, keys[index], input.requestedReasoning, normalizeEffort(input.effort), input.allowCode, input.tone, input.signal), PROVIDER_TIMEOUT_MS);
-      if (!result.answer && !result.thinking) throw new Error("nvidia_empty_response");
       preferredNvidiaKeyIndex = index;
-      return { answer: result.answer, thinking: result.thinking, actualModel: input.model.nvidiaModel ?? "nvidia-model" };
+      return { answer: result.answer, reasoningUsed: result.reasoningUsed, actualModel: input.model.nvidiaModel ?? "nvidia-model" };
     } catch (error) {
       if (!(error instanceof NvidiaKeyRotationError)) throw error;
       lastRotationError = error;

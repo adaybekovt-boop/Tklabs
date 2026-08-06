@@ -3,7 +3,6 @@ import { generateWithClodex } from "@/lib/ai/providers/clodex";
 import { generateWithNvidia } from "@/lib/ai/providers/nvidia";
 import { logAiProviderFailure, logAiRequest } from "@/lib/ai/logging";
 import { newRequestId } from "@/lib/ai/provider-http";
-import { normalizeAiTextPair } from "@/lib/ai/reasoning";
 import type { AiGenerationResult } from "@/lib/ai/types";
 import { createAiResponseMeta, localFallbackResult } from "@/lib/ai/response";
 import { classifyPromptSafety, evaluateAssistantContent, safetyRefusal } from "@/lib/ai-safety";
@@ -11,6 +10,7 @@ import { promptValidationMessage, PromptValidationError, validateAndBuildProvide
 import { DemoRateLimitUnavailableError, commitDemoRequest, releaseDemoRequest, reserveDemoRequest } from "@/lib/demo-rate-limit-access";
 import { isClodexEnabled } from "@/lib/feature-flags";
 import { getErmaModel, type ErmaTone } from "@/lib/models/server";
+import { getClodexModelConfig } from "@/lib/models/clodex-server";
 import { getRateLimitIdentity, RateLimitConfigurationError } from "@/lib/rate-limit-identity";
 import { isPrivilegedAiEmail } from "@/lib/privileged-access";
 import { parseJsonBody, RequestBodyTooLargeError } from "@/lib/request-body";
@@ -18,11 +18,9 @@ import { isTrustedRequestOrigin } from "@/lib/request-security";
 
 export const runtime = "edge";
 
-const CLODEX_MODEL = "claude-clodex-5";
-
 type Language = "ru" | "en";
 type ReasoningEffort = "low" | "medium" | "high";
-type ChatRequest = { prompt?: unknown; locale?: unknown; model?: unknown; reason?: unknown; effort?: unknown; tone?: unknown; attachments?: unknown };
+type ChatRequest = { prompt?: unknown; locale?: unknown; model?: unknown; reasonEnabled?: unknown; effort?: unknown; tone?: unknown; attachments?: unknown };
 
 function normalizeEffort(value: unknown): ReasoningEffort {
   return value === "low" || value === "high" ? value : "medium";
@@ -53,10 +51,9 @@ function promptErrorResponse(error: PromptValidationError, language: Language, p
 }
 
 function resultResponse(result: AiGenerationResult, requestedModel: string, requestId: string, startedAt: number, setCookie?: string | null) {
-  const normalized = { ...result, ...normalizeAiTextPair(result) };
-  const meta = createAiResponseMeta(normalized, requestedModel, requestId, startedAt);
+  const meta = createAiResponseMeta(result, requestedModel, requestId, startedAt);
   logAiRequest(meta);
-  return jsonResponse({ answer: normalized.answer, ...(normalized.thinking ? { thinking: normalized.thinking } : {}), meta }, requestId, 200, setCookie);
+  return jsonResponse({ answer: result.answer, meta }, requestId, 200, setCookie);
 }
 
 async function resolveFallback(input: {
@@ -69,10 +66,11 @@ async function resolveFallback(input: {
   signal?: AbortSignal;
 }) : Promise<AiGenerationResult> {
   const apiKey = process.env.CLODEX_API_KEY?.trim();
-  if (isClodexEnabled() && apiKey) {
+  const fallbackModel = getClodexModelConfig({ requireRuntimeConfig: true })?.[0];
+  if (isClodexEnabled() && apiKey && fallbackModel) {
     try {
-      const { answer, thinking } = await generateWithClodex(input.prompt, apiKey, CLODEX_MODEL, input.language, input.allowCode, input.signal);
-      return { answer, thinking, provider: "clodex", actualModel: CLODEX_MODEL, fallbackReason: input.primaryReason };
+      const { answer, reasoningUsed, actualModel } = await generateWithClodex(input.prompt, apiKey, fallbackModel.providerModel, fallbackModel.maxTokens, input.language, input.allowCode, input.signal);
+      return { answer, reasoningUsed, provider: "clodex", actualModel, fallbackReason: input.primaryReason };
     } catch (error) {
       logAiProviderFailure({
         requestId: input.requestId,
@@ -101,7 +99,7 @@ export async function POST(request: Request) {
 
   const language: Language = body?.locale === "en" ? "en" : "ru";
   const model = getErmaModel(typeof body?.model === "string" ? body.model : undefined);
-  const requestedReasoning = body?.reason === true;
+  const requestedReasoning = body?.reasonEnabled === true;
   const effort = normalizeEffort(body?.effort);
   const tone = normalizeTone(body?.tone);
   let sessionEmail = "";
@@ -199,9 +197,8 @@ export async function POST(request: Request) {
       tone,
       signal: request.signal,
     });
-    const normalized = normalizeAiTextPair(result);
-    const evaluation = evaluateAssistantContent(normalized, { allowCode: privilegedAccount });
-    if (evaluation.verdict === "unsafe") {
+    const evaluation = evaluateAssistantContent({ answer: result.answer }, { allowCode: privilegedAccount });
+    if (evaluation.verdict !== "ok") {
       const safetyResult: AiGenerationResult = {
         answer: safetyRefusal(language),
         provider: "edge-fallback",
@@ -212,11 +209,15 @@ export async function POST(request: Request) {
       return resultResponse(safetyResult, requestedModel, requestId, startedAt, rateLimitCookie);
     }
     await commitDemo();
-    return resultResponse({ answer: evaluation.answer, thinking: evaluation.thinking, provider: "nvidia", actualModel: result.actualModel }, requestedModel, requestId, startedAt, rateLimitCookie);
+    return resultResponse({ answer: evaluation.answer, reasoningUsed: result.reasoningUsed, provider: "nvidia", actualModel: result.actualModel }, requestedModel, requestId, startedAt, rateLimitCookie);
   } catch (error) {
     if (request.signal.aborted) {
       await releaseDemo();
       return jsonResponse({ error: "Request cancelled.", requestId }, requestId, 499, rateLimitCookie);
+    }
+    if (error instanceof Error && error.message === "nvidia_output_blocked") {
+      await commitDemo();
+      return resultResponse({ answer: safetyRefusal(language), provider: "edge-fallback", actualModel: "safety-policy", fallbackReason: "safety_output_blocked" }, requestedModel, requestId, startedAt, rateLimitCookie);
     }
     const reason = error instanceof Error && error.message === "nvidia_not_configured" ? "nvidia_not_configured" : "nvidia_request_failed";
     logAiProviderFailure({

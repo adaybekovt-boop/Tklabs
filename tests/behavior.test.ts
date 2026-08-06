@@ -5,7 +5,7 @@ import { createAiResponseMeta, localFallbackResult } from "../lib/ai/response";
 import { normalizeAiTextPair } from "../lib/ai/reasoning";
 import { classifyPromptSafety, evaluateAssistantContent, evaluateAssistantOutput } from "../lib/ai-safety";
 import { validateAndBuildProviderPrompt, PromptValidationError } from "../lib/chat-prompt";
-import { getClodexModel } from "../lib/models/clodex-server";
+import { areClodexModelIdsConfigured, getClodexModel } from "../lib/models/clodex-server";
 import { PUBLIC_ERMA_MODELS } from "../lib/models/public";
 import { ERMA_MODELS } from "../lib/models/server";
 import { hasUnlimitedAccess, isAdminEmail, isPrivilegedAiEmail, parseEmailAllowlist, parseUnlimitedEmails } from "../lib/privileged-access";
@@ -16,6 +16,8 @@ import { TTS_DAILY_CHARACTER_QUOTA, TTS_MAX_TEXT_LENGTH, TTS_PRIVILEGED_DAILY_CH
 import { buildD1MigrationsArgs, getMigrationFiles, runD1Migrations, validateMigrationSql } from "../scripts/migrate-d1.mjs";
 import { buildSecretListArgs, missingSecretNames, parseSecretNames, readCloudflareSecretNames, safePreflightError, validateCloudflareSecretNames } from "../scripts/check-cloudflare-secrets.mjs";
 import { canCommitReservation, isReservationExpired, reservationExpiresAt } from "../lib/reservation-policy";
+import { assertProductionPreviewDisabled, isClientLocalPreviewEnabled, isLocalPreviewEnabled } from "../lib/local-preview";
+import { loadArchive } from "../lib/local-archive";
 
 test("AI reasoning is separated from the visible answer and is not duplicated", () => {
   const thinking = "I should inspect the user wording, follow the response policy, and then give a short natural answer in the requested language.";
@@ -30,6 +32,32 @@ test("AI reasoning is separated from the visible answer and is not duplicated", 
   const reasoningOnly = normalizeAiTextPair({ answer: thinking, thinking });
   assert.equal(reasoningOnly.answer, "");
   assert.equal(reasoningOnly.thinking, thinking);
+  assert.equal(normalizeAiTextPair({ answer: "The analysis section is complete." }).answer, "The analysis section is complete.");
+});
+
+test("legacy provider reasoning is removed from browser archive storage", () => {
+  const stored = new Map<string, string>([["tklab.archive.v1", JSON.stringify([{
+    id: "session-1",
+    title: "Legacy",
+    model: "Erma Core",
+    updatedAt: 1,
+    messages: [{ id: "message-1", role: "assistant", content: "Visible answer", thinking: "private provider trace" }],
+  }])]]);
+  const previousWindow = globalThis.window;
+  const mockWindow = {
+    localStorage: {
+      getItem: (key: string) => stored.get(key) ?? null,
+      setItem: (key: string, value: string) => { stored.set(key, value); },
+    },
+  } as unknown as Window;
+  Object.defineProperty(globalThis, "window", { configurable: true, value: mockWindow });
+  try {
+    const sessions = loadArchive();
+    assert.equal("thinking" in sessions[0].messages[0], false);
+    assert.doesNotMatch(stored.get("tklab.archive.v1") ?? "", /private provider trace/);
+  } finally {
+    Object.defineProperty(globalThis, "window", { configurable: true, value: previousWindow });
+  }
 });
 
 test("privileged e-mail allowlists normalize, deduplicate, and default to empty", () => {
@@ -63,6 +91,27 @@ test("admin access uses its own allowlist, separate from unlimited AI access", (
     if (previousUnlimited === undefined) delete process.env.UNLIMITED_AI_EMAILS;
     else process.env.UNLIMITED_AI_EMAILS = previousUnlimited;
   }
+});
+
+test("local preview is development-only and cannot bypass production auth", () => {
+  assert.equal(isLocalPreviewEnabled({ NODE_ENV: "development", TKLABS_LOCAL_PREVIEW: "true" }), true);
+  assert.equal(isLocalPreviewEnabled({ NODE_ENV: "production", TKLABS_LOCAL_PREVIEW: "true" }), false);
+  assert.equal(isClientLocalPreviewEnabled({ NODE_ENV: "production", NEXT_PUBLIC_TKLABS_LOCAL_PREVIEW: "true" }), false);
+  assert.doesNotThrow(() => assertProductionPreviewDisabled({ NODE_ENV: "development", TKLABS_LOCAL_PREVIEW: "true" }));
+  assert.throws(() => assertProductionPreviewDisabled({ NODE_ENV: "production", NEXT_PUBLIC_TKLABS_LOCAL_PREVIEW: "true" }), /disabled in production/);
+});
+
+test("reasoning mode is controlled only by the explicit reasonEnabled flag", async () => {
+  const { buildNvidiaBody } = await import("../lib/ai/providers/nvidia");
+  const model = ERMA_MODELS[1];
+  const offLow = buildNvidiaBody("hello", "en", model, false, "low", false, "professional");
+  const offHigh = buildNvidiaBody("hello", "en", model, false, "high", false, "professional");
+  const onLow = buildNvidiaBody("hello", "en", model, true, "low", false, "professional");
+  const onHigh = buildNvidiaBody("hello", "en", model, true, "high", false, "professional");
+  assert.equal("chat_template_kwargs" in offLow, false);
+  assert.equal("chat_template_kwargs" in offHigh, false);
+  assert.equal((onLow.chat_template_kwargs as { enable_thinking: boolean }).enable_thinking, true);
+  assert.equal((onHigh.chat_template_kwargs as { enable_thinking: boolean }).enable_thinking, true);
 });
 
 test("Cloudflare secret preflight validates names without returning secret values", () => {
@@ -287,7 +336,12 @@ test("public and server model catalogs are separated and capabilities stay hones
   assert.equal(ERMA_MODELS.length, 3);
   assert.ok(ERMA_MODELS.every((model) => model.nvidiaModel));
   assert.ok(PUBLIC_ERMA_MODELS.every((model) => !("nvidiaModel" in model) && model.tools === false && model.vision === false));
-  assert.deepEqual(getClodexModel("clodex:pro"), { key: "clodex:pro", name: "Clodex Pro", providerModel: "gpt-5.6-sol" });
+  assert.equal(getClodexModel("clodex:pro")?.providerModel, "gpt-5.6-sol");
+  assert.equal(getClodexModel("clodex:pro")?.maxTokens, 8192);
+  const configured = { CLODEX_MODEL_FAST: "provider/fast", CLODEX_MODEL_REASONING: "provider/reasoning", CLODEX_MODEL_PRO: "provider/pro" };
+  assert.equal(areClodexModelIdsConfigured(configured), true);
+  assert.equal(getClodexModel("clodex:reasoning", { requireRuntimeConfig: true, environment: configured })?.providerModel, "provider/reasoning");
+  assert.equal(areClodexModelIdsConfigured({ ...configured, CLODEX_MODEL_PRO: "" }), false);
 });
 
 test("fallback metadata identifies the actual local mode", () => {
@@ -329,10 +383,10 @@ test("assistant output that is merely long is truncated, never treated as unsafe
 
 test("assistant content evaluation checks the reasoning trace as strictly as the answer", () => {
   const safeBoth = evaluateAssistantContent({ answer: "The result is 42.", thinking: "Let me add the numbers together." });
-  assert.deepEqual(safeBoth, { verdict: "ok", answer: "The result is 42.", thinking: "Let me add the numbers together." });
+  assert.deepEqual(safeBoth, { verdict: "ok", answer: "The result is 42.", reasoningUsed: true });
 
   const noThinking = evaluateAssistantContent({ answer: "The result is 42." });
-  assert.deepEqual(noThinking, { verdict: "ok", answer: "The result is 42." });
+  assert.deepEqual(noThinking, { verdict: "ok", answer: "The result is 42.", reasoningUsed: false });
 
   const unsafeAnswer = evaluateAssistantContent({ answer: "Here is a ransomware payload.", thinking: "harmless reasoning" });
   assert.deepEqual(unsafeAnswer, { verdict: "unsafe" });
@@ -343,5 +397,5 @@ test("assistant content evaluation checks the reasoning trace as strictly as the
 
   const longThinking = evaluateAssistantContent({ answer: "Short answer.", thinking: "a".repeat(13_000) }, { allowCode: false });
   assert.equal(longThinking.verdict, "ok");
-  assert.equal(longThinking.verdict === "ok" ? longThinking.thinking?.length : -1, 12_000);
+  assert.equal(longThinking.verdict === "ok" ? longThinking.reasoningUsed : false, true);
 });

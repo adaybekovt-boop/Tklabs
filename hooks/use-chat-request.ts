@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 
 import type { AiResponseMeta } from "@/lib/ai/types";
-import { normalizeAiTextPair } from "@/lib/ai/reasoning";
 import type { Locale } from "@/lib/i18n";
 import { getDictionary } from "@/lib/i18n";
 import type { ArchivedMessage } from "@/lib/local-archive";
@@ -78,7 +77,7 @@ export function useChatRequest(options: {
           prompt,
           model: nextModelKey,
           locale: options.locale,
-          reason: options.reasonEnabled || submitMeta.effort !== "low",
+          reasonEnabled: options.reasonEnabled,
           effort: submitMeta.effort,
           tone: options.tone,
           attachments: submitMeta.attachments,
@@ -93,19 +92,14 @@ export function useChatRequest(options: {
         return;
       }
 
-      const payload = await response.json().catch(() => null) as { answer?: unknown; thinking?: unknown; meta?: unknown } | null;
-      const normalized = normalizeAiTextPair({
-        answer: typeof payload?.answer === "string" ? payload.answer : "",
-        thinking: typeof payload?.thinking === "string" ? payload.thinking : undefined,
-      });
-      const assistantContent = normalized.answer;
-      const assistantThinking = normalized.thinking ?? "";
-      if (!assistantContent && !assistantThinking) throw new Error("The AI response was empty.");
+      const payload = await response.json().catch(() => null) as { answer?: unknown; meta?: unknown } | null;
+      const assistantContent = typeof payload?.answer === "string" ? payload.answer.trim() : "";
+      if (!assistantContent) throw new Error("The AI response was empty.");
       const responseMeta = isResponseMeta(payload?.meta) ? payload.meta : undefined;
 
       setMessages((current) => {
         const next = current.map((message) => message.id === assistantId
-          ? { ...message, content: assistantContent, ...(assistantThinking ? { thinking: assistantThinking } : {}), ...(responseMeta ? { meta: responseMeta } : {}) }
+          ? { ...message, content: assistantContent, ...(responseMeta ? { meta: responseMeta } : {}) }
           : message,
         );
         options.saveConversation(prompt, nextModelKey, next as ArchivedMessage[]);
@@ -118,12 +112,19 @@ export function useChatRequest(options: {
       if (activeRequestRef.current === controller) {
         activeRequestRef.current = null;
         activeConversationRef.current = null;
+        setIsPending(false);
       }
-      setIsPending(false);
     }
   }
 
   function clearMessages() {
+    const activeController = activeRequestRef.current;
+    activeController?.abort();
+    if (activeRequestRef.current === activeController) {
+      activeRequestRef.current = null;
+      activeConversationRef.current = null;
+      setIsPending(false);
+    }
     setMessages([]);
   }
 

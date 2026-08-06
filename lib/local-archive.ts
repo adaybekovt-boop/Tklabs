@@ -9,7 +9,6 @@ export type ArchivedMessage = {
   id: string;
   role: "user" | "assistant";
   content: string;
-  thinking?: string;
   meta?: AiResponseMeta;
 };
 
@@ -43,21 +42,22 @@ export function loadArchive(): ArchivedSession[] {
     if (!raw) return [];
     const parsed = JSON.parse(raw) as unknown;
     if (!Array.isArray(parsed)) return [];
-    return parsed.flatMap((value) => {
+    let removedLegacyReasoning = false;
+    const sessions = parsed.flatMap((value) => {
       if (!value || typeof value !== "object") return [];
       const session = value as Partial<ArchivedSession>;
       if (typeof session.id !== "string" || !Array.isArray(session.messages)) return [];
       const messages = session.messages.flatMap((value) => {
         if (!value || typeof value !== "object") return [];
-        const message = value as Partial<ArchivedMessage>;
+        const message = value as Partial<ArchivedMessage> & Record<string, unknown>;
         if ((message.role !== "user" && message.role !== "assistant") || typeof message.content !== "string") return [];
+        if (Object.prototype.hasOwnProperty.call(message, "thinking")) removedLegacyReasoning = true;
         return [{
           id: typeof message.id === "string" ? message.id : `${session.id}-${Math.random().toString(36).slice(2, 8)}`,
           role: message.role,
           content: message.content.slice(0, MAX_MESSAGE_CONTENT_LENGTH),
-          ...(typeof message.thinking === "string" ? { thinking: message.thinking.slice(0, MAX_MESSAGE_CONTENT_LENGTH) } : {}),
           ...(message.meta && typeof message.meta === "object" && typeof message.meta.requestId === "string" && typeof message.meta.requestedModel === "string" && typeof message.meta.actualProvider === "string" && typeof message.meta.actualModel === "string"
-            ? { meta: { requestId: message.meta.requestId.slice(0, 120), requestedModel: message.meta.requestedModel.slice(0, 120), actualProvider: message.meta.actualProvider.slice(0, 40) as AiResponseMeta["actualProvider"], actualModel: message.meta.actualModel.slice(0, 160), latencyMs: typeof message.meta.latencyMs === "number" ? Math.max(0, Math.round(message.meta.latencyMs)) : 0, httpStatus: typeof message.meta.httpStatus === "number" ? message.meta.httpStatus : 200, ...(typeof message.meta.fallbackReason === "string" ? { fallbackReason: message.meta.fallbackReason.slice(0, 120) } : {}) } }
+            ? { meta: { requestId: message.meta.requestId.slice(0, 120), requestedModel: message.meta.requestedModel.slice(0, 120), actualProvider: message.meta.actualProvider.slice(0, 40) as AiResponseMeta["actualProvider"], actualModel: message.meta.actualModel.slice(0, 160), latencyMs: typeof message.meta.latencyMs === "number" ? Math.max(0, Math.round(message.meta.latencyMs)) : 0, httpStatus: typeof message.meta.httpStatus === "number" ? message.meta.httpStatus : 200, ...(message.meta.reasoningUsed === true ? { reasoningUsed: true } : {}), ...(typeof message.meta.fallbackReason === "string" ? { fallbackReason: message.meta.fallbackReason.slice(0, 120) } : {}) } }
             : {}),
         }];
       }).slice(-MAX_MESSAGES_PER_SESSION);
@@ -69,6 +69,14 @@ export function loadArchive(): ArchivedSession[] {
         messages,
       }];
     }).slice(0, MAX_SESSIONS);
+    if (removedLegacyReasoning) {
+      try {
+        window.localStorage.setItem(ARCHIVE_KEY, JSON.stringify(sessions));
+      } catch {
+        // A storage failure must not make the current session unusable.
+      }
+    }
+    return sessions;
   } catch {
     return [];
   }
@@ -89,8 +97,7 @@ export function saveSession(session: ArchivedSession) {
       id: message.id.slice(0, 120),
       role: message.role,
       content: message.content.slice(0, MAX_MESSAGE_CONTENT_LENGTH),
-      ...(message.thinking ? { thinking: message.thinking.slice(0, MAX_MESSAGE_CONTENT_LENGTH) } : {}),
-      ...(message.meta ? { meta: { ...message.meta, requestId: message.meta.requestId.slice(0, 120), requestedModel: message.meta.requestedModel.slice(0, 120), actualProvider: message.meta.actualProvider.slice(0, 40) as AiResponseMeta["actualProvider"], actualModel: message.meta.actualModel.slice(0, 160), latencyMs: Math.max(0, Math.round(message.meta.latencyMs)), fallbackReason: message.meta.fallbackReason?.slice(0, 120) } } : {}),
+      ...(message.meta ? { meta: { requestId: message.meta.requestId.slice(0, 120), requestedModel: message.meta.requestedModel.slice(0, 120), actualProvider: message.meta.actualProvider.slice(0, 40) as AiResponseMeta["actualProvider"], actualModel: message.meta.actualModel.slice(0, 160), latencyMs: Math.max(0, Math.round(message.meta.latencyMs)), httpStatus: message.meta.httpStatus, ...(message.meta.reasoningUsed ? { reasoningUsed: true } : {}), ...(message.meta.fallbackReason ? { fallbackReason: message.meta.fallbackReason.slice(0, 120) } : {}) } } : {}),
     })),
   };
   const sessions = [safeSession, ...loadArchive().filter((entry) => entry.id !== safeSession.id)].slice(0, MAX_SESSIONS);

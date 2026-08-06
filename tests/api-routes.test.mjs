@@ -91,7 +91,7 @@ test("POST /api/demo commits a reservation only after a mocked provider succeeds
   assert.equal(stub.released, 0);
 });
 
-test("POST /api/demo removes duplicated NVIDIA reasoning from the visible answer", async () => {
+test("POST /api/demo removes duplicated NVIDIA reasoning without exposing it", async () => {
   const stub = makeDemoStub();
   process.env.RATE_LIMIT_SECRET = "api-test-rate-limit-secret";
   process.env.NVIDIA_API_KEY_PRIMARY = "test-provider-key";
@@ -104,8 +104,27 @@ test("POST /api/demo removes duplicated NVIDIA reasoning from the visible answer
   const payload = await response.json();
   assert.equal(response.status, 200);
   assert.equal(payload.answer, "A mocked final answer.");
-  assert.equal(payload.thinking, thinking);
+  assert.equal(Object.hasOwn(payload, "thinking"), false);
+  assert.equal(payload.meta.reasoningUsed, true);
+  assert.doesNotMatch(JSON.stringify(payload), /I should inspect the wording/);
   assert.equal(stub.committed, 1);
+});
+
+test("POST /api/demo rejects reasoning-only NVIDIA output and uses the safe fallback", async () => {
+  const stub = makeDemoStub();
+  process.env.RATE_LIMIT_SECRET = "api-test-rate-limit-secret";
+  process.env.NVIDIA_API_KEY_PRIMARY = "test-provider-key";
+  const thinking = "I should inspect the wording, follow the response policy, and give a short natural answer in the requested language.";
+  globalThis.fetch = async (input) => String(input).includes("integrate.api.nvidia.com")
+    ? new Response(JSON.stringify({ choices: [{ message: { content: thinking, reasoning_content: thinking } }] }), { status: 200 })
+    : new Response("not found", { status: 404 });
+  const { POST } = await loadDemo(stub);
+  const response = await POST(request({ prompt: "Explain a safe educational example", locale: "en" }));
+  const payload = await response.json();
+  assert.equal(response.status, 200);
+  assert.equal(payload.meta.actualProvider, "edge-fallback");
+  assert.equal(Object.hasOwn(payload, "thinking"), false);
+  assert.doesNotMatch(JSON.stringify(payload), /I should inspect the wording/);
 });
 test("allowlisted authenticated owner bypasses product demo quota without leaking the allowlist", async () => {
   const stub = makeDemoStub();
@@ -181,6 +200,9 @@ test("POST /api/demo commits only after a successful Clodex fallback", async () 
   process.env.NVIDIA_API_KEY_PRIMARY = "test-provider-key";
   process.env.CLODEX_ENABLED = "true";
   process.env.CLODEX_API_KEY = "test-clodex-key";
+  process.env.CLODEX_MODEL_FAST = "test-clodex-fast";
+  process.env.CLODEX_MODEL_REASONING = "test-clodex-reasoning";
+  process.env.CLODEX_MODEL_PRO = "test-clodex-pro";
   globalThis.fetch = async (input) => {
     const url = String(input);
     if (url.includes("integrate.api.nvidia.com")) return new Response("upstream failed", { status: 503 });
