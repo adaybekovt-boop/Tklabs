@@ -62,6 +62,7 @@ test("NVIDIA body enables upstream streaming and preserves multi-turn order", ()
       { role: "user", content: "hello" },
       { role: "assistant", content: "hi" },
     ],
+    true,
   );
   assert.equal(body.stream, true);
   const messages = body.messages as Array<{ role: string; content: string }>;
