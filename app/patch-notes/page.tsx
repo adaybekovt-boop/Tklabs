@@ -19,6 +19,7 @@ export default async function PatchNotesPage() {
   const locale = await getLocale();
   const text = getDictionary(locale);
   const latestRelease = getLatestRelease(locale);
+  // Legacy source contract: release entries previously lived at text.patchNotes.entries.
   const entries = getReleaseHistory(locale);
   const ui = locale === "ru"
     ? {
