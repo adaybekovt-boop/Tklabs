@@ -7,27 +7,19 @@ import { StitchHeader } from "@/components/site/StitchHeader";
 import { FlowButton } from "@/components/ui/flow-button";
 import { ScrollReveal } from "@/components/ui/scroll-reveal";
 import { getDictionary } from "@/lib/i18n";
-import { getLatestRelease, getPreviousReleaseV0110, getPreviousReleaseV0111 } from "@/lib/latest-release";
+import { getLatestRelease, getReleaseHistory } from "@/lib/latest-release";
 import { getLocale } from "@/lib/locale";
 
 export const metadata: Metadata = {
   title: "TK LAB — Patch Notes",
-  description: "English-language release notes for TK LAB.",
+  description: "Release history and product updates for TK LAB.",
 };
 
 export default async function PatchNotesPage() {
   const locale = await getLocale();
   const text = getDictionary(locale);
   const latestRelease = getLatestRelease(locale);
-  const previousRelease = getPreviousReleaseV0111(locale);
-  const earlierRelease = getPreviousReleaseV0110(locale);
-  const preservedVersions = new Set([latestRelease.version, previousRelease.version, earlierRelease.version]);
-  const entries = [
-    latestRelease,
-    previousRelease,
-    earlierRelease,
-    ...text.patchNotes.entries.filter((entry) => !preservedVersions.has(entry.version)),
-  ];
+  const entries = getReleaseHistory(locale);
   const ui = locale === "ru"
     ? {
         latest: "Актуальная версия",
