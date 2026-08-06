@@ -302,9 +302,7 @@ export const PromptInput = React.forwardRef<HTMLDivElement, PromptInputProps>(fu
       const spoken = `${finalText}${interimText}`.trim();
       const prefix = transcriptBaseRef.current;
       onChange(`${prefix}${prefix && spoken ? " " : ""}${spoken}`.slice(0, maxLength));
-      if (finalText.trim()) {
-        transcriptBaseRef.current = `${prefix}${prefix ? " " : ""}${finalText.trim()}`;
-      }
+      if (finalText.trim()) transcriptBaseRef.current = `${prefix}${prefix ? " " : ""}${finalText.trim()}`;
     };
     recognition.onerror = () => {
       setVoiceError(labels.voiceDenied);
@@ -393,9 +391,7 @@ export const PromptInput = React.forwardRef<HTMLDivElement, PromptInputProps>(fu
           aria-label={labels.request}
         />
 
-        {isRecording && (
-          <div className="px-4 pb-2 text-[11px] font-medium text-primary" role="status">{labels.listening}</div>
-        )}
+        {isRecording && <div className="px-4 pb-2 text-[11px] font-medium text-primary" role="status">{labels.listening}</div>}
 
         <div className="flex min-w-0 items-center gap-1.5 px-2 pb-2 sm:gap-2">
           <button
@@ -403,7 +399,7 @@ export const PromptInput = React.forwardRef<HTMLDivElement, PromptInputProps>(fu
             className="flex h-10 min-w-0 flex-1 items-center gap-2 rounded-xl bg-surface-container-low px-2.5 text-left text-[12px] font-medium text-on-surface-variant hover:bg-surface-container hover:text-primary sm:max-w-[280px]"
             onClick={() => setModelMenuOpen(true)}
             aria-expanded={modelMenuOpen}
-            aria-haspopup="dialog"
+            aria-haspopup="listbox"
             title={selectedModel?.name ?? labels.model}
           >
             <ModelMark model={selectedModel} />
@@ -463,14 +459,7 @@ export const PromptInput = React.forwardRef<HTMLDivElement, PromptInputProps>(fu
       {voiceError && <div className="mt-2 px-1 text-[11px] text-error" role="status">{voiceError}</div>}
       {attachmentError && <div className="mt-2 px-1 text-[11px] text-error" role="status">{attachmentError}</div>}
 
-      <ChatOverlay
-        open={modelMenuOpen}
-        onClose={() => setModelMenuOpen(false)}
-        labelledBy="chat-model-picker-title"
-        position="responsive"
-        className="p-3"
-        closeLabel={labels.close}
-      >
+      <ChatOverlay open={modelMenuOpen} onClose={() => setModelMenuOpen(false)} labelledBy="chat-model-picker-title" position="responsive" className="p-3" closeLabel={labels.close}>
         <div role="listbox" aria-label={labels.model} aria-labelledby="chat-model-picker-title">
           <p id="chat-model-picker-title" className="label-caps mb-2 px-2 text-on-secondary-container">{labels.model}</p>
           {groupedModels.map(([tier, tierModels]) => (
@@ -502,13 +491,7 @@ export const PromptInput = React.forwardRef<HTMLDivElement, PromptInputProps>(fu
         </div>
       </ChatOverlay>
 
-      <ChatOverlay
-        open={Boolean(activeAttachment)}
-        onClose={() => setActiveAttachment(null)}
-        labelledBy="attachment-preview-title"
-        className="p-0"
-        closeLabel={labels.close}
-      >
+      <ChatOverlay open={Boolean(activeAttachment)} onClose={() => setActiveAttachment(null)} labelledBy="attachment-preview-title" className="p-0" closeLabel={labels.close}>
         {activeAttachment && (
           <>
             <div className="flex items-center justify-between gap-4 border-b border-outline-variant px-5 py-4">
