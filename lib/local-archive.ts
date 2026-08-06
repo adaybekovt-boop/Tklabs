@@ -30,6 +30,9 @@ const MAX_SESSIONS = 30;
 const MAX_MESSAGES_PER_SESSION = 80;
 const MAX_MESSAGE_CONTENT_LENGTH = 12_000;
 const MAX_ARCHIVE_JSON_LENGTH = 1_500_000;
+let archiveCache: ArchivedSession[] | null = null;
+let pendingArchivePayload: string | null = null;
+let archiveWriteTimer: ReturnType<typeof setTimeout> | null = null;
 
 function isBrowser() {
   return typeof window !== "undefined";
@@ -37,11 +40,18 @@ function isBrowser() {
 
 export function loadArchive(): ArchivedSession[] {
   if (!isBrowser()) return [];
+  if (archiveCache) return archiveCache;
   try {
     const raw = window.localStorage.getItem(ARCHIVE_KEY);
-    if (!raw) return [];
+    if (!raw) {
+      archiveCache = [];
+      return archiveCache;
+    }
     const parsed = JSON.parse(raw) as unknown;
-    if (!Array.isArray(parsed)) return [];
+    if (!Array.isArray(parsed)) {
+      archiveCache = [];
+      return archiveCache;
+    }
     let removedLegacyReasoning = false;
     const sessions = parsed.flatMap((value) => {
       if (!value || typeof value !== "object") return [];
@@ -76,10 +86,32 @@ export function loadArchive(): ArchivedSession[] {
         // A storage failure must not make the current session unusable.
       }
     }
+    archiveCache = sessions;
     return sessions;
   } catch {
-    return [];
+    archiveCache = [];
+    return archiveCache;
   }
+}
+
+function flushArchive() {
+  if (!isBrowser() || !pendingArchivePayload) return;
+  try {
+    window.localStorage.setItem(ARCHIVE_KEY, pendingArchivePayload);
+    pendingArchivePayload = null;
+  } catch {
+    // A storage failure must not make the current session unusable.
+  }
+}
+
+function scheduleArchiveWrite(sessions: ArchivedSession[]) {
+  if (!isBrowser()) return;
+  pendingArchivePayload = JSON.stringify(sessions);
+  if (archiveWriteTimer) clearTimeout(archiveWriteTimer);
+  archiveWriteTimer = setTimeout(() => {
+    archiveWriteTimer = null;
+    flushArchive();
+  }, 350);
 }
 
 export function getSession(id: string): ArchivedSession | undefined {
@@ -103,7 +135,8 @@ export function saveSession(session: ArchivedSession) {
   const sessions = [safeSession, ...loadArchive().filter((entry) => entry.id !== safeSession.id)].slice(0, MAX_SESSIONS);
   try {
     while (sessions.length > 1 && JSON.stringify(sessions).length > MAX_ARCHIVE_JSON_LENGTH) sessions.pop();
-    window.localStorage.setItem(ARCHIVE_KEY, JSON.stringify(sessions));
+    archiveCache = sessions;
+    scheduleArchiveWrite(sessions);
     window.dispatchEvent(new Event("tklab:archive-updated"));
   } catch {
     // Storage can be unavailable or full. Chat generation must remain usable.
@@ -113,7 +146,9 @@ export function saveSession(session: ArchivedSession) {
 export function deleteSession(id: string) {
   if (!isBrowser()) return;
   try {
-    window.localStorage.setItem(ARCHIVE_KEY, JSON.stringify(loadArchive().filter((entry) => entry.id !== id)));
+    const next = loadArchive().filter((entry) => entry.id !== id);
+    archiveCache = next;
+    scheduleArchiveWrite(next);
     window.dispatchEvent(new Event("tklab:archive-updated"));
   } catch {
     // Ignore storage errors in private browsing or restricted environments.
@@ -123,12 +158,18 @@ export function deleteSession(id: string) {
 export function clearArchive() {
   if (!isBrowser()) return;
   try {
+    archiveCache = [];
+    pendingArchivePayload = null;
+    if (archiveWriteTimer) clearTimeout(archiveWriteTimer);
+    archiveWriteTimer = null;
     window.localStorage.removeItem(ARCHIVE_KEY);
     window.dispatchEvent(new Event("tklab:archive-updated"));
   } catch {
     // Ignore storage errors in private browsing or restricted environments.
   }
 }
+
+if (typeof window !== "undefined") window.addEventListener("pagehide", flushArchive);
 
 export function loadSettings(): LocalSettings {
   if (!isBrowser()) return {};

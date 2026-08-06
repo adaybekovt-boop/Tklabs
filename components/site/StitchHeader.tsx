@@ -11,9 +11,10 @@ import { getLocale } from "@/lib/locale";
 
 type StitchHeaderProps = {
   active?: "home" | "models" | "access" | "laboratory" | "status" | "documentation" | "developers" | "patch-notes" | "truth";
+  chatMode?: boolean;
 };
 
-export async function StitchHeader({ active }: StitchHeaderProps) {
+export async function StitchHeader({ active, chatMode = false }: StitchHeaderProps) {
   const locale = await getLocale();
   const text = getDictionary(locale);
   let signedIn = false;
@@ -25,7 +26,7 @@ export async function StitchHeader({ active }: StitchHeaderProps) {
 
   return (
     <>
-      <header className="sticky top-0 z-50 border-b-[0.5px] border-primary bg-surface/95 backdrop-blur-sm">
+      <header className={chatMode ? "chat-site-header sticky top-0 z-50 border-b-[0.5px] border-primary bg-surface/95 backdrop-blur-sm" : "sticky top-0 z-50 border-b-[0.5px] border-primary bg-surface/95 backdrop-blur-sm"}>
         <div className="stitch-container flex min-h-[68px] items-center justify-between gap-3 md:min-h-[80px] md:gap-8">
           <Link href="/" className="shrink-0" aria-label="TK LAB"><SiteLogo /></Link>
           <div className="hidden lg:block">

@@ -291,6 +291,7 @@ interface ChatInputDictionary {
   voiceDenied: string;
   listening: string;
   attachmentTooLarge: string;
+  stopGeneration: string;
   hintExpanded: string;
   hintCollapsed: string;
 }
@@ -298,11 +299,13 @@ interface ChatInputDictionary {
 interface ChatDictionary {
   ready: string;
   streaming: string;
+  generating: string;
   thinking: string;
   reasoningUsed: string;
   clodexReady: string;
   newDialog: string;
   history: string;
+  currentSession: string;
   emptyKicker: string;
   emptyTitle: string;
   emptyDescription: string;
@@ -322,6 +325,11 @@ interface ChatDictionary {
   toneErma: string;
   copied: string;
   copy: string;
+  copyRequestId: string;
+  edit: string;
+  retry: string;
+  retryIn: string;
+  usedModel: string;
   speak: string;
   stopSpeaking: string;
   voiceUnsupported: string;
@@ -493,6 +501,20 @@ export const dictionaries: Record<Locale, Dictionary> = {
       workspaceLabel: "TK LAB / РАБОЧАЯ СРЕДА",
       workspaceTitle: "Продолжайте работу с актуальной версией системы.",
       entries: [
+        {
+          date: "06 авг. 2026",
+          version: "v0.9.0",
+          title: "Переработанный AI-чат для телефона и компьютера",
+          summary: "Чат получил более устойчивый мобильный shell, честные статусы, безопасное форматирование ответов и управляемую работу со скроллом и запросами.",
+          changes: [
+            "Textarea больше не блокируется во время генерации: на desktop Enter отправляет, Shift+Enter добавляет строку, а мобильный Enter сохраняет новую строку и не конфликтует с IME.",
+            "Добавлена единая модель состояния запроса с request ID, stop/retry, watchdog, AbortController для pagehide и защитой от устаревших ответов.",
+            "Автоскролл теперь следует только за пользователем у нижней границы; при чтении старых сообщений появляется кнопка перехода к последнему ответу.",
+            "Ответы отображаются через безопасный Markdown без raw HTML; добавлены копирование, озвучивание, повтор, редактирование последнего запроса и прозрачные provider/model metadata.",
+            "История получила desktop sidebar, мобильный доступ, поиск и удаление; запись в localStorage перенесена в bounded cache с отложенной записью.",
+            "Добавлены доступные overlay-контракты для Escape, focus trap, focus restoration, scroll lock и safe-area, а также адаптация к visualViewport и reduced motion.",
+          ],
+        },
         {
           date: "06 авг. 2026",
           version: "v0.8.1",
@@ -800,12 +822,14 @@ export const dictionaries: Record<Locale, Dictionary> = {
     },
     chat: {
       ready: "Система готова",
-      streaming: "Получаем ответ",
+      streaming: "Генерируем ответ",
+      generating: "Генерируем ответ",
       thinking: "Думает...",
       reasoningUsed: "Использована глубокая обработка",
       clodexReady: "Erma + Clodex доступны",
       newDialog: "Новый диалог",
       history: "Локальные сессии",
+      currentSession: "Текущая сессия",
       emptyKicker: "Playground / 01",
       emptyTitle: "С чего начнём?",
       emptyDescription: "Выберите модель, настройте глубину ответа и сформулируйте задачу.",
@@ -825,6 +849,11 @@ export const dictionaries: Record<Locale, Dictionary> = {
       toneErma: "Тон: Erma",
       copied: "Скопировано",
       copy: "Копировать",
+      copyRequestId: "ID запроса",
+      edit: "Изменить",
+      retry: "Повторить",
+      retryIn: "Повтор через",
+      usedModel: "Модель",
       speak: "Озвучить",
       stopSpeaking: "Остановить озвучку",
       voiceUnsupported: "Озвучивание не поддерживается этим браузером.",
@@ -855,6 +884,7 @@ export const dictionaries: Record<Locale, Dictionary> = {
         voiceDenied: "Нет доступа к микрофону.",
         listening: "Слушаю",
         attachmentTooLarge: "Файл слишком большой или превышено число вложений.",
+        stopGeneration: "Остановить генерацию",
         hintExpanded: "Enter — отправить · Shift+Enter — новая строка",
         hintCollapsed: "Нажмите, чтобы раскрыть",
       },
@@ -997,6 +1027,20 @@ export const dictionaries: Record<Locale, Dictionary> = {
       workspaceLabel: "TK LAB / WORKSPACE",
       workspaceTitle: "Keep building with the latest system version.",
       entries: [
+        {
+          date: "06 Aug 2026",
+          version: "v0.9.0",
+          title: "A rebuilt AI chat for phone and desktop",
+          summary: "The workspace now has a more stable mobile shell, truthful status language, safe answer formatting, and controlled request and scroll behavior.",
+          changes: [
+            "The textarea remains editable while a request runs: Enter sends on desktop, Shift+Enter creates a line, and mobile Enter preserves a newline without fighting IME composition.",
+            "Added an explicit request state machine with request ownership, request IDs, stop/retry, a watchdog, pagehide AbortController cleanup, and stale-response protection.",
+            "Auto-scroll now follows only when the reader is near the bottom; a Jump to latest control appears when older messages are being read.",
+            "Answers render through safe Markdown without raw HTML; copy, speech, retry, recent prompt editing, and transparent provider/model metadata are available per message.",
+            "History now has a desktop sidebar, mobile access, search, and deletion; localStorage writes use a bounded cache and deferred persistence.",
+            "Added accessible overlay behavior for Escape, focus trapping/restoration, scroll locking, safe areas, visualViewport changes, and reduced motion.",
+          ],
+        },
         {
           date: "06 Aug 2026",
           version: "v0.8.1",
@@ -1304,12 +1348,14 @@ export const dictionaries: Record<Locale, Dictionary> = {
     },
     chat: {
       ready: "System ready",
-      streaming: "Receiving response",
+      streaming: "Generating response",
+      generating: "Generating response",
       thinking: "Thinking...",
       reasoningUsed: "Deep processing used",
       clodexReady: "Erma + Clodex available",
       newDialog: "New conversation",
       history: "Browser sessions",
+      currentSession: "Current session",
       emptyKicker: "Playground / 01",
       emptyTitle: "Where should we begin?",
       emptyDescription: "Choose a model, set response depth, and formulate the task.",
@@ -1329,6 +1375,11 @@ export const dictionaries: Record<Locale, Dictionary> = {
       toneErma: "Tone: Erma",
       copied: "Copied",
       copy: "Copy",
+      copyRequestId: "Request ID",
+      edit: "Edit",
+      retry: "Retry",
+      retryIn: "Retry in",
+      usedModel: "Model",
       speak: "Read aloud",
       stopSpeaking: "Stop reading",
       voiceUnsupported: "Speech output is not supported by this browser.",
@@ -1359,6 +1410,7 @@ export const dictionaries: Record<Locale, Dictionary> = {
         voiceDenied: "Microphone access was denied.",
         listening: "Listening",
         attachmentTooLarge: "The file is too large or the attachment limit was reached.",
+        stopGeneration: "Stop generation",
         hintExpanded: "Enter — send · Shift+Enter — new line",
         hintCollapsed: "Click to expand",
       },
