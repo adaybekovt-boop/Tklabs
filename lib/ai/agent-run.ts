@@ -3,21 +3,24 @@ export const AGENT_RUN_PROTOCOL_VERSION = "2.0" as const;
 export type AgentRunStatus = "idle" | "planning" | "running" | "completed" | "failed" | "cancelled";
 export type AgentRunStepStatus = "pending" | "running" | "completed" | "failed" | "cancelled";
 
-export type AgentRunEventName =
-  | "run.started"
-  | "plan.created"
-  | "step.started"
-  | "step.completed"
-  | "tool.started"
-  | "tool.completed"
-  | "reference.added"
-  | "artifact.created"
-  | "artifact.delta"
-  | "artifact.versioned"
-  | "answer.delta"
-  | "run.completed"
-  | "run.failed"
-  | "run.cancelled";
+export const AGENT_RUN_EVENT_NAMES = [
+  "run.started",
+  "plan.created",
+  "step.started",
+  "step.completed",
+  "tool.started",
+  "tool.completed",
+  "reference.added",
+  "artifact.created",
+  "artifact.delta",
+  "artifact.versioned",
+  "answer.delta",
+  "run.completed",
+  "run.failed",
+  "run.cancelled",
+] as const;
+
+export type AgentRunEventName = typeof AGENT_RUN_EVENT_NAMES[number];
 
 export interface AgentRunStep {
   id: string;
@@ -163,9 +166,12 @@ export function isAgentRunEvent(value: unknown): value is AgentRunEvent {
   if (!value || typeof value !== "object") return false;
   const candidate = value as Partial<AgentRunEvent>;
   return typeof candidate.event === "string"
-    && candidate.event.includes(".")
+    && AGENT_RUN_EVENT_NAMES.includes(candidate.event as AgentRunEventName)
     && typeof candidate.runId === "string"
+    && candidate.runId.length > 0
     && typeof candidate.sequence === "number"
     && Number.isInteger(candidate.sequence)
-    && typeof candidate.timestamp === "number";
+    && candidate.sequence >= 0
+    && typeof candidate.timestamp === "number"
+    && Number.isFinite(candidate.timestamp);
 }

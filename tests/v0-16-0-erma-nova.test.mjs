@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
 
-import { applyAgentRunEvent, createEmptyAgentRun } from "../lib/ai/agent-run.ts";
+import { applyAgentRunEvent, createEmptyAgentRun, isAgentRunEvent } from "../lib/ai/agent-run.ts";
 import { encodeAgentRunEvent, parseAgentRunEventFrame } from "../lib/ai/stream-v2.ts";
 import { createArtifact, snapshotArtifact, updateArtifact } from "../lib/artifacts/local-store.ts";
 import { getPreviewRelease } from "../lib/prerelease.ts";
@@ -87,4 +87,6 @@ test("Agent Run Protocol 2.0 has a typed SSE frame", () => {
   const frame = new TextDecoder().decode(encodeAgentRunEvent(event));
   assert.match(frame, /^event: run\.started/);
   assert.deepEqual(parseAgentRunEventFrame(frame), event);
+  assert.equal(isAgentRunEvent({ ...event, event: "unknown.event" }), false);
+  assert.equal(parseAgentRunEventFrame('event: unknown.event\ndata: {"event":"unknown.event","runId":"run-2","sequence":2,"timestamp":101,"payload":{}}\n\n'), null);
 });
