@@ -1,15 +1,22 @@
-import { getErmaSystemPrompt, type ErmaModel, type ErmaTone } from "@/lib/models/server";
+import { providerMessages, type ProviderChatMessage } from "@/lib/ai/chat-context";
 import { AI_PRIVILEGED_SYSTEM_PROMPT, AI_SAFETY_SYSTEM_PROMPT, evaluateAssistantContent } from "@/lib/ai-safety";
 import { fetchWithTimeout, PROVIDER_TIMEOUT_MS, withTimeout } from "@/lib/ai/provider-http";
 import { normalizeAiTextPair } from "@/lib/ai/reasoning";
 import { inferResponseLanguage, responseLanguageInstruction, type ResponseLanguage } from "@/lib/ai/response-language";
+import { getErmaSystemPrompt, type ErmaModel, type ErmaTone } from "@/lib/models/server";
 
 export const NVIDIA_ENDPOINT = "https://integrate.api.nvidia.com/v1/chat/completions";
 const NVIDIA_KEY_COOLDOWN_MS = 15 * 60 * 1000;
 
 type Language = "ru" | "en";
-type NvidiaResponse = { choices?: Array<{ message?: { content?: string | null; reasoning_content?: string | null }; text?: string | null }> };
 type ReasoningEffort = "low" | "medium" | "high";
+type NvidiaStreamChunk = {
+  choices?: Array<{
+    delta?: { content?: string | null; reasoning_content?: string | null };
+    message?: { content?: string | null; reasoning_content?: string | null };
+    text?: string | null;
+  }>;
+};
 
 export class NvidiaKeyRotationError extends Error {
   readonly cooldownMs: number;
@@ -61,19 +68,25 @@ function systemPrompt(language: ResponseLanguage, model: ErmaModel, allowCode: b
   return `${getErmaSystemPrompt(model, tone)}\n\n${responseLanguageInstruction(language)}\n\n${allowCode ? AI_PRIVILEGED_SYSTEM_PROMPT : AI_SAFETY_SYSTEM_PROMPT}`;
 }
 
-export function buildNvidiaBody(prompt: string, interfaceLanguage: Language, model: ErmaModel, requestedReasoning: boolean, effort: ReasoningEffort, allowCode: boolean, tone: ErmaTone) {
+export function buildNvidiaBody(
+  prompt: string,
+  interfaceLanguage: Language,
+  model: ErmaModel,
+  requestedReasoning: boolean,
+  effort: ReasoningEffort,
+  allowCode: boolean,
+  tone: ErmaTone,
+  history: ProviderChatMessage[] = [],
+) {
   const reasoningEnabled = requestedReasoning;
   const responseLanguage = inferResponseLanguage(prompt, interfaceLanguage);
   const body: Record<string, unknown> = {
     model: model.nvidiaModel,
-    messages: [
-      { role: "system", content: systemPrompt(responseLanguage, model, allowCode, tone) },
-      { role: "user", content: prompt },
-    ],
+    messages: providerMessages(systemPrompt(responseLanguage, model, allowCode, tone), history, prompt),
     temperature: tone === "erma" ? (reasoningEnabled ? 0.62 : 0.7) : tone === "character" ? (reasoningEnabled ? 0.58 : 0.65) : (reasoningEnabled ? 0.42 : 0.32),
     top_p: tone === "erma" ? 0.95 : tone === "character" ? 0.93 : 0.88,
     max_tokens: maxTokensFor(model, effort),
-    stream: false,
+    stream: true,
   };
   if (reasoningEnabled && model.nvidiaModel?.startsWith("nvidia/nemotron")) {
     body.chat_template_kwargs = { enable_thinking: true };
@@ -82,12 +95,64 @@ export function buildNvidiaBody(prompt: string, interfaceLanguage: Language, mod
   return body;
 }
 
-async function fetchWithKey(prompt: string, language: Language, model: ErmaModel, apiKey: string, requestedReasoning: boolean, effort: ReasoningEffort, allowCode: boolean, tone: ErmaTone, signal?: AbortSignal) {
+async function collectNvidiaStream(response: Response) {
+  if (!response.body) throw new Error("nvidia_empty_response");
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+  let answer = "";
+  let thinking = "";
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+    let newline = buffer.indexOf("\n");
+    while (newline >= 0) {
+      const line = buffer.slice(0, newline).trim();
+      buffer = buffer.slice(newline + 1);
+      newline = buffer.indexOf("\n");
+      if (!line.startsWith("data:")) continue;
+      const data = line.slice(5).trim();
+      if (!data || data === "[DONE]") continue;
+      const payload = JSON.parse(data) as NvidiaStreamChunk;
+      const choice = payload.choices?.[0];
+      answer += choice?.delta?.content ?? choice?.message?.content ?? choice?.text ?? "";
+      thinking += choice?.delta?.reasoning_content ?? choice?.message?.reasoning_content ?? "";
+    }
+  }
+
+  buffer += decoder.decode();
+  const trailing = buffer.trim();
+  if (trailing.startsWith("data:")) {
+    const data = trailing.slice(5).trim();
+    if (data && data !== "[DONE]") {
+      const payload = JSON.parse(data) as NvidiaStreamChunk;
+      const choice = payload.choices?.[0];
+      answer += choice?.delta?.content ?? choice?.message?.content ?? choice?.text ?? "";
+      thinking += choice?.delta?.reasoning_content ?? choice?.message?.reasoning_content ?? "";
+    }
+  }
+  return { answer, thinking };
+}
+
+async function fetchWithKey(
+  prompt: string,
+  language: Language,
+  model: ErmaModel,
+  apiKey: string,
+  requestedReasoning: boolean,
+  effort: ReasoningEffort,
+  allowCode: boolean,
+  tone: ErmaTone,
+  history: ProviderChatMessage[],
+  signal?: AbortSignal,
+) {
   const response = await fetchWithTimeout(NVIDIA_ENDPOINT, {
     method: "POST",
     signal,
-    headers: { authorization: `Bearer ${apiKey}`, "content-type": "application/json", accept: "application/json" },
-    body: JSON.stringify(buildNvidiaBody(prompt, language, model, requestedReasoning, effort, allowCode, tone)),
+    headers: { authorization: `Bearer ${apiKey}`, "content-type": "application/json", accept: "text/event-stream" },
+    body: JSON.stringify(buildNvidiaBody(prompt, language, model, requestedReasoning, effort, allowCode, tone, history)),
   });
   if (!response.ok) {
     const errorText = await response.text().catch(() => "");
@@ -95,12 +160,9 @@ async function fetchWithKey(prompt: string, language: Language, model: ErmaModel
     if (shouldRotate) throw new NvidiaKeyRotationError();
     throw Object.assign(new Error("nvidia_http_error"), { status: response.status });
   }
-  const payload = (await withTimeout(response.json().catch(() => null))) as NvidiaResponse | null;
-  const message = payload?.choices?.[0]?.message;
-  const answer = message?.content ?? payload?.choices?.[0]?.text ?? "";
-  if (typeof answer !== "string" || !answer.trim()) throw new Error("nvidia_empty_response");
-  const thinking = typeof message?.reasoning_content === "string" ? message.reasoning_content.trim() : "";
-  const normalized = normalizeAiTextPair({ answer: answer.trim(), thinking: thinking || undefined });
+
+  const streamed = await withTimeout(collectNvidiaStream(response), PROVIDER_TIMEOUT_MS);
+  const normalized = normalizeAiTextPair({ answer: streamed.answer.trim(), thinking: streamed.thinking.trim() || undefined });
   if (!normalized.answer) throw new Error("nvidia_empty_response");
   const evaluation = evaluateAssistantContent(normalized, { allowCode });
   if (evaluation.verdict === "unsafe") throw new Error("nvidia_output_blocked");
@@ -108,7 +170,17 @@ async function fetchWithKey(prompt: string, language: Language, model: ErmaModel
   return { answer: evaluation.answer, reasoningUsed: evaluation.reasoningUsed };
 }
 
-export async function generateWithNvidia(input: { prompt: string; language: Language; model: ErmaModel; requestedReasoning: boolean; effort: ReasoningEffort; allowCode: boolean; tone: ErmaTone; signal?: AbortSignal }) {
+export async function generateWithNvidia(input: {
+  prompt: string;
+  language: Language;
+  model: ErmaModel;
+  requestedReasoning: boolean;
+  effort: ReasoningEffort;
+  allowCode: boolean;
+  tone: ErmaTone;
+  history?: ProviderChatMessage[];
+  signal?: AbortSignal;
+}) {
   const keys = getNvidiaApiKeys();
   const indexes = availableKeyIndexes(keys);
   if (!indexes.length) throw new Error("nvidia_not_configured");
@@ -116,7 +188,18 @@ export async function generateWithNvidia(input: { prompt: string; language: Lang
   let lastRotationError: NvidiaKeyRotationError | undefined;
   for (const index of indexes) {
     try {
-      const result = await withTimeout(fetchWithKey(input.prompt, input.language, input.model, keys[index], input.requestedReasoning, normalizeEffort(input.effort), input.allowCode, input.tone, input.signal), PROVIDER_TIMEOUT_MS);
+      const result = await withTimeout(fetchWithKey(
+        input.prompt,
+        input.language,
+        input.model,
+        keys[index],
+        input.requestedReasoning,
+        normalizeEffort(input.effort),
+        input.allowCode,
+        input.tone,
+        input.history ?? [],
+        input.signal,
+      ), PROVIDER_TIMEOUT_MS);
       preferredNvidiaKeyIndex = index;
       return { answer: result.answer, reasoningUsed: result.reasoningUsed, actualModel: input.model.nvidiaModel ?? "nvidia-model" };
     } catch (error) {
