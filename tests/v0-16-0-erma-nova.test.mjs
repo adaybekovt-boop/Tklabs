@@ -11,34 +11,38 @@ import { CURRENT_RELEASE_BADGE, CURRENT_RELEASE_VERSION } from "../lib/release-v
 
 const read = (path) => readFile(new URL(`../${path}`, import.meta.url), "utf8");
 
-test("v0.16.0 beta.3 is the shared major preview release", async () => {
+test("v0.16.0 beta.4 is the shared major preview release", async () => {
   const release = getPreviewRelease("en");
   const current = getCurrentRelease("en");
   const homePage = await read("app/page.tsx");
   const patchPage = await read("app/patch-notes/page.tsx");
-  const releaseDoc = await read("docs/releases/v0.16.0-beta.3.md");
+  const releaseDoc = await read("docs/releases/v0.16.0-beta.4.md");
 
-  assert.equal(CURRENT_RELEASE_VERSION, "v0.16.0-beta.3");
-  assert.equal(CURRENT_RELEASE_BADGE, "v0.16 beta.3");
+  assert.equal(CURRENT_RELEASE_VERSION, "v0.16.0-beta.4");
+  assert.equal(CURRENT_RELEASE_BADGE, "v0.16 beta.4");
   assert.equal(release.version, CURRENT_RELEASE_VERSION);
   assert.equal(current.version, CURRENT_RELEASE_VERSION);
   assert.equal(release.channel, "preview");
   assert.equal(release.majorUpdate, true);
   assert.equal(release.codename, "Erma Nova");
   assert.equal(release.stability, "beta");
-  assert.match(release.title, /Interface Reliability/);
+  assert.match(release.title, /Mobile Chat Rebuild/);
   assert.match(homePage, /getCurrentRelease/);
   assert.doesNotMatch(homePage, /getLatestRelease/);
   assert.match(patchPage, /MAJOR UPDATE · PRE-RELEASE/);
   assert.match(patchPage, /getPreviewRelease/);
   assert.doesNotMatch(patchPage, /beta\.1/);
   assert.match(releaseDoc, /MAJOR UPDATE · PRE-RELEASE/);
-  assert.match(releaseDoc, /Interface Reliability/);
+  assert.match(releaseDoc, /Mobile Chat Rebuild/);
 });
 
-test("Erma Nova workspace keeps mobile controls reachable and labelled", async () => {
+test("Erma Nova mobile chat uses one header and dedicated mobile surfaces", async () => {
   const page = await read("app/playground/page.tsx");
   const workspace = await read("components/playground/ErmaNovaWorkspace.tsx");
+  const chat = await read("components/playground/PlaygroundChat.tsx");
+  const drawer = await read("components/playground/MobileChatDrawer.tsx");
+  const composer = await read("components/playground/ResponsiveChatComposer.tsx");
+  const messages = await read("components/playground/ResponsiveMessageList.tsx");
   const agentRuns = await read("components/playground/AgentRunPanel.tsx");
   const artifacts = await read("components/playground/ArtifactStudio.tsx");
   const language = await read("components/site/LanguageToggle.tsx");
@@ -47,16 +51,27 @@ test("Erma Nova workspace keeps mobile controls reachable and labelled", async (
   assert.doesNotMatch(page, /fixed right-14 top-2/);
   assert.doesNotMatch(page, /<PlaygroundChat/);
   assert.match(workspace, /<PlaygroundChat locale=\{locale\}/);
-  assert.match(workspace, /ArtifactStudio/);
-  assert.match(workspace, /AgentRunPanel/);
-  assert.match(workspace, /LanguageToggle/);
-  assert.match(workspace, /CURRENT_RELEASE_BADGE/);
+  assert.match(workspace, /onOpenArtifacts/);
+  assert.match(workspace, /tab !== "chat"/);
+  assert.match(workspace, /md:hidden/);
   assert.match(workspace, /role="tablist"/);
-  assert.match(workspace, /role="tab"/);
   assert.match(workspace, /role="tabpanel"/);
-  assert.match(workspace, /aria-controls/);
-  assert.match(workspace, /data-erma-nova-workspace/);
-  assert.doesNotMatch(workspace, /v0\.16 beta\.1/);
+  assert.match(chat, /MobileChatDrawer/);
+  assert.match(chat, /ResponsiveChatComposer/);
+  assert.match(chat, /ResponsiveMessageList/);
+  assert.doesNotMatch(chat, /HistoryDropdown/);
+  assert.match(drawer, /data-mobile-chat-drawer/);
+  assert.match(drawer, /ConversationArchive/);
+  assert.match(drawer, /onOpenArtifacts/);
+  assert.match(drawer, /onOpenRuns/);
+  assert.match(composer, /data-testid="mobile-prompt-input"/);
+  assert.match(composer, /attachments\.length > 0/);
+  assert.match(composer, /handlePrimaryAction/);
+  assert.match(composer, /Voice \/ Send \/ Stop|primaryLabel/);
+  assert.match(messages, /ChatOverlay/);
+  assert.match(messages, /startLongPress/);
+  assert.match(messages, /max-w-\[86%\]/);
+  assert.doesNotMatch(messages, /assistant-message-card/);
   assert.doesNotMatch(agentRuns, /beta\.1/);
   assert.match(artifacts, /data-mobile-artifact-picker/);
   assert.match(artifacts, /data-mobile-version-history/);
