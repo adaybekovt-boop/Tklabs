@@ -33,3 +33,44 @@ function neutralizeDictionaryNode(node: unknown): void {
  * safety, while every dictionary string is neutralized before rendering.
  */
 for (const dictionary of Object.values(dictionaries)) neutralizeDictionaryNode(dictionary);
+
+function neutralizeAddedNode(node: Node) {
+  if (node.nodeType === Node.TEXT_NODE && node.nodeValue) {
+    const neutral = neutralizeProviderBranding(node.nodeValue);
+    if (neutral !== node.nodeValue) node.nodeValue = neutral;
+    return;
+  }
+  if (!(node instanceof Element)) return;
+
+  const walker = document.createTreeWalker(node, NodeFilter.SHOW_TEXT);
+  let current = walker.nextNode();
+  while (current) {
+    if (current.nodeValue) {
+      const neutral = neutralizeProviderBranding(current.nodeValue);
+      if (neutral !== current.nodeValue) current.nodeValue = neutral;
+    }
+    current = walker.nextNode();
+  }
+
+  for (const element of [node, ...node.querySelectorAll("[aria-label], [title]")]) {
+    for (const attribute of ["aria-label", "title"] as const) {
+      const value = element.getAttribute(attribute);
+      if (!value) continue;
+      const neutral = neutralizeProviderBranding(value);
+      if (neutral !== value) element.setAttribute(attribute, neutral);
+    }
+  }
+}
+
+// A few legacy client components still carry storage-compatible labels in
+// source. New overlays are neutralized in the same microtask in which React
+// inserts them, keeping the legacy provider name out of the rendered product.
+if (typeof document !== "undefined" && typeof MutationObserver !== "undefined") {
+  const observer = new MutationObserver((records) => {
+    for (const record of records) {
+      if (record.type === "characterData") neutralizeAddedNode(record.target);
+      for (const node of record.addedNodes) neutralizeAddedNode(node);
+    }
+  });
+  observer.observe(document.documentElement, { childList: true, subtree: true, characterData: true });
+}
