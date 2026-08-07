@@ -76,7 +76,7 @@ export function StatusBoard({ locale }: { locale: Locale }) {
 
   return (
     <>
-      <section className="editorial-enter mb-section-gap grid gap-12 border-b-[0.5px] border-primary pb-16 md:grid-cols-12">
+      <section className="editorial-enter mb-section-gap grid gap-12 border-b border-outline-variant/30 pb-16 md:grid-cols-12">
         <div className="md:col-span-8" />
         <div className="flex items-end md:col-span-4">
           <div className="w-full border border-primary bg-white p-8">
@@ -92,12 +92,12 @@ export function StatusBoard({ locale }: { locale: Locale }) {
       </section>
       <section className="mb-section-gap">
         <h2 className="headline-title mb-8">{text.status.infrastructure}</h2>
-        <div className="border-t-[0.5px] border-primary">
+        <div className="border-t border-outline-variant/30">
           {text.status.services.map((service, index) => {
             const check = statusById.get(serviceIds[index]);
             const status = check?.status;
             return (
-              <div key={service} className="editorial-card grid items-center gap-4 border-b-[0.5px] border-primary/30 py-7 md:grid-cols-12">
+              <div key={service} className="editorial-card grid items-center gap-4 border-b border-outline-variant/30 py-7 md:grid-cols-12">
                 <span className="md:col-span-6">{service}</span>
                 <span className="label-caps flex items-center gap-2 text-secondary md:col-span-3">{status ? statusIcon(status) : <LoaderCircle size={16} className="animate-spin" />} {statusLabel(status)}</span>
                 <span className="flex items-center justify-end gap-3 text-[13px] md:col-span-3">{check?.latencyMs != null ? `${check.latencyMs} ${text.status.ms}` : "—"}</span>

@@ -345,70 +345,104 @@ export function ErmaFlowStudio({ locale }: { locale: Locale }) {
 
   return (
     <section className="h-full overflow-y-auto bg-surface p-3 sm:p-6 lg:p-8" data-erma-flow-studio data-motion-section>
-      <div className="mx-auto grid max-w-7xl gap-5 xl:grid-cols-[minmax(0,1fr)_340px]">
-        <div className="min-w-0 space-y-5">
-          <header className="flow-hero rounded-[2rem] border border-outline-variant bg-surface-container-low p-5 sm:p-8" data-motion-card>
-            <div className="relative z-10 max-w-3xl">
-              <div className="inline-flex items-center gap-2 rounded-full border border-primary/25 bg-primary/10 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.13em] text-primary">
-                <WandSparkles className="size-4" />{copy.eyebrow}
+      <div className="mx-auto grid max-w-6xl gap-6 xl:grid-cols-[minmax(0,1fr)_320px]">
+        <div className="min-w-0 space-y-6">
+          {/* Header */}
+          <header className="flex flex-wrap items-center justify-between gap-4 border-b border-outline-variant/60 pb-5" data-motion-card>
+            <div>
+              <div className="inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.12em] text-primary">
+                <WandSparkles className="size-4" />
+                <span>{copy.title}</span>
               </div>
-              <h1 className="mt-5 font-serif text-4xl leading-tight text-on-surface sm:text-6xl">{copy.title}</h1>
-              <p className="mt-4 max-w-2xl text-[15px] leading-7 text-on-surface-variant sm:text-base">{copy.description}</p>
-              <div className="mt-5 flex flex-wrap gap-2 text-[11px] text-on-secondary-container">
-                <span className="rounded-full border border-outline-variant bg-surface px-3 py-1.5">{copy.hiddenReasoning}</span>
-                <span className="rounded-full border border-outline-variant bg-surface px-3 py-1.5">{copy.local}</span>
-              </div>
+              <h1 className="mt-1 text-2xl font-bold text-on-surface sm:text-3xl">
+                {ru ? "Пошаговый генератор задач" : "Step-by-step Task Generator"}
+              </h1>
+              <p className="mt-1 text-sm text-on-surface-variant">
+                {ru
+                  ? "Автоматический запуск комплексных задач: от планирования и инструментов до готового артефакта."
+                  : "Automated execution of complex tasks: from planning and tools to final artifact."}
+              </p>
+            </div>
+            <div className="hidden sm:flex items-center gap-2 rounded-full border border-outline-variant bg-surface-container-low px-3 py-1.5 text-xs text-on-secondary-container">
+              <Sparkles className="size-3.5 text-primary" />
+              <span>{copy.local}</span>
             </div>
           </header>
 
-          <div className="rounded-[1.75rem] border border-outline-variant bg-surface-container-lowest p-3 shadow-sm sm:p-5" data-motion-card>
-            <label className="block">
-              <span className="sr-only">{copy.placeholder}</span>
-              <textarea
-                value={prompt}
-                onChange={(event: { target: { value: string } }) => setPrompt(event.target.value.slice(0, MAX_PROMPT_LENGTH))}
-                placeholder={copy.placeholder}
-                rows={5}
-                disabled={Boolean(active)}
-                className="min-h-36 w-full resize-y rounded-2xl border border-outline-variant bg-surface px-4 py-4 text-[16px] leading-7 text-on-surface outline-none focus:border-primary disabled:opacity-60 sm:min-h-40 sm:px-5"
-              />
-            </label>
-            <div className="mt-3 flex gap-2 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-              {copy.templates.map((template) => (
-                <button
-                  key={template}
-                  type="button"
-                  disabled={Boolean(active)}
-                  onClick={() => setPrompt(template)}
-                  className="shrink-0 rounded-full border border-outline-variant bg-surface px-3 py-2 text-left text-[11px] text-on-surface-variant hover:border-primary hover:text-primary disabled:opacity-40"
-                >
-                  {template.slice(0, 54)}{template.length > 54 ? "…" : ""}
-                </button>
-              ))}
+          {/* Composer */}
+          <div className="rounded-2xl border border-outline-variant bg-surface-container-lowest p-4 shadow-sm sm:p-6" data-motion-card>
+            <div className="mb-2 flex items-center justify-between">
+              <label htmlFor="erma-flow-prompt" className="text-xs font-semibold uppercase tracking-wider text-secondary">
+                {ru ? "Сформулируйте задачу" : "Task Prompt"}
+              </label>
+              <span className={cn("text-xs font-mono", prompt.length > MAX_PROMPT_LENGTH * 0.9 ? "text-error" : "text-on-secondary-container")}>
+                {prompt.length}/{MAX_PROMPT_LENGTH}
+              </span>
             </div>
-            <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
-              <p className={cn("text-xs", prompt.length > MAX_PROMPT_LENGTH * .9 ? "text-error" : "text-on-secondary-container")}>
-                {copy.limit}: {prompt.length}/{MAX_PROMPT_LENGTH}
-              </p>
+
+            <textarea
+              id="erma-flow-prompt"
+              value={prompt}
+              onChange={(event: { target: { value: string } }) => setPrompt(event.target.value.slice(0, MAX_PROMPT_LENGTH))}
+              placeholder={ru ? "Опишите вашу задачу (например: «Проанализируй мобильный интерфейс и составь план улучшений»)..." : copy.placeholder}
+              rows={4}
+              disabled={Boolean(active)}
+              className="w-full resize-none rounded-xl border border-outline-variant/80 bg-surface px-4 py-3.5 text-[15px] leading-relaxed text-on-surface placeholder:text-on-surface-variant/50 outline-none transition focus:border-primary focus:ring-1 focus:ring-primary disabled:opacity-60"
+            />
+
+            {/* Quick Templates */}
+            <div className="mt-3 flex items-center gap-2 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+              <span className="shrink-0 text-xs font-medium text-on-secondary-container">
+                {ru ? "Быстрый старт:" : "Quick templates:"}
+              </span>
+              {copy.templates.map((template, idx) => {
+                const shortLabel = ru
+                  ? ["План улучшений UI", "ТЗ новой функции", "Аудит продукта"][idx] ?? template.slice(0, 30)
+                  : ["UI Improvement Plan", "Feature Specification", "Product Audit"][idx] ?? template.slice(0, 30);
+                return (
+                  <button
+                    key={template}
+                    type="button"
+                    disabled={Boolean(active)}
+                    onClick={() => setPrompt(template)}
+                    title={template}
+                    className="shrink-0 rounded-full border border-outline-variant/80 bg-surface px-3 py-1.5 text-xs text-on-surface-variant transition hover:border-primary hover:bg-surface-container-low hover:text-primary disabled:opacity-40"
+                  >
+                    {shortLabel}
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Action Row */}
+            <div className="mt-4 flex items-center justify-end border-t border-outline-variant/40 pt-3">
               {active ? (
-                <button type="button" onClick={stopRun} className="inline-flex min-h-12 items-center gap-2 rounded-full border border-error/45 bg-error/10 px-5 text-sm font-medium text-error">
-                  <Square className="size-4" fill="currentColor" />{copy.stop}
+                <button
+                  type="button"
+                  onClick={stopRun}
+                  className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-error/50 bg-error/10 px-5 text-sm font-medium text-error transition hover:bg-error/20"
+                >
+                  <Square className="size-4" fill="currentColor" />
+                  {copy.stop}
                 </button>
               ) : (
                 <button
                   type="button"
                   disabled={!prompt.trim() || prompt.length > MAX_PROMPT_LENGTH}
                   onClick={() => void startRun()}
-                  className="inline-flex min-h-12 items-center gap-2 rounded-full bg-primary px-5 text-sm font-medium text-on-primary shadow-sm disabled:opacity-30"
+                  className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-primary px-6 text-sm font-medium text-on-primary shadow-sm transition hover:bg-primary/90 disabled:opacity-30"
                 >
-                  <Play className="size-4" fill="currentColor" />{copy.run}<ArrowRight className="size-4" />
+                  <Play className="size-4" fill="currentColor" />
+                  {copy.run}
+                  <ArrowRight className="size-4" />
                 </button>
               )}
             </div>
           </div>
 
+          {/* Active / Selected Run View */}
           {selected ? (
-            <article className="flow-run-card rounded-[1.75rem] border border-outline-variant bg-surface-container-lowest p-4 sm:p-6" data-active={selected.status === "planning" || selected.status === "running"}>
+            <article className="flow-run-card rounded-2xl border border-outline-variant bg-surface-container-lowest p-5 sm:p-6 shadow-sm" data-active={selected.status === "planning" || selected.status === "running"}>
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div className="min-w-0">
                   <div className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-secondary">
@@ -487,34 +521,52 @@ export function ErmaFlowStudio({ locale }: { locale: Locale }) {
           ) : null}
         </div>
 
-        <aside className="min-w-0 rounded-[1.75rem] border border-outline-variant bg-surface-container-low/70 p-4 xl:sticky xl:top-4 xl:h-[calc(100dvh-7rem)] xl:overflow-hidden" data-motion-card>
-          <div className="flex items-center justify-between gap-3">
-            <div>
-              <p className="label-caps text-secondary">{copy.history}</p>
-              <p className="mt-1 text-xs text-on-secondary-container">{copy.local}</p>
+        {/* Sidebar History */}
+        <aside className="min-w-0 rounded-2xl border border-outline-variant/80 bg-surface-container-low/60 p-4 xl:sticky xl:top-6 xl:h-[calc(100dvh-6rem)] xl:overflow-hidden" data-motion-card>
+          <div className="flex items-center justify-between gap-2 border-b border-outline-variant/60 pb-3">
+            <div className="flex items-center gap-2">
+              <Clock3 className="size-4 text-primary" />
+              <h2 className="text-xs font-semibold uppercase tracking-wider text-secondary">{copy.history}</h2>
             </div>
-            <Clock3 className="size-5 text-secondary" />
+            {runs.length > 0 && (
+              <span className="rounded-full bg-surface-container-high px-2.5 py-0.5 text-xs font-medium text-on-secondary-container">
+                {runs.length}
+              </span>
+            )}
           </div>
-          <div className="mt-4 max-h-[44vh] space-y-2 overflow-y-auto pr-1 xl:max-h-[calc(100dvh-12rem)]">
+
+          <div className="mt-3 max-h-[46vh] space-y-2 overflow-y-auto pr-1 xl:max-h-[calc(100dvh-11rem)]">
             {runs.map((run, index) => (
               <button
                 key={run.id}
                 type="button"
                 onClick={() => setSelectedId(run.id)}
                 className={cn(
-                  "flow-history-item w-full rounded-2xl border px-3 py-3 text-left",
-                  selected?.id === run.id ? "border-primary bg-surface-container-lowest" : "border-outline-variant bg-surface hover:bg-surface-container-lowest",
+                  "flow-history-item w-full rounded-xl border p-3 text-left transition",
+                  selected?.id === run.id ? "border-primary bg-surface-container-lowest shadow-sm" : "border-outline-variant/60 bg-surface hover:bg-surface-container-lowest",
                 )}
                 style={{ "--flow-history-index": index } as CSSProperties}
               >
-                <span className="line-clamp-2 text-sm font-medium leading-5 text-on-surface">{run.title}</span>
+                <span className="line-clamp-2 text-xs font-medium leading-snug text-on-surface">{run.title}</span>
                 <span className="mt-2 flex items-center justify-between gap-2 text-[11px] text-on-secondary-container">
-                  <span>{statusLabel(run.status, ru)}</span>
+                  <span className={cn(
+                    "font-medium",
+                    run.status === "completed" && "text-primary",
+                    run.status === "failed" && "text-error",
+                    (run.status === "planning" || run.status === "running") && "text-chat-accent",
+                  )}>
+                    {statusLabel(run.status, ru)}
+                  </span>
                   <span>{new Date(run.updatedAt).toLocaleTimeString(ru ? "ru-RU" : "en-US", { hour: "2-digit", minute: "2-digit" })}</span>
                 </span>
               </button>
             ))}
-            {!runs.length ? <p className="rounded-2xl border border-dashed border-outline-variant bg-surface p-4 text-sm leading-6 text-on-surface-variant">{copy.emptyHistory}</p> : null}
+
+            {!runs.length ? (
+              <div className="rounded-xl border border-outline-variant/50 bg-surface/50 p-4 text-center">
+                <p className="text-xs text-on-surface-variant/80">{copy.emptyHistory}</p>
+              </div>
+            ) : null}
           </div>
         </aside>
       </div>

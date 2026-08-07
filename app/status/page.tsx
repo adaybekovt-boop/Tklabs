@@ -13,7 +13,7 @@ export default async function StatusPage() {
     <>
       <StitchHeader active="status" />
       <main className="stitch-container py-section-gap">
-        <section className="mb-section-gap grid gap-12 border-b-[0.5px] border-primary pb-16 md:grid-cols-12">
+        <section className="mb-section-gap grid gap-12 border-b border-outline-variant/30 pb-16 md:grid-cols-12">
           <ScrollReveal className="md:col-span-8">
             <p className="label-caps mb-6 text-secondary">{text.status.eyebrow}</p>
             <h1 className="display-title">{text.status.title}</h1>
@@ -21,7 +21,7 @@ export default async function StatusPage() {
           </ScrollReveal>
         </section>
         <StatusBoard locale={locale} />
-        <section className="border-t-[0.5px] border-primary pt-10">
+        <section className="border-t border-outline-variant/30 pt-10">
           <ScrollReveal>
             <h2 className="headline-title">{text.status.incidents}</h2>
             <p className="mt-5 max-w-2xl leading-[1.7] text-on-surface-variant">{text.status.historyNote}</p>

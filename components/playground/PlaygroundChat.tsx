@@ -402,11 +402,15 @@ export function PlaygroundChat({
           <div ref={scrollRef} onScroll={handleTranscriptScroll} className="playground-transcript absolute inset-0 overflow-y-auto overscroll-contain px-4 py-4 sm:px-6 sm:py-8 md:px-10" role="region" aria-label={text.chat.currentSession}>
             {chat.messages.length === 0 ? (
               <div className="mx-auto flex min-h-full w-full max-w-3xl items-center justify-center py-8">
-                <div className="w-full max-w-2xl px-1 sm:px-6">
-                  <div className="mb-4 flex size-11 items-center justify-center overflow-hidden rounded-2xl border border-outline-variant bg-surface-container-low p-2.5 sm:mb-5 sm:size-12"><Image src={modelMark} alt="" width={36} height={36} className="size-full object-contain" /></div>
-                  <p className="label-caps mb-3 text-on-secondary-container">ERMA · AUTO</p>
-                  <h2 className="mb-3 max-w-2xl font-serif text-[31px] leading-[1.12] text-primary sm:text-[36px] md:text-[48px]">{text.chat.emptyTitle}</h2>
-                  <p className="max-w-xl text-[15px] leading-[1.65] text-on-secondary-container">{locale === "ru" ? "Опишите задачу. Erma сама выберет подходящую глубину ответа и при необходимости использует безопасный инструмент." : "Describe the task. Erma will choose an appropriate depth and use a safe tool when needed."}</p>
+                <div className="flex flex-col items-center text-center w-full max-w-2xl px-1 sm:px-6">
+                  <h2 className="flex flex-wrap items-center justify-center gap-3 font-serif text-[31px] leading-[1.12] text-primary sm:text-[36px] md:text-[48px]">
+                    {/* {text.chat.emptyTitle} */}
+                    <span>{locale === "ru" ? "С чего" : "Where should we"}</span>
+                    <span className="inline-flex size-11 items-center justify-center overflow-hidden rounded-2xl border border-outline-variant bg-surface-container-low p-2 align-middle sm:size-14 sm:p-2.5">
+                      <Image src={modelMark} alt="" width={36} height={36} className="size-full object-contain" />
+                    </span>
+                    <span>{locale === "ru" ? "начнём?" : "begin?"}</span>
+                  </h2>
                 </div>
               </div>
             ) : <ResponsiveMessageList {...messageListProps} />}

@@ -165,9 +165,27 @@ export function MessageList({
                 {onRetry && <button type="button" onClick={() => onRetry(message)} className="inline-flex min-h-10 items-center gap-2 rounded-full border border-error/50 px-4 text-[12px] text-error hover:bg-error/10"><RefreshCw size={14} /> {text.chat.retry}</button>}
               </div>
             ) : message.content ? (
-              <div className="mt-5 flex items-center gap-1 border-t border-outline-variant pt-3 text-[11px] text-on-secondary-container">
-                <button type="button" onClick={() => onCopy(message)} className="inline-flex min-h-9 items-center gap-1.5 rounded-full px-2.5 hover:bg-surface-container-low hover:text-primary">{copiedMessageId === message.id ? <Check size={13} /> : <Copy size={13} />}{copiedMessageId === message.id ? text.chat.copied : text.chat.copy}</button>
-                {onRegenerate && !isPending && <button type="button" onClick={() => onRegenerate(message)} className="inline-flex min-h-9 items-center gap-1.5 rounded-full px-2.5 hover:bg-surface-container-low hover:text-primary"><RefreshCw size={13} />{ui.regenerate}</button>}
+              <div className="mt-2 flex items-center gap-1 border-t border-outline-variant/60 pt-2 text-on-secondary-container">
+                <button
+                  type="button"
+                  onClick={() => onCopy(message)}
+                  className="grid size-8 place-items-center rounded-full hover:bg-surface-container-low hover:text-primary"
+                  aria-label={copiedMessageId === message.id ? text.chat.copied : text.chat.copy}
+                  title={copiedMessageId === message.id ? text.chat.copied : text.chat.copy}
+                >
+                  {copiedMessageId === message.id ? <Check size={14} /> : <Copy size={14} />}
+                </button>
+                {onRegenerate && !isPending && (
+                  <button
+                    type="button"
+                    onClick={() => onRegenerate(message)}
+                    className="grid size-8 place-items-center rounded-full hover:bg-surface-container-low hover:text-primary"
+                    aria-label={ui.regenerate}
+                    title={ui.regenerate}
+                  >
+                    <RefreshCw size={14} />
+                  </button>
+                )}
                 <div className="ml-auto">
                   <ActionMenu label={ui.actions}>
                     <button type="button" onClick={() => onSpeak(message)} className="flex min-h-10 w-full items-center gap-2 rounded-xl px-3 text-left text-[12px] hover:bg-surface-container-low"><Volume2 size={14} />{speakingMessageId === message.id ? text.chat.stopSpeaking : ui.speak}</button>

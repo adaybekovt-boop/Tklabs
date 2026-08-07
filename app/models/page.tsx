@@ -34,7 +34,7 @@ export default async function ModelsPage() {
     <>
       <StitchHeader active="models" />
       <main className="stitch-container py-section-gap">
-        <section className="mb-section-gap grid gap-10 border-b-[0.5px] border-primary pb-14 md:grid-cols-12 md:items-end">
+        <section className="mb-section-gap grid gap-10 border-b border-outline-variant/30 pb-14 md:grid-cols-12 md:items-end">
           <ScrollReveal className="md:col-span-8">
             <p className="label-caps mb-6 text-secondary">ERMA MODELS</p>
             <h1 className="display-title">{ru ? "Один ассистент, подходящая глубина" : "One assistant, the right depth"}</h1>
@@ -77,7 +77,7 @@ export default async function ModelsPage() {
           ))}
         </StaggerContainer>
 
-        <section id="access" className="mt-section-gap scroll-mt-28 border-t-[0.5px] border-primary pt-12">
+        <section id="access" className="mt-section-gap scroll-mt-28 border-t border-outline-variant/30 pt-12">
           <ScrollReveal className="grid gap-8 md:grid-cols-12">
             <div className="md:col-span-4"><p className="label-caps mb-4 text-secondary">ACCESS</p><h2 className="headline-title">{ru ? "Доступ без отдельной сложной страницы" : "Access without a separate maze"}</h2></div>
             <div className="space-y-5 leading-[1.8] text-on-surface-variant md:col-span-7 md:col-start-6">

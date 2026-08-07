@@ -5,7 +5,9 @@
 import { lazy, Suspense, useEffect, useState } from "react";
 import { Activity, ChevronLeft, FileText, MessageSquareText, Sparkles, Workflow } from "lucide-react";
 
+import Link from "next/link";
 import { LanguageToggle } from "@/components/site/LanguageToggle";
+import { SiteLogo } from "@/components/site/SiteLogo";
 import type { Locale } from "@/lib/i18n";
 import { CURRENT_RELEASE_BADGE } from "@/lib/release-version";
 import { isWorkspaceSection, WORKSPACE_SECTION_EVENT, type WorkspaceSection } from "@/lib/workspace-events";
@@ -93,15 +95,19 @@ export function ErmaNovaWorkspace({ locale }: { locale: Locale }) {
         </header>
       )}
 
-      <header className="hidden min-h-14 shrink-0 items-center justify-between gap-2 border-b border-outline-variant bg-surface-container-lowest/95 px-5 backdrop-blur-md md:flex">
-        <div className="flex min-w-0 items-center gap-3 overflow-hidden">
-          <div className="hidden shrink-0 items-center gap-2 xl:flex">
-            <span className="grid size-8 place-items-center rounded-full bg-primary text-on-primary"><Sparkles className="size-4" /></span>
-            <div className="min-w-0">
-              <p className="truncate text-sm font-semibold text-on-surface">Erma Flow</p>
-              <p className="truncate text-[10px] font-semibold uppercase tracking-[0.16em] text-secondary">Motion system · controlled runs</p>
-            </div>
-          </div>
+      <header className="hidden min-h-14 shrink-0 grid-cols-[1fr_auto_1fr] items-center gap-2 border-b border-outline-variant bg-surface-container-lowest/95 px-5 backdrop-blur-md md:grid">
+        <div className="flex items-center min-w-0">
+          <Link
+            href="/"
+            aria-label={ru ? "На главную" : "Go to home"}
+            className="group inline-flex items-center gap-2 rounded-xl p-1 transition hover:opacity-80"
+            title={ru ? "На главную" : "Go to home"}
+          >
+            <SiteLogo showWordmark={true} className="scale-90 origin-left" />
+          </Link>
+        </div>
+
+        <div className="flex items-center justify-center min-w-0">
           <nav
             role="tablist"
             className="flex min-w-0 max-w-full items-center overflow-x-auto rounded-full border border-outline-variant bg-surface-container-low p-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
@@ -128,7 +134,7 @@ export function ErmaNovaWorkspace({ locale }: { locale: Locale }) {
           </nav>
         </div>
 
-        <div className="flex shrink-0 items-center gap-2">
+        <div className="flex shrink-0 items-center justify-end gap-2">
           <div className="flex min-h-9 items-center rounded-full border border-outline-variant bg-surface px-2.5">
             <LanguageToggle locale={locale} label={ru ? "Язык интерфейса" : "Interface language"} />
           </div>

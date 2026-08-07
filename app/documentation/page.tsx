@@ -21,7 +21,7 @@ export default async function DocumentationPage() {
     <>
       <StitchHeader active="documentation" />
       <main className="stitch-container py-section-gap">
-        <section className="mb-section-gap grid gap-12 border-b-[0.5px] border-primary pb-16 md:grid-cols-12">
+        <section className="mb-section-gap grid gap-12 border-b border-outline-variant/30 pb-16 md:grid-cols-12">
           <ScrollReveal className="md:col-span-8">
             <p className="label-caps mb-7 text-secondary">{text.documentation.eyebrow}</p>
             <h1 className="display-title">{text.documentation.title}</h1>

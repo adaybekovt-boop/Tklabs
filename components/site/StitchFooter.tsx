@@ -17,7 +17,7 @@ export async function StitchFooter() {
   const vaultLabel = "Workspace Vault";
 
   return (
-    <footer className="mt-section-gap border-t-[0.5px] border-primary bg-surface">
+    <footer className="mt-section-gap border-t border-outline-variant/30 bg-surface">
       <div className="stitch-container py-8 md:py-10">
         <div className="md:hidden">
           <p className="label-caps mb-5 text-secondary">{footerLabel}</p>

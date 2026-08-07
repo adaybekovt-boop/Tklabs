@@ -48,56 +48,32 @@ export default async function PatchNotesPage() {
   return (
     <>
       <StitchHeader active="patch-notes" />
-      <main className="stitch-container pb-section-gap pt-8 sm:pt-16">
-        <section className="mb-8 overflow-hidden rounded-3xl border border-primary/30 bg-primary/10 p-5 sm:mb-10 sm:p-8" data-major-preview-release>
-          <p className="text-xs font-bold uppercase tracking-[0.18em] text-primary">{ui.major}</p>
-          <div className="mt-4 grid gap-6 md:grid-cols-[minmax(0,1fr)_320px] md:items-end">
-            <div className="min-w-0">
-              <p className="label-caps break-words text-secondary">{previewRelease.version} · {previewRelease.codename}</p>
-              <h1 className="mt-3 font-serif text-[38px] leading-[1.02] text-on-surface sm:text-[56px]">{previewRelease.title}</h1>
-              <p className="mt-4 max-w-3xl text-[15px] leading-7 text-on-surface-variant sm:text-[17px]">{previewRelease.summary}</p>
-            </div>
-            <FlowButton href="/playground" text={ui.openChat} dark className="w-full" />
+      <main className="stitch-container pb-section-gap pt-6 sm:pt-10">
+        <section className="mb-8 overflow-hidden rounded-3xl border border-primary/25 bg-surface-container-lowest p-6 shadow-sm sm:mb-10 sm:p-8" data-major-preview-release>
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <span className="rounded-full border border-primary/30 bg-primary/10 px-3 py-1 text-[11px] font-bold uppercase tracking-[0.14em] text-primary">
+              {ui.major}
+            </span>
+            <span className="text-xs font-semibold text-secondary">{previewRelease.version} · {previewRelease.codename}</span>
           </div>
-          <div className="mt-6 grid gap-4 border-t border-primary/20 pt-6 md:grid-cols-2">
-            <div className="rounded-2xl border border-outline-variant bg-surface/75 p-4">
-              <p className="label-caps text-secondary">{ui.knownIssues}</p>
-              <ul className="mt-3 space-y-2 text-sm leading-6 text-on-surface-variant">
-                {previewRelease.knownIssues.map((item) => <li key={item}>— {item}</li>)}
-              </ul>
+          <div className="mt-4 flex flex-col items-start justify-between gap-6 md:flex-row md:items-center">
+            <div className="min-w-0 flex-1">
+              <h1 className="font-serif text-[28px] leading-[1.12] text-on-surface sm:text-[38px]">{previewRelease.title}</h1>
+              <p className="mt-2 max-w-2xl text-[14px] leading-relaxed text-on-surface-variant sm:text-[15px]">{previewRelease.summary}</p>
             </div>
-            <div className="rounded-2xl border border-outline-variant bg-surface/75 p-4">
-              <p className="label-caps text-secondary">{ui.migration}</p>
-              <ul className="mt-3 space-y-2 text-sm leading-6 text-on-surface-variant">
-                {previewRelease.migrationNotes.map((item) => <li key={item}>— {item}</li>)}
-              </ul>
-            </div>
+            <FlowButton href="/playground" text={ui.openChat} dark className="shrink-0" />
           </div>
         </section>
 
-        <section className="mb-8 grid gap-6 border-b-[0.5px] border-primary pb-8 sm:mb-14 sm:gap-10 sm:pb-14 md:grid-cols-12">
-          <ScrollReveal className="md:col-span-8">
-            <p className="label-caps mb-4 text-secondary sm:mb-6">{text.patchNotes.eyebrow}</p>
-            <h2 className="display-title">{text.patchNotes.title}</h2>
-            <div className="mt-5 inline-flex max-w-full items-center gap-3 rounded-full border border-outline-variant bg-surface-container-low px-4 py-2 text-sm sm:mt-8">
-              <span className="size-2 shrink-0 rounded-full bg-primary" aria-hidden="true" />
-              <span className="text-secondary">{ui.latest}</span>
-              <strong className="min-w-0 break-words">{latestRelease.version}</strong>
-            </div>
-          </ScrollReveal>
-          <ScrollReveal delay={0.12} className="space-y-3 border-t border-primary pt-5 text-[15px] leading-[1.65] text-on-surface-variant sm:space-y-5 sm:border-l sm:border-t-0 sm:pl-7 sm:pt-0 sm:text-[17px] md:col-span-4 md:col-start-9">
-            <p>{text.patchNotes.intro}</p>
-            <p className="text-sm text-secondary">{ui.browse}</p>
-          </ScrollReveal>
+        <section className="mb-6 flex flex-wrap items-center justify-between gap-3 border-b border-outline-variant pb-4" aria-labelledby="patch-notes-list-title">
+          <div>
+            <p className="label-caps mb-1 text-secondary">{text.patchNotes.eyebrow}</p>
+            <h2 id="patch-notes-list-title" className="headline-title">{text.patchNotes.historyTitle}</h2>
+          </div>
+          <span className="label-caps shrink-0 rounded-full border border-outline-variant px-3 py-1 text-secondary">{entries.length} {text.patchNotes.releaseCount}</span>
         </section>
 
-        <section aria-labelledby="patch-notes-list-title">
-          <ScrollReveal>
-            <div className="mb-5 flex items-end justify-between gap-3 border-b-[0.5px] border-primary pb-5 sm:mb-8 sm:flex-row sm:pb-6">
-              <h2 id="patch-notes-list-title" className="headline-title">{text.patchNotes.historyTitle}</h2>
-              <span className="label-caps shrink-0 text-secondary">{entries.length} {text.patchNotes.releaseCount}</span>
-            </div>
-          </ScrollReveal>
+        <section>
           <MobileReleaseBrowser entries={entries} locale={locale} />
           <div className="hidden lg:block">
             <PatchNotesBrowser entries={entries} locale={locale} />
@@ -105,10 +81,10 @@ export default async function PatchNotesPage() {
         </section>
 
         <ScrollReveal>
-          <section className="mt-section-gap flex flex-col items-start justify-between gap-6 overflow-hidden rounded-3xl border border-outline-variant bg-surface-container-low p-6 sm:p-8 md:flex-row md:items-center md:p-10">
+          <section className="mt-10 flex flex-col items-start justify-between gap-4 overflow-hidden rounded-3xl border border-outline-variant bg-surface-container-low p-6 sm:flex-row sm:items-center sm:p-8">
             <div className="min-w-0">
-              <p className="label-caps break-words text-secondary">{latestRelease.version}</p>
-              <p className="mt-3 max-w-xl font-serif text-[24px] sm:text-[26px]">{text.patchNotes.workspaceTitle}</p>
+              <p className="label-caps text-secondary">{latestRelease.version}</p>
+              <p className="mt-1 font-serif text-xl text-primary sm:text-2xl">{text.patchNotes.workspaceTitle}</p>
             </div>
             <FlowButton href="/playground" text={ui.openChat} dark />
           </section>

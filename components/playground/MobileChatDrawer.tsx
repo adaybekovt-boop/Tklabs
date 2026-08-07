@@ -7,6 +7,7 @@ import { Activity, DatabaseBackup, FileText, Menu, MessageSquareText, Plus, Work
 
 import { ConversationArchive } from "@/components/playground/ConversationArchive";
 import { LanguageToggle } from "@/components/site/LanguageToggle";
+import { SiteLogo } from "@/components/site/SiteLogo";
 import { ThemeToggle } from "@/components/site/ThemeToggle";
 import { getDictionary, type Locale } from "@/lib/i18n";
 import { requestWorkspaceSection } from "@/lib/workspace-events";
@@ -93,13 +94,14 @@ export function MobileChatDrawer({
         className="absolute inset-y-0 left-0 flex w-[min(92vw,420px)] flex-col overflow-hidden rounded-none border-r border-outline-variant bg-surface-container-lowest shadow-2xl outline-none"
       >
         <header className="flex min-h-14 shrink-0 items-center justify-between gap-3 border-b border-outline-variant px-4">
-          <div className="flex min-w-0 items-center gap-2">
-            <span className="grid size-9 shrink-0 place-items-center rounded-xl bg-primary text-on-primary"><Workflow size={16} /></span>
-            <div className="min-w-0">
-              <p id="mobile-chat-drawer-title" className="truncate text-sm font-semibold text-primary">Erma Flow</p>
-              <p className="truncate text-[11px] text-on-secondary-container">{ru ? "Диалоги, задачи и материалы" : "Chats, tasks, and materials"}</p>
-            </div>
-          </div>
+          <Link
+            href="/"
+            onClick={onClose}
+            aria-label="TK LAB"
+            className="group inline-flex items-center gap-2 rounded-xl p-1 transition hover:opacity-80"
+          >
+            <SiteLogo showWordmark={true} className="scale-90 origin-left" />
+          </Link>
           <button type="button" onClick={onClose} className="grid size-11 shrink-0 place-items-center rounded-full text-on-secondary-container hover:bg-surface-container-low hover:text-primary" aria-label={text.chat.close}><X size={18} /></button>
         </header>
 

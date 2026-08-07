@@ -1,27 +1,29 @@
 "use client";
 
-import { useEffect, useRef, useState, ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 
 function useReveal(delay = 0) {
   const ref = useRef<HTMLDivElement>(null);
-  const [visible, setVisible] = useState(
-    () => typeof window !== "undefined" && window.innerWidth < 768
-  );
+  const [visible, setVisible] = useState(false);
+  const [mounted, setMounted] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
 
   useEffect(() => {
-    // Mobile — no animations
-    if (typeof window !== "undefined" && window.innerWidth < 768) {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- hydrates client-only mount/viewport state.
+    setMounted(true);
+    if (window.innerWidth < 768) {
+      setIsMobile(true);
+      setVisible(true);
       return;
     }
 
     const el = ref.current;
     if (!el) return;
 
-    // Already visible above fold
     const rect = el.getBoundingClientRect();
     if (rect.top < window.innerHeight + 60) {
-      const t = setTimeout(() => setVisible(true), delay * 1000);
-      return () => clearTimeout(t);
+      const timer = setTimeout(() => setVisible(true), delay * 1000);
+      return () => clearTimeout(timer);
     }
 
     const observer = new IntersectionObserver(
@@ -31,14 +33,14 @@ function useReveal(delay = 0) {
           observer.disconnect();
         }
       },
-      { threshold: 0.05, rootMargin: "60px" }
+      { threshold: 0.05, rootMargin: "60px" },
     );
 
     observer.observe(el);
     return () => observer.disconnect();
   }, [delay]);
 
-  return { ref, visible };
+  return { ref, visible, mounted, isMobile };
 }
 
 interface ScrollRevealProps {
@@ -57,19 +59,17 @@ export function ScrollReveal({
   direction = "up",
   distance = 30,
 }: ScrollRevealProps) {
-  const { ref, visible } = useReveal(delay);
-
-  const isMobile = typeof window !== "undefined" && window.innerWidth < 768;
-  const shouldAnimate = !isMobile;
+  const { ref, visible, mounted, isMobile } = useReveal(delay);
+  const shouldAnimate = mounted && !isMobile;
 
   const initialTransform =
     direction === "up"
       ? `translateY(${distance}px)`
       : direction === "down"
-      ? `translateY(-${distance}px)`
-      : direction === "scale"
-      ? "scale(0.97)"
-      : "none";
+        ? `translateY(-${distance}px)`
+        : direction === "scale"
+          ? "scale(0.97)"
+          : "none";
 
   return (
     <div
@@ -103,12 +103,12 @@ export function StaggerContainer({
   staggerDelay?: number;
 }) {
   const ref = useRef<HTMLDivElement>(null);
-  const [visible, setVisible] = useState(
-    () => typeof window !== "undefined" && window.innerWidth < 768
-  );
+  const [visible, setVisible] = useState(false);
 
   useEffect(() => {
-    if (typeof window !== "undefined" && window.innerWidth < 768) {
+    if (window.innerWidth < 768) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- hydrates client-only viewport state.
+      setVisible(true);
       return;
     }
 
@@ -128,7 +128,7 @@ export function StaggerContainer({
           observer.disconnect();
         }
       },
-      { threshold: 0.05, rootMargin: "60px" }
+      { threshold: 0.05, rootMargin: "60px" },
     );
     observer.observe(el);
     return () => observer.disconnect();

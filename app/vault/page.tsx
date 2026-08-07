@@ -18,7 +18,7 @@ export default async function WorkspaceVaultPage() {
     <>
       <StitchHeader />
       <main className="stitch-container min-h-screen pb-section-gap pt-8 sm:pt-12">
-        <section className="mb-8 border-b-[0.5px] border-primary pb-8 sm:mb-10 sm:pb-10">
+        <section className="mb-8 border-b border-outline-variant/30 pb-8 sm:mb-10 sm:pb-10">
           <p className="label-caps text-secondary">TK LAB · DATA PORTABILITY</p>
           <h1 className="display-title mt-4 max-w-5xl">{ru ? "Локальные данные под вашим контролем" : "Your local workspace, under your control"}</h1>
           <p className="mt-5 max-w-3xl text-base leading-7 text-on-surface-variant sm:text-lg">

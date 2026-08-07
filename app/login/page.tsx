@@ -18,7 +18,7 @@ export default async function LoginPage() {
 
   return (
     <div className="flex min-h-screen flex-col bg-surface">
-      <header className="border-b-[0.5px] border-primary">
+      <header className="border-b border-outline-variant/30">
         <div className="stitch-container flex min-h-[92px] items-center justify-between gap-6">
           <Link href="/" aria-label="TK LAB"><SiteLogo /></Link>
           <div className="flex items-center gap-5">

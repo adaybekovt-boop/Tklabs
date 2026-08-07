@@ -40,15 +40,15 @@ export default async function TruthPage() {
         </section>
         <section className="mb-section-gap">
           <ScrollReveal>
-            <div className="mb-10 grid gap-6 border-b-[0.5px] border-primary pb-8 md:grid-cols-12">
+            <div className="mb-10 grid gap-6 border-b border-outline-variant/30 pb-8 md:grid-cols-12">
               <h2 className="headline-title md:col-span-4">{text.truth.registry}</h2>
               <p className="text-on-surface-variant md:col-span-6 md:col-start-7">{text.truth.registryIntro}</p>
             </div>
           </ScrollReveal>
-          <StaggerContainer className="border-t-[0.5px] border-primary">
+          <StaggerContainer className="border-t border-outline-variant/30">
             {text.truth.registryRows.map(([name, description, kind]) => (
               <StaggerItem key={name}>
-                <div className="grid gap-4 border-b-[0.5px] border-primary/25 py-7 md:grid-cols-12">
+                <div className="grid gap-4 border-b border-outline-variant/30 py-7 md:grid-cols-12">
                   <span className="md:col-span-4">{name}</span>
                   <span className="text-on-surface-variant md:col-span-5">{description}</span>
                   <span className="label-caps text-right md:col-span-3">{kind}</span>

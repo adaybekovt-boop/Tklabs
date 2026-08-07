@@ -37,6 +37,9 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Separate Cloudflare Worker sub-project with its own lint/type setup.
+    "telegram-bot/**",
+    ".tmp-workers-types/**",
   ]),
 ]);
 

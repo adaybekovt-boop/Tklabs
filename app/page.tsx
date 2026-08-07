@@ -49,7 +49,7 @@ export default async function HomePage() {
         </section>
 
         <section className="stitch-container mb-section-gap">
-          <ScrollReveal><div className="mb-7 border-b-[0.5px] border-primary pb-5 sm:mb-10"><p className="label-caps mb-3 text-secondary">{ru ? "Основное" : "Core product"}</p><h2 className="headline-title">{ru ? "Меньше элементов, больше полезной работы" : "Fewer controls, more useful work"}</h2></div></ScrollReveal>
+          <ScrollReveal><div className="mb-7 border-b border-outline-variant/30 pb-5 sm:mb-10"><p className="label-caps mb-3 text-secondary">{ru ? "Основное" : "Core product"}</p><h2 className="headline-title">{ru ? "Меньше элементов, больше полезной работы" : "Fewer controls, more useful work"}</h2></div></ScrollReveal>
           <StaggerContainer className="grid gap-3 md:grid-cols-3" staggerDelay={0.08}>
             {capabilities.map(({ title, text, icon: Icon }) => (
               <StaggerItem key={title}>

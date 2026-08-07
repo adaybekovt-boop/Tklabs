@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Check, CopyPlus, FolderKanban, MoreHorizontal, Pencil, Pin, Search, Trash2, X } from "lucide-react";
+import { Check, CopyPlus, FolderKanban, MoreHorizontal, Pencil, Pin, Plus, Search, SquarePen, Trash2, X } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 
 import { getDictionary, type Locale } from "@/lib/i18n";
@@ -98,21 +98,30 @@ export function ConversationArchive({ locale, onNavigate, headingId = "conversat
   }
 
   return (
-    <section className={compact ? "pt-3" : "mt-8 border-t-[0.5px] border-primary pt-6"} aria-labelledby={headingId}>
-      <div className="mb-3 flex items-center justify-between gap-3 px-2">
-        <h2 id={headingId} className="label-caps text-secondary">{text.chat.history}</h2>
-        <div className="flex min-h-9 items-center gap-1">
-          <span className="label-caps mr-1 text-secondary">{sessions.length}</span>
-          {sessions.length > 0 && !clearArmed && <button type="button" onClick={() => setClearArmed(true)} className="min-h-9 rounded-full px-2 text-[10px] uppercase tracking-[0.08em] text-on-secondary-container hover:bg-surface-container-low hover:text-primary">{ui.clear}</button>}
-          {sessions.length > 0 && clearArmed && (
-            <>
-              <button type="button" onClick={confirmClearArchive} className="min-h-9 rounded-full bg-error px-3 text-[10px] uppercase tracking-[0.08em] text-on-primary">{ui.confirmClear}</button>
-              <button type="button" onClick={() => setClearArmed(false)} className="grid size-9 place-items-center rounded-full text-on-secondary-container hover:bg-surface-container-low" aria-label={ui.cancel}><X size={14} /></button>
-            </>
-          )}
-        </div>
+    <section className={compact ? "pt-3" : "mt-8 border-t border-outline-variant/30 pt-6"} aria-labelledby={headingId}>
+      <div className="mb-3 flex items-center justify-between gap-2 px-2">
+        <Link href="/playground" onClick={onNavigate} className="grid size-8 place-items-center rounded-full text-on-secondary-container hover:bg-surface-container-low hover:text-primary" aria-label={text.chat.newDialog} title={text.chat.newDialog}>
+          <SquarePen size={16} />
+        </Link>
+        {sessions.length > 0 && (
+          <div className="flex items-center gap-1">
+            {!clearArmed ? (
+              <button type="button" onClick={() => setClearArmed(true)} className="grid size-8 place-items-center rounded-full text-on-secondary-container hover:bg-surface-container-low hover:text-error" aria-label={ui.clear} title={ui.clear}>
+                <Trash2 size={16} />
+              </button>
+            ) : (
+              <div className="flex items-center gap-1">
+                <button type="button" onClick={confirmClearArchive} className="min-h-7 rounded-full bg-error px-2.5 text-[10px] uppercase tracking-[0.08em] text-on-primary" aria-label={ui.confirmClear} title={ui.confirmClear}>
+                  {ui.confirmClear}
+                </button>
+                <button type="button" onClick={() => setClearArmed(false)} className="grid size-7 place-items-center rounded-full text-on-secondary-container hover:bg-surface-container-low" aria-label={ui.cancel} title={ui.cancel}>
+                  <X size={14} />
+                </button>
+              </div>
+            )}
+          </div>
+        )}
       </div>
-
       {sessions.length > 0 && (
         <>
           <label className="relative mb-3 block">
