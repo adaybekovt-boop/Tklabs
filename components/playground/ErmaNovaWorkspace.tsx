@@ -2,18 +2,19 @@
 
 /* eslint-disable react-hooks/set-state-in-effect -- browser-only workspace state hydrates from localStorage. */
 
-import { useEffect, useState } from "react";
+import { lazy, Suspense, useEffect, useState } from "react";
 import { Activity, ChevronLeft, FileText, MessageSquareText, Sparkles, Workflow } from "lucide-react";
 
-import { AgentRunPanel } from "@/components/playground/AgentRunPanel";
-import { ArtifactStudio } from "@/components/playground/ArtifactStudio";
-import { ErmaFlowStudio } from "@/components/playground/ErmaFlowStudio";
-import { PlaygroundChat } from "@/components/playground/PlaygroundChat";
 import { LanguageToggle } from "@/components/site/LanguageToggle";
 import type { Locale } from "@/lib/i18n";
 import { CURRENT_RELEASE_BADGE } from "@/lib/release-version";
 import { isWorkspaceSection, WORKSPACE_SECTION_EVENT, type WorkspaceSection } from "@/lib/workspace-events";
 import { cn } from "@/lib/utils";
+
+const PlaygroundChat = lazy(() => import("@/components/playground/PlaygroundChat").then((module) => ({ default: module.PlaygroundChat })));
+const ErmaFlowStudio = lazy(() => import("@/components/playground/ErmaFlowStudio").then((module) => ({ default: module.ErmaFlowStudio })));
+const ArtifactStudio = lazy(() => import("@/components/playground/ArtifactStudio").then((module) => ({ default: module.ArtifactStudio })));
+const AgentRunPanel = lazy(() => import("@/components/playground/AgentRunPanel").then((module) => ({ default: module.AgentRunPanel })));
 
 const STORAGE_KEY = "tklabs.erma-nova.workspace-tab";
 
@@ -32,6 +33,17 @@ function saveTab(tab: WorkspaceSection) {
   } catch {
     // Workspace navigation remains usable when storage is blocked or unavailable.
   }
+}
+
+function WorkspacePanelFallback({ locale }: { locale: Locale }) {
+  return (
+    <div className="grid h-full min-h-0 place-items-center bg-surface" role="status" aria-live="polite">
+      <div className="flex items-center gap-3 rounded-full border border-outline-variant bg-surface-container-lowest px-4 py-2 text-xs text-on-surface-variant shadow-sm">
+        <span className="size-2 animate-pulse rounded-full bg-primary" aria-hidden="true" />
+        {locale === "ru" ? "Открываю рабочую область…" : "Opening workspace…"}
+      </div>
+    </div>
+  );
 }
 
 export function ErmaNovaWorkspace({ locale }: { locale: Locale }) {
@@ -134,21 +146,23 @@ export function ErmaNovaWorkspace({ locale }: { locale: Locale }) {
           className={cn("h-full min-h-0 motion-workspace-panel", tab !== "chat" && "hidden")}
           hidden={tab !== "chat"}
         >
-          <PlaygroundChat locale={locale} onOpenArtifacts={() => selectTab("artifacts")} onOpenRuns={() => selectTab("runs")} />
+          <Suspense fallback={<WorkspacePanelFallback locale={locale} />}>
+            <PlaygroundChat locale={locale} onOpenArtifacts={() => selectTab("artifacts")} onOpenRuns={() => selectTab("runs")} />
+          </Suspense>
         </div>
         {tab === "flow" ? (
           <div id="workspace-panel-flow" role="tabpanel" aria-labelledby="workspace-tab-flow" className="h-full min-h-0 motion-workspace-panel">
-            <ErmaFlowStudio locale={locale} />
+            <Suspense fallback={<WorkspacePanelFallback locale={locale} />}><ErmaFlowStudio locale={locale} /></Suspense>
           </div>
         ) : null}
         {tab === "artifacts" ? (
           <div id="workspace-panel-artifacts" role="tabpanel" aria-labelledby="workspace-tab-artifacts" className="h-full min-h-0 motion-workspace-panel">
-            <ArtifactStudio locale={locale} />
+            <Suspense fallback={<WorkspacePanelFallback locale={locale} />}><ArtifactStudio locale={locale} /></Suspense>
           </div>
         ) : null}
         {tab === "runs" ? (
           <div id="workspace-panel-runs" role="tabpanel" aria-labelledby="workspace-tab-runs" className="h-full min-h-0 motion-workspace-panel">
-            <AgentRunPanel locale={locale} />
+            <Suspense fallback={<WorkspacePanelFallback locale={locale} />}><AgentRunPanel locale={locale} /></Suspense>
           </div>
         ) : null}
       </div>
