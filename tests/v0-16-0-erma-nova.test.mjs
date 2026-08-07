@@ -7,26 +7,24 @@ import { encodeAgentRunEvent, parseAgentRunEventFrame } from "../lib/ai/stream-v
 import { createArtifact, snapshotArtifact, updateArtifact } from "../lib/artifacts/local-store.ts";
 import { getCurrentRelease } from "../lib/current-release.ts";
 import { getPreviewRelease } from "../lib/prerelease.ts";
-import { CURRENT_RELEASE_BADGE, CURRENT_RELEASE_VERSION } from "../lib/release-version.ts";
+import { CURRENT_RELEASE_BADGE, CURRENT_RELEASE_CODENAME, CURRENT_RELEASE_VERSION } from "../lib/release-version.ts";
 
 const read = (path) => readFile(new URL(`../${path}`, import.meta.url), "utf8");
 
-test("v0.16.9 is the shared major preview release", async () => {
+test("the current major preview is synchronized and v0.16.9 remains in release history", async () => {
   const release = getPreviewRelease("en");
   const current = getCurrentRelease("en");
   const homePage = await read("app/page.tsx");
   const patchPage = await read("app/patch-notes/page.tsx");
   const releaseDoc = await read("docs/releases/v0.16.9.md");
 
-  assert.equal(CURRENT_RELEASE_VERSION, "v0.16.9");
-  assert.equal(CURRENT_RELEASE_BADGE, "v0.16.9");
+  assert.equal(CURRENT_RELEASE_BADGE, CURRENT_RELEASE_VERSION);
   assert.equal(release.version, CURRENT_RELEASE_VERSION);
   assert.equal(current.version, CURRENT_RELEASE_VERSION);
   assert.equal(release.channel, "preview");
   assert.equal(release.majorUpdate, true);
-  assert.equal(release.codename, "Interface Polish");
+  assert.equal(release.codename, CURRENT_RELEASE_CODENAME);
   assert.equal(release.stability, "beta");
-  assert.match(release.title, /Corrective UI, Accessibility & Cache Sync/);
   assert.match(homePage, /getCurrentRelease/);
   assert.doesNotMatch(homePage, /getLatestRelease/);
   assert.match(patchPage, /MAJOR UPDATE · PRE-RELEASE/);
