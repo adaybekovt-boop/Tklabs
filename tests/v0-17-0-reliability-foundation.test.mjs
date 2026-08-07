@@ -52,17 +52,12 @@ test("v0.17.0 adds repository security and dependency automation", async () => {
   assert.match(securityHeaders, /object-src 'none'/);
 });
 
-test("v0.17.0 release identity and cache namespace stay synchronized", async () => {
-  const releaseVersion = await read("lib/release-version.ts");
-  const preview = await read("lib/prerelease.ts");
-  const worker = await read("public/sw.js");
+test("v0.17.0 Reliability Foundation remains documented after later 17.x patches", async () => {
   const releaseDoc = await read("docs/releases/v0.17.0.md");
   const resilienceDoc = await read("docs/RESILIENCE.md");
 
-  assert.match(releaseVersion, /CURRENT_RELEASE_VERSION = "v0\.17\.0"/);
-  assert.match(releaseVersion, /CURRENT_RELEASE_CODENAME = "Reliability Foundation"/);
-  assert.match(preview, /RELIABILITY FOUNDATION/);
-  assert.match(worker, /CACHE_VERSION = "v0\.17\.0"/);
+  assert.match(releaseDoc, /# v0\.17\.0/);
+  assert.match(releaseDoc, /Reliability Foundation/i);
   assert.match(releaseDoc, /Provider lifecycle/);
   assert.match(resilienceDoc, /expand, migrate, contract/);
 });
