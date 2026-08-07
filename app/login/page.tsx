@@ -51,6 +51,16 @@ export default async function LoginPage() {
           </div>
         </ScrollReveal>
       </main>
+      <footer className="border-t border-outline-variant/30">
+        <div className="stitch-container flex min-h-16 items-center justify-center px-4 text-center">
+          <Link
+            href="/supported-countries"
+            className="text-[11px] uppercase tracking-[0.12em] text-secondary transition-colors hover:text-on-surface"
+          >
+            {locale === "ru" ? "Страны и регионы, поддерживаемые TK LAB" : "Countries and regions supported by TK LAB"}
+          </Link>
+        </div>
+      </footer>
     </div>
   );
 }
