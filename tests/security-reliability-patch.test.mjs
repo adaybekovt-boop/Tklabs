@@ -48,6 +48,7 @@ function makeTtsStub() {
     reserved: 0,
     committed: 0,
     released: 0,
+    getStatus: async () => ({ hasGrant: false, active: false, limit: 5, windowMs: 900_000, remaining: 5, resetAt: null }),
     reserveTts() {
       this.reserved += 1;
       return Promise.resolve({
@@ -95,8 +96,12 @@ function speechRequest(signal) {
 
 const signedInSession = async () => ({ user: { email: "user@example.com" } });
 
-function tick() {
-  return new Promise((resolve) => setTimeout(resolve, 0));
+async function waitForSettlement(stub, timeoutMs = 500) {
+  const startedAt = Date.now();
+  while (stub.committed === 0 && stub.released === 0) {
+    if (Date.now() - startedAt >= timeoutMs) throw new Error("Timed out waiting for reservation settlement.");
+    await new Promise((resolve) => setTimeout(resolve, 5));
+  }
 }
 
 test.afterEach(() => {
@@ -140,7 +145,7 @@ test("demo cancellation after the first delivered model delta cannot refund quot
     output += decoder.decode(chunk.value, { stream: true });
   }
   await reader.cancel("test_cancel_after_delta");
-  await tick();
+  await waitForSettlement(stub);
 
   assert.equal(stub.reserved, 1);
   assert.equal(stub.committed, 1);
@@ -172,7 +177,7 @@ test("TTS cancellation after the first delivered audio chunk cannot refund quota
   assert.equal(first.done, false);
   assert.deepEqual([...first.value], [1, 2, 3]);
   await reader.cancel("test_cancel_after_audio");
-  await tick();
+  await waitForSettlement(stub);
 
   assert.equal(stub.reserved, 1);
   assert.equal(stub.committed, 1);
