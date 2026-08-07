@@ -6,6 +6,10 @@ function sseBody(events) {
   )).join("");
 }
 
+async function waitForClientShell(page) {
+  await expect(page.locator("[data-locale-toggle]")).toHaveAttribute("data-locale-ready", "true");
+}
+
 async function submitVisibleComposer(page, prompt) {
   const textarea = page.locator("textarea:visible").first();
   await expect(textarea).toBeVisible();
@@ -26,11 +30,13 @@ async function expectPersistedLocale(page, locale) {
   }).toBe(locale);
   await page.reload();
   await expect(page.locator("html")).toHaveAttribute("lang", locale);
+  await waitForClientShell(page);
 }
 
 test("public shell, playground, and browser language state remain usable", async ({ page }) => {
   await page.goto("/");
   await expect(page.locator("html")).toHaveAttribute("lang", /^(ru|en)$/);
+  await waitForClientShell(page);
   const initialLocale = await page.locator("html").getAttribute("lang");
   const nextLocale = initialLocale === "ru" ? "en" : "ru";
   const initialButton = initialLocale === "ru" ? "RU" : "EN";
