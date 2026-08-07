@@ -29,6 +29,8 @@ export default defineConfig({
     env: {
       ...process.env,
       NODE_ENV: "development",
+      AUTH_SECRET: "tklabs-browser-assurance-local-secret-2026",
+      AUTH_TRUST_HOST: "true",
       TKLABS_LOCAL_PREVIEW: "true",
       NEXT_PUBLIC_TKLABS_LOCAL_PREVIEW: "true",
     },
