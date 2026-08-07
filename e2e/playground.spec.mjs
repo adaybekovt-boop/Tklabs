@@ -49,6 +49,7 @@ test("public shell, auth gate, and browser harness remain usable", async ({ page
   await expect(page.locator("textarea:visible")).toHaveCount(0);
 
   await page.goto(PLAYGROUND_HARNESS);
+  await waitForClientShell(page);
   await expect(page.locator("textarea:visible").first()).toBeVisible();
 });
 
@@ -113,6 +114,7 @@ test("mocked SSE reaches the transcript without external providers", async ({ pa
   });
 
   await page.goto(PLAYGROUND_HARNESS);
+  await waitForClientShell(page);
   const demoRequest = page.waitForRequest((request) => (
     request.method() === "POST" && new URL(request.url()).pathname === "/api/demo"
   ));
@@ -125,6 +127,7 @@ test("mocked SSE reaches the transcript without external providers", async ({ pa
 test("mobile playground stays inside the viewport and exposes the mobile composer", async ({ page }, testInfo) => {
   test.skip(!testInfo.project.name.includes("mobile"), "Mobile viewport contract");
   await page.goto(PLAYGROUND_HARNESS);
+  await waitForClientShell(page);
   await expect(page.getByTestId("mobile-prompt-input")).toBeVisible();
   const overflow = await page.evaluate(() => ({
     viewport: window.innerWidth,
@@ -149,6 +152,7 @@ test("offline shell and manifest remain installable browser surfaces", async ({ 
 
 test("primary workspace surface has one main landmark and no unnamed visible buttons", async ({ page }) => {
   await page.goto(PLAYGROUND_HARNESS);
+  await waitForClientShell(page);
   await expect(page.locator("main")).toHaveCount(1);
   const unnamedButtons = await page.locator("button:visible").evaluateAll((buttons) => buttons.filter((button) => {
     const text = button.textContent?.trim() ?? "";
