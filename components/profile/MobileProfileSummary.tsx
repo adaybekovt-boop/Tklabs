@@ -1,6 +1,16 @@
 import Image from "next/image";
 import Link from "next/link";
-import { ArrowUpRight, ChevronDown, HardDrive, MessageSquareText, ScrollText, ShieldCheck } from "lucide-react";
+import {
+  Archive,
+  ArrowUpRight,
+  Bot,
+  DatabaseBackup,
+  HardDrive,
+  MessageSquareText,
+  ScrollText,
+  ShieldCheck,
+  Sparkles,
+} from "lucide-react";
 
 interface MobileProfileLabels {
   account: string;
@@ -11,10 +21,16 @@ interface MobileProfileLabels {
   standard: string;
   clodex: string;
   archive: string;
-  details: string;
   openChat: string;
   releases: string;
   localData: string;
+  vault: string;
+  currentRelease: string;
+  profileStatus: string;
+  openChatHint: string;
+  releasesHint: string;
+  localDataHint: string;
+  vaultHint: string;
 }
 
 export function MobileProfileSummary({
@@ -26,6 +42,7 @@ export function MobileProfileSummary({
   unlimitedAi,
   clodexLabel,
   archiveLabel,
+  releaseVersion,
   labels,
 }: {
   displayName: string;
@@ -36,71 +53,95 @@ export function MobileProfileSummary({
   unlimitedAi: boolean;
   clodexLabel: string;
   archiveLabel: string;
+  releaseVersion: string;
   labels: MobileProfileLabels;
 }) {
   const role = isAdmin ? labels.administrator : labels.member;
   const aiAccess = unlimitedAi ? labels.unlimited : labels.standard;
+  const statusItems = [
+    { label: labels.aiAccess, value: aiAccess, icon: Bot },
+    { label: labels.clodex, value: clodexLabel, icon: Sparkles },
+    { label: labels.archive, value: archiveLabel, icon: Archive },
+    { label: labels.profileStatus, value: role, icon: ShieldCheck },
+  ];
+  const actions = [
+    { href: "/playground", label: labels.openChat, hint: labels.openChatHint, icon: MessageSquareText },
+    { href: "/vault", label: labels.vault, hint: labels.vaultHint, icon: DatabaseBackup },
+    { href: "/patch-notes", label: labels.releases, hint: labels.releasesHint, icon: ScrollText },
+    { href: "#local-data", label: labels.localData, hint: labels.localDataHint, icon: HardDrive },
+  ];
 
   return (
     <section className="mb-8 md:hidden" aria-labelledby="mobile-profile-title" data-mobile-profile-summary>
-      <article className="overflow-hidden rounded-3xl border border-outline-variant bg-surface-container-lowest">
-        <div className="flex items-center gap-4 p-5">
-          <div className="relative grid size-16 shrink-0 place-items-center overflow-hidden rounded-2xl border border-outline-variant bg-surface-container-low text-lg font-semibold text-primary">
-            {avatarSrc ? (
-              <Image src={avatarSrc} alt="" fill sizes="64px" unoptimized className="object-cover" />
-            ) : (
-              <span aria-hidden="true">{initials}</span>
-            )}
-          </div>
-          <div className="min-w-0 flex-1">
-            <p className="label-caps text-secondary">{labels.account}</p>
-            <h1 id="mobile-profile-title" className="mt-1 truncate font-serif text-[28px] leading-tight text-primary">{displayName}</h1>
-            <p className="mt-1 truncate text-sm text-on-surface-variant">{email}</p>
-          </div>
-          <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-outline-variant bg-surface-container-low px-3 py-2 text-[10px] font-semibold uppercase tracking-[0.1em] text-primary">
-            <ShieldCheck size={13} aria-hidden="true" /> {role}
-          </span>
-        </div>
+      <article className="relative overflow-hidden rounded-[2rem] border border-outline-variant bg-surface-container-lowest shadow-[0_24px_70px_rgba(15,23,42,.08)]" data-profile-visual-hero>
+        <div className="pointer-events-none absolute inset-x-0 top-0 h-40 bg-[radial-gradient(circle_at_15%_20%,rgba(123,97,255,.2),transparent_42%),radial-gradient(circle_at_85%_0%,rgba(59,130,246,.18),transparent_38%)]" />
+        <div className="pointer-events-none absolute -right-14 top-7 size-36 rounded-full border border-primary/10" />
+        <div className="pointer-events-none absolute -right-7 top-14 size-20 rounded-full border border-primary/10" />
 
-        <div className="grid grid-cols-3 border-t border-outline-variant">
-          <Link href="/playground" className="flex min-h-20 flex-col items-center justify-center gap-2 border-r border-outline-variant px-2 text-center text-[11px] font-medium text-primary">
-            <MessageSquareText size={18} aria-hidden="true" />
-            <span>{labels.openChat}</span>
-          </Link>
-          <Link href="/patch-notes" className="flex min-h-20 flex-col items-center justify-center gap-2 border-r border-outline-variant px-2 text-center text-[11px] font-medium text-primary">
-            <ScrollText size={18} aria-hidden="true" />
-            <span>{labels.releases}</span>
-          </Link>
-          <Link href="#local-data" className="flex min-h-20 flex-col items-center justify-center gap-2 px-2 text-center text-[11px] font-medium text-primary">
-            <HardDrive size={18} aria-hidden="true" />
-            <span>{labels.localData}</span>
-          </Link>
+        <div className="relative p-5">
+          <div className="flex items-start gap-4">
+            <div className="relative shrink-0">
+              <div className="relative grid size-[4.75rem] place-items-center overflow-hidden rounded-[1.65rem] border border-white/60 bg-surface-container-low text-xl font-semibold text-primary shadow-[0_14px_35px_rgba(15,23,42,.16)]">
+                {avatarSrc ? (
+                  <Image src={avatarSrc} alt="" fill sizes="76px" unoptimized className="object-cover" />
+                ) : (
+                  <span aria-hidden="true">{initials}</span>
+                )}
+              </div>
+              <span className="absolute -bottom-1 -right-1 grid size-7 place-items-center rounded-full border-2 border-surface-container-lowest bg-primary text-on-primary" aria-hidden="true">
+                <ShieldCheck size={14} />
+              </span>
+            </div>
+
+            <div className="min-w-0 flex-1 pt-1">
+              <div className="flex flex-wrap items-center gap-2">
+                <p className="label-caps text-secondary">{labels.account}</p>
+                <span className="inline-flex items-center gap-1 rounded-full border border-primary/15 bg-primary/8 px-2 py-1 text-[9px] font-semibold uppercase tracking-[0.1em] text-primary">
+                  <Sparkles size={11} aria-hidden="true" /> {labels.currentRelease} {releaseVersion}
+                </span>
+              </div>
+              <h1 id="mobile-profile-title" className="mt-2 truncate font-serif text-[30px] leading-[1.05] text-primary">{displayName}</h1>
+              <p className="mt-2 truncate text-sm text-on-surface-variant">{email}</p>
+              <span className="mt-3 inline-flex items-center gap-1.5 rounded-full border border-outline-variant bg-surface/75 px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.1em] text-primary backdrop-blur-md">
+                <ShieldCheck size={13} aria-hidden="true" /> {role}
+              </span>
+            </div>
+          </div>
+
+          <div className="mt-6 grid grid-cols-2 gap-2" data-profile-status-grid>
+            {statusItems.map(({ label, value, icon: Icon }) => (
+              <div key={label} className="min-w-0 rounded-2xl border border-outline-variant bg-surface/80 p-3 backdrop-blur-sm">
+                <div className="flex items-center gap-2 text-secondary">
+                  <Icon size={14} aria-hidden="true" />
+                  <span className="truncate text-[9px] font-semibold uppercase tracking-[0.1em]">{label}</span>
+                </div>
+                <p className="mt-2 truncate text-sm font-medium text-primary">{value}</p>
+              </div>
+            ))}
+          </div>
         </div>
       </article>
 
-      <details className="group mt-3 overflow-hidden rounded-2xl border border-outline-variant bg-surface-container-lowest">
-        <summary className="flex min-h-14 cursor-pointer list-none items-center justify-between gap-4 px-4 py-3 text-sm font-medium text-primary">
-          <span>{labels.details}</span>
-          <ChevronDown size={17} aria-hidden="true" className="transition-transform group-open:rotate-180" />
-        </summary>
-        <div className="border-t border-outline-variant px-4 py-2">
-          {[
-            [labels.aiAccess, aiAccess],
-            [labels.clodex, clodexLabel],
-            [labels.archive, archiveLabel],
-          ].map(([label, value]) => (
-            <div key={label} className="flex min-h-12 items-center justify-between gap-4 border-b border-outline-variant/70 py-3 last:border-b-0">
-              <span className="text-sm text-on-surface-variant">{label}</span>
-              <span className="max-w-[55%] text-right text-xs font-medium text-primary">{value}</span>
+      <div className="mt-3 grid grid-cols-2 gap-2" data-profile-action-grid>
+        {actions.map(({ href, label, hint, icon: Icon }) => (
+          <Link
+            key={href}
+            href={href}
+            className="group flex min-h-[7.25rem] flex-col justify-between rounded-2xl border border-outline-variant bg-surface-container-lowest p-4 transition-[transform,border-color,box-shadow] duration-200 active:scale-[.98]"
+          >
+            <div className="flex items-start justify-between gap-3">
+              <span className="grid size-10 place-items-center rounded-2xl bg-surface-container-low text-primary">
+                <Icon size={18} aria-hidden="true" />
+              </span>
+              <ArrowUpRight size={16} aria-hidden="true" className="text-secondary transition-transform group-hover:-translate-y-0.5 group-hover:translate-x-0.5" />
             </div>
-          ))}
-        </div>
-      </details>
-
-      <Link href="/patch-notes#release-v0-11-1" className="mt-3 flex min-h-12 items-center justify-between rounded-2xl border border-outline-variant bg-surface-container-low px-4 text-sm text-primary">
-        <span>v0.11.1 · Mobile Profile and Releases</span>
-        <ArrowUpRight size={16} aria-hidden="true" />
-      </Link>
+            <div>
+              <p className="text-sm font-semibold text-primary">{label}</p>
+              <p className="mt-1 text-[11px] leading-[1.45] text-on-surface-variant">{hint}</p>
+            </div>
+          </Link>
+        ))}
+      </div>
     </section>
   );
 }
