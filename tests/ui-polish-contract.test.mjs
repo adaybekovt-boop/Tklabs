@@ -33,20 +33,24 @@ test("profile card motion remains accessible and optional", async () => {
   assert.match(card, /type="button"/);
 });
 
-test("release history uses the mobile-friendly browser and includes v0.11.0", async () => {
+test("release history uses mobile and desktop browsers while preview releases stay visible", async () => {
   const page = await text("app/patch-notes/page.tsx");
   const browser = await text("components/site/PatchNotesBrowser.tsx");
-  const latest = await text("lib/latest-release.ts");
+  const mobileBrowser = await text("components/site/MobileReleaseBrowser.tsx");
+  const history = await text("lib/latest-release.ts");
 
   assert.match(page, /PatchNotesBrowser/);
-  assert.match(page, /getLatestRelease/);
+  assert.match(page, /MobileReleaseBrowser/);
+  assert.match(page, /getPreviewRelease/);
+  assert.match(page, /getReleaseHistory/);
   assert.match(browser, /type="search"/);
   assert.match(browser, /overflow-x-auto/);
   assert.match(browser, /copyReleaseLink/);
   assert.match(browser, /role="status"/);
+  assert.match(mobileBrowser, /entries/);
   assert.doesNotMatch(browser, /<section className="space-y-4" aria-live="polite">/);
-  assert.match(latest, /version: "v0\.11\.0"/);
-  assert.match(latest, /Мобильный интерфейс/);
+  assert.match(history, /version: "v0\.11\.0"/);
+  assert.match(history, /Мобильный интерфейс/);
 });
 
 test("secondary surfaces keep branding restrained and the mobile footer is grouped", async () => {
@@ -54,11 +58,12 @@ test("secondary surfaces keep branding restrained and the mobile footer is group
   const developers = await text("app/developers/page.tsx");
   const home = await text("app/page.tsx");
 
-  assert.doesNotMatch(footer, /SiteLogo|TK LAB/);
+  assert.doesNotMatch(footer, /SiteLogo/);
   assert.match(footer, /<details/);
   assert.match(footer, /Правовая информация|Legal/);
+  assert.match(footer, /href="\/vault"/);
   assert.doesNotMatch(developers, /0\{index \+ 1\} \/ TK LAB/);
-  assert.match(home, /getLatestRelease/);
+  assert.match(home, /getCurrentRelease/);
   assert.match(home, /aspect-\[16\/10\]/);
   assert.doesNotMatch(home, /FlaskConical/);
 });
@@ -79,6 +84,7 @@ test("mobile shell provides dedicated navigation and safe-area behavior", async 
 test("mobile chat keeps drafts, offline state, and compact settings", async () => {
   const chat = await text("components/playground/PlaygroundChat.tsx");
   const input = await text("components/ui/ai-chat-input.tsx");
+  const composer = await text("components/playground/ResponsiveChatComposer.tsx");
   const drafts = await text("lib/chat-draft.ts");
   const archiveHook = await text("hooks/use-conversation-archive.ts");
 
@@ -87,21 +93,25 @@ test("mobile chat keeps drafts, offline state, and compact settings", async () =
   assert.match(chat, /archive\.sessionId/);
   assert.match(input, /navigator\.onLine/);
   assert.match(input, /WifiOff/);
-  assert.match(input, /sm:hidden/);
-  assert.match(input, /SlidersHorizontal/);
+  assert.match(composer, /data-testid="mobile-prompt-input"/);
+  assert.match(composer, /SlidersHorizontal/);
   assert.match(drafts, /tklabs\.chat-draft\.v1/);
   assert.match(archiveHook, /useState\(uid\)/);
 });
 
-test("profile exposes local-only export and reset controls", async () => {
+test("profile exposes local-data controls and the complete Workspace Vault", async () => {
   const profile = await text("app/profile/page.tsx");
   const controls = await text("components/profile/ProfileLocalData.tsx");
+  const vaultPage = await text("app/vault/page.tsx");
+  const vault = await text("components/vault/WorkspaceVault.tsx");
 
   assert.match(profile, /ProfileLocalData/);
   assert.match(controls, /loadArchive/);
   assert.match(controls, /clearArchive/);
-  assert.match(controls, /application\/json/);
-  assert.match(controls, /tklabs\.chat-draft\.v1/);
+  assert.match(vaultPage, /WorkspaceVault/);
+  assert.match(vault, /createWorkspaceVault/);
+  assert.match(vault, /parseWorkspaceVault/);
+  assert.match(vault, /applyWorkspaceVault/);
 });
 
 test("the application publishes a standalone mobile manifest", async () => {

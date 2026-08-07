@@ -9,7 +9,7 @@ import type { PublicReleaseNote } from "@/lib/releases/types";
 export interface PreviewReleaseNote extends PublicReleaseNote {
   channel: "preview";
   majorUpdate: true;
-  codename: "Erma Flow";
+  codename: "Workspace Vault";
   stability: "beta";
   knownIssues: string[];
   migrationNotes: string[];
@@ -19,57 +19,59 @@ const PREVIEW_RELEASE: Record<Locale, PreviewReleaseNote> = {
   ru: {
     date: "07 авг. 2026",
     version: CURRENT_RELEASE_VERSION,
-    title: "ERMA FLOW — Safe Prompt Branches",
-    summary: "КРУПНОЕ ОБНОВЛЕНИЕ · ПРЕДВАРИТЕЛЬНАЯ ВЕРСИЯ. Редактирование старого запроса теперь создаёт безопасную ветку, сохраняет исходный диалог и переносит только контекст до выбранного сообщения.",
+    title: "WORKSPACE VAULT — Local Backup & Restore",
+    summary: "КРУПНОЕ ОБНОВЛЕНИЕ · ПРЕДВАРИТЕЛЬНАЯ ВЕРСИЯ. Добавлен локальный центр резервного копирования всех рабочих данных с SHA-256 проверкой, безопасным импортом и полной переносимостью между устройствами без загрузки содержимого на сервер.",
     changes: [
-      "Редактирование пользовательского запроса больше не перезаписывает существующую цепочку ответов и не смешивает старое продолжение с новым.",
-      "Перед редактированием текущий диалог сохраняется в локальном архиве как исходная версия, к которой можно вернуться одним действием.",
-      "Для изменённого запроса создаётся отдельная ветка с точным контекстом до выбранного сообщения; сам запрос сразу открывается в composer.",
-      "Первый запрос диалога также можно безопасно изменить: исходный разговор остаётся в архиве, а новая ветка начинается с чистого контекста.",
-      "Composer показывает постоянный статус безопасного редактирования и ссылку на исходный диалог до завершения работы с новой веткой.",
-      "Сохранены все возможности v0.16.4: Erma Flow, Agent Runs, Artifact Studio, мобильный чат и единая Motion System.",
+      "Добавлена отдельная страница Workspace Vault со сводкой диалогов, черновиков, артефактов, Flow runs, настроек и общего размера локальных данных.",
+      "Все поддерживаемые рабочие данные можно скачать одним проверяемым JSON-файлом прямо из браузера.",
+      "Каждый экспорт получает SHA-256 digest; импорт отклоняется при повреждении, ручном изменении содержимого или неподдерживаемой структуре.",
+      "Импорт поддерживает два явных режима: merge обновляет только ключи из файла, replace сначала удаляет поддерживаемые локальные данные и затем восстанавливает Vault.",
+      "Полная замена и объединение требуют повторного подтверждения, а размер файла и отдельных записей ограничен до записи в localStorage.",
+      "Workspace Vault доступен из мобильного drawer чата и footer; данные не отправляются в API и обрабатываются только на текущем устройстве.",
+      "Сохранены Safe Prompt Branches из v0.16.5, Erma Flow, Agent Runs, Artifact Studio, проекты и версии ответов.",
     ],
     channel: CURRENT_RELEASE_CHANNEL,
     majorUpdate: true,
     codename: CURRENT_RELEASE_CODENAME,
     stability: "beta",
     knownIssues: [
-      "Изменённая ветка хранится локально на текущем устройстве вместе с остальной историей диалогов.",
-      "Автоматическое визуальное дерево всех родственных веток будет добавлено отдельным обновлением архива.",
-      "Erma Flow использует текущую demo-квоту и те же ограничения доступа, что и основной AI-чат.",
+      "Workspace Vault переносит только локальные рабочие данные TK LAB и не экспортирует серверную сессию входа, cookies авторизации или закрытые токены.",
+      "Файл резервной копии может содержать полный текст диалогов и материалов; пользователь должен хранить его как приватный документ.",
+      "Облачная синхронизация и автоматические периодические резервные копии в этом релизе не добавлены.",
     ],
     migrationNotes: [
-      "Диалоги, проекты, черновики, версии ответов, Flow runs и артефакты предыдущих beta-релизов сохраняются без изменений.",
-      "Новые серверные таблицы или API-контракты не требуются: безопасное ветвление использует существующий локальный архив.",
-      "Service Worker cache namespace обновлён до `tklabs-v0.16.5-static`, поэтому устаревшие статические assets удаляются при активации.",
+      "Существующие диалоги, ветки, черновики, артефакты, Flow runs и настройки не изменяются автоматически.",
+      "Vault schema начинается с версии 1 и принимает только заранее разрешённые localStorage keys и prefix черновиков.",
+      "Service Worker cache namespace обновлён до `tklabs-v0.16.6-static`, поэтому устаревшие assets удаляются при активации.",
     ],
   },
   en: {
     date: "07 Aug 2026",
     version: CURRENT_RELEASE_VERSION,
-    title: "ERMA FLOW — Safe Prompt Branches",
-    summary: "MAJOR UPDATE · PRE-RELEASE. Editing an older prompt now creates a safe branch, preserves the original conversation, and carries forward only the context before the selected message.",
+    title: "WORKSPACE VAULT — Local Backup & Restore",
+    summary: "MAJOR UPDATE · PRE-RELEASE. Added a local backup center for all workspace data with SHA-256 verification, safe import modes, and device-to-device portability without uploading the contents to a server.",
     changes: [
-      "Editing a user prompt no longer overwrites the existing answer chain or mixes an old continuation with the new request.",
-      "The current conversation is saved to the local archive before editing and remains available through a one-action return control.",
-      "The edited request opens in a dedicated branch containing the exact conversation context before the selected message.",
-      "The first prompt can also be edited safely: the original conversation remains archived while the new branch starts with a clean context.",
-      "The composer keeps a persistent safe-edit status and an original-conversation recovery action while the branch is active.",
-      "All v0.16.4 capabilities remain available: Erma Flow, Agent Runs, Artifact Studio, mobile chat, and the shared Motion System.",
+      "Added a dedicated Workspace Vault page summarizing conversations, drafts, artifacts, Flow runs, settings, and total local data size.",
+      "All supported workspace data can be downloaded as one verifiable JSON file directly from the browser.",
+      "Every export receives a SHA-256 digest; damaged, modified, oversized, or structurally unsupported imports are rejected.",
+      "Import supports two explicit modes: merge updates only keys present in the file, while replace clears supported workspace data before restoration.",
+      "Merge and replace require a second confirmation, and both file size and individual entries are bounded before localStorage writes.",
+      "Workspace Vault is linked from the mobile chat drawer and site footer; data is processed only on the current device and never sent to an API.",
+      "Safe Prompt Branches from v0.16.5, Erma Flow, Agent Runs, Artifact Studio, projects, and response versions remain available.",
     ],
     channel: CURRENT_RELEASE_CHANNEL,
     majorUpdate: true,
     codename: CURRENT_RELEASE_CODENAME,
     stability: "beta",
     knownIssues: [
-      "Edited branches remain local to the current device together with the rest of the conversation archive.",
-      "A visual tree for all related branches will be added in a separate archive update.",
-      "Erma Flow uses the current demo quota and the same access limits as the main AI chat.",
+      "Workspace Vault exports only TK LAB local workspace data and never includes server login sessions, authentication cookies, or private tokens.",
+      "The backup may contain the full text of conversations and materials and should be stored as a private document.",
+      "Cloud synchronization and automatic scheduled backups are not included in this release.",
     ],
     migrationNotes: [
-      "Conversations, projects, drafts, response versions, Flow runs, and artifacts from earlier beta releases remain unchanged.",
-      "No new server tables or API contracts are required; safe branching uses the existing local conversation archive.",
-      "The Service Worker cache namespace is updated to `tklabs-v0.16.5-static`, removing outdated static assets on activation.",
+      "Existing conversations, branches, drafts, artifacts, Flow runs, and settings are not changed automatically.",
+      "Vault schema starts at version 1 and accepts only an explicit localStorage key allowlist plus the chat-draft prefix.",
+      "The Service Worker cache namespace is updated to `tklabs-v0.16.6-static`, removing outdated assets on activation.",
     ],
   },
 };
