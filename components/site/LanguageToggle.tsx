@@ -1,18 +1,17 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useEffect, useState, useTransition } from "react";
+import { useSyncExternalStore, useTransition } from "react";
 
 import type { Locale } from "@/lib/i18n";
 
 const LOCALE_COOKIE = "tklab-locale";
+const subscribeHydration = () => () => undefined;
 
 export function LanguageToggle({ locale, label }: { locale: Locale; label: string }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
-  const [hydrated, setHydrated] = useState(false);
-
-  useEffect(() => setHydrated(true), []);
+  const hydrated = useSyncExternalStore(subscribeHydration, () => true, () => false);
 
   function changeLocale(nextLocale: Locale) {
     if (nextLocale === locale || pending) return;
@@ -33,25 +32,9 @@ export function LanguageToggle({ locale, label }: { locale: Locale; label: strin
       data-locale-toggle
       data-locale-ready={hydrated ? "true" : "false"}
     >
-      <button
-        type="button"
-        onClick={() => changeLocale("ru")}
-        disabled={pending}
-        className={locale === "ru" ? "font-medium text-primary" : "text-secondary transition-colors hover:text-primary"}
-        aria-pressed={locale === "ru"}
-      >
-        RU
-      </button>
+      <button type="button" onClick={() => changeLocale("ru")} disabled={pending} className={locale === "ru" ? "font-medium text-primary" : "text-secondary transition-colors hover:text-primary"} aria-pressed={locale === "ru"}>RU</button>
       <span className="text-outline-variant">/</span>
-      <button
-        type="button"
-        onClick={() => changeLocale("en")}
-        disabled={pending}
-        className={locale === "en" ? "font-medium text-primary" : "text-secondary transition-colors hover:text-primary"}
-        aria-pressed={locale === "en"}
-      >
-        EN
-      </button>
+      <button type="button" onClick={() => changeLocale("en")} disabled={pending} className={locale === "en" ? "font-medium text-primary" : "text-secondary transition-colors hover:text-primary"} aria-pressed={locale === "en"}>EN</button>
     </div>
   );
 }
