@@ -10,7 +10,7 @@ import {
   useTransform,
 } from "framer-motion";
 import { Cpu, Gem, Infinity as InfinityIcon, Rotate3D, ShieldCheck, Sparkles } from "lucide-react";
-import { useState, type PointerEvent } from "react";
+import { useId, useState, type PointerEvent } from "react";
 
 import type { ClodexProfileState } from "@/lib/profile-access";
 import { cn } from "@/lib/utils";
@@ -56,6 +56,7 @@ export function MembershipCard({
   labels: MembershipLabels;
 }) {
   const [isFlipped, setIsFlipped] = useState(false);
+  const hintId = useId();
   const reducedMotion = useReducedMotion();
   const pointerX = useMotionValue(50);
   const pointerY = useMotionValue(50);
@@ -91,14 +92,18 @@ export function MembershipCard({
     pointerY.set(Math.max(0, Math.min(100, y)));
   }
 
-  const frontSurface = isAdmin
-    ? "membership-card--platinum border-white/35 bg-[linear-gradient(135deg,#0a0d12_0%,#3f4856_48%,#cbd3df_100%)] text-white shadow-[0_30px_90px_rgba(111,130,170,.34)]"
+  const surface = isAdmin
+    ? "membership-card--platinum border-white/35 bg-[linear-gradient(135deg,#090c12_0%,#3f4856_48%,#d2d8e2_100%)] text-white shadow-[0_30px_90px_rgba(111,130,170,.34)]"
     : "membership-card--gold border-[#ffe7a5]/45 bg-[linear-gradient(135deg,#2f1b00_0%,#a66b08_50%,#f1cf77_100%)] text-white shadow-[0_30px_90px_rgba(175,116,15,.3)]";
+  const faceClass = cn(
+    "absolute inset-0 overflow-hidden rounded-[1.7rem] border p-4 sm:rounded-[2rem] sm:p-7",
+    surface,
+  );
 
   return (
-    <article className="membership-card relative mx-auto w-full max-w-[760px] [perspective:1400px]" data-tier={isAdmin ? "platinum" : "gold"}>
+    <article className="membership-card relative mx-auto w-full max-w-[760px] [perspective:1400px]" data-tier={isAdmin ? "platinum" : "gold"} data-profile-membership-card>
       <motion.div
-        className="relative"
+        className="relative will-change-transform"
         onPointerMove={handlePointerMove}
         onPointerLeave={resetTilt}
         onPointerCancel={resetTilt}
@@ -106,53 +111,51 @@ export function MembershipCard({
       >
         <motion.button
           type="button"
-          className="relative block aspect-[1.586/1] min-h-[280px] w-full select-none rounded-[2rem] text-left outline-none focus-visible:ring-4 focus-visible:ring-primary/35 sm:min-h-[330px]"
+          className="relative block aspect-[1.38/1] min-h-[250px] w-full select-none rounded-[1.7rem] text-left outline-none focus-visible:ring-4 focus-visible:ring-primary/35 sm:aspect-[1.586/1] sm:min-h-[330px] sm:rounded-[2rem]"
           animate={{ rotateY: isFlipped ? 180 : 0 }}
           transition={reducedMotion ? { duration: 0 } : { type: "spring", stiffness: 150, damping: 21, mass: 0.75 }}
           style={{ transformStyle: "preserve-3d" }}
           onClick={() => setIsFlipped((current) => !current)}
           aria-label={`${labels.flipCard}: ${tier}`}
+          aria-describedby={hintId}
           aria-pressed={isFlipped}
           data-testid="membership-card-flip"
         >
-          <span
-            className={cn("absolute inset-0 overflow-hidden rounded-[2rem] border p-5 sm:p-7", frontSurface)}
-            style={{ backfaceVisibility: "hidden", WebkitBackfaceVisibility: "hidden" }}
-          >
+          <span className={faceClass} style={{ backfaceVisibility: "hidden", WebkitBackfaceVisibility: "hidden" }}>
             <motion.span className="pointer-events-none absolute inset-0 opacity-65" style={{ background: glare }} />
             <span className="pointer-events-none absolute -right-20 -top-24 size-64 rounded-full border border-white/25 bg-white/10 blur-2xl" />
             <span className="pointer-events-none absolute inset-0 bg-[linear-gradient(115deg,transparent_15%,rgba(255,255,255,.22)_42%,transparent_66%)] opacity-60" />
 
-            <span className="relative z-10 flex h-full flex-col justify-between gap-5">
-              <span className="flex items-start justify-between gap-4">
-                <span>
-                  <span className="inline-flex items-center gap-2 rounded-full border border-white/30 bg-black/15 px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.2em] backdrop-blur-md">
+            <span className="relative z-10 flex h-full flex-col justify-between gap-4 sm:gap-5">
+              <span className="flex items-start justify-between gap-3">
+                <span className="min-w-0">
+                  <span className="inline-flex max-w-full items-center gap-2 rounded-full border border-white/30 bg-black/15 px-3 py-1.5 text-[9px] font-semibold uppercase tracking-[0.16em] backdrop-blur-md sm:text-[10px] sm:tracking-[0.2em]">
                     {isAdmin ? <Sparkles size={13} /> : <Gem size={13} />}
-                    {tier}
+                    <span className="truncate">{tier}</span>
                   </span>
-                  <span className="mt-3 block text-sm text-white/75">{edition}</span>
+                  <span className="mt-2 block truncate text-xs text-white/75 sm:mt-3 sm:text-sm">{edition}</span>
                 </span>
-                <span className="grid size-12 place-items-center rounded-2xl border border-white/30 bg-black/15 backdrop-blur-md" aria-hidden="true">
-                  {isAdmin ? <Sparkles size={20} /> : <Gem size={20} />}
+                <span className="grid size-10 shrink-0 place-items-center rounded-2xl border border-white/30 bg-black/15 backdrop-blur-md sm:size-12" aria-hidden="true">
+                  {isAdmin ? <Sparkles size={19} /> : <Gem size={19} />}
                 </span>
               </span>
 
-              <span className="flex items-end justify-between gap-4">
-                <span className="min-w-0">
+              <span className="flex items-end justify-between gap-3">
+                <span className="min-w-0 flex-1">
                   <span className="flex items-center gap-3">
-                    <span className="relative grid size-14 shrink-0 place-items-center overflow-hidden rounded-full border border-white/35 bg-black/20 text-sm font-semibold backdrop-blur-md">
+                    <span className="relative grid size-12 shrink-0 place-items-center overflow-hidden rounded-full border border-white/35 bg-black/20 text-sm font-semibold backdrop-blur-md sm:size-14">
                       {avatarSrc ? (
                         <Image src={avatarSrc} alt="" fill sizes="56px" unoptimized className="object-cover" />
                       ) : initials}
                     </span>
                     <span className="min-w-0">
-                      <span className="block truncate text-xl font-medium sm:text-2xl">{displayName}</span>
-                      <span className="mt-1 block truncate text-xs text-white/70 sm:text-sm">{email}</span>
+                      <span className="block truncate text-lg font-medium sm:text-2xl">{displayName}</span>
+                      <span className="mt-1 block truncate text-[11px] text-white/70 sm:text-sm">{email}</span>
                     </span>
                   </span>
-                  <span className="mt-5 flex flex-wrap gap-2 text-[10px] font-semibold uppercase tracking-[0.12em] text-white/85">
-                    <span className="rounded-full border border-white/25 bg-black/10 px-3 py-1.5 backdrop-blur-md">{role}</span>
-                    <span className="rounded-full border border-white/25 bg-black/10 px-3 py-1.5 backdrop-blur-md">{labels.aiAccess}: {unlimitedAi ? labels.unlimited : labels.standard}</span>
+                  <span className="mt-4 flex flex-wrap gap-1.5 text-[8px] font-semibold uppercase tracking-[0.1em] text-white/85 sm:mt-5 sm:gap-2 sm:text-[10px] sm:tracking-[0.12em]">
+                    <span className="rounded-full border border-white/25 bg-black/10 px-2.5 py-1.5 backdrop-blur-md sm:px-3">{role}</span>
+                    <span className="rounded-full border border-white/25 bg-black/10 px-2.5 py-1.5 backdrop-blur-md sm:px-3">{labels.aiAccess}: {unlimitedAi ? labels.unlimited : labels.standard}</span>
                   </span>
                 </span>
 
@@ -170,7 +173,7 @@ export function MembershipCard({
           </span>
 
           <span
-            className={cn("absolute inset-0 overflow-hidden rounded-[2rem] border p-5 sm:p-7", frontSurface)}
+            className={faceClass}
             style={{
               backfaceVisibility: "hidden",
               WebkitBackfaceVisibility: "hidden",
@@ -180,41 +183,38 @@ export function MembershipCard({
             <motion.span className="pointer-events-none absolute inset-0 opacity-55" style={{ background: glare }} />
             <span className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_85%_20%,rgba(255,255,255,.22),transparent_28%)]" />
 
-            <span className="relative z-10 flex h-full flex-col justify-between gap-5">
+            <span className="relative z-10 flex h-full flex-col justify-between gap-3 sm:gap-5">
               <span className="flex items-center justify-between gap-4">
-                <span>
-                  <span className="text-[10px] font-semibold uppercase tracking-[0.2em] text-white/65">{tier}</span>
-                  <span className="mt-2 block font-serif text-2xl sm:text-3xl">{labels.included}</span>
+                <span className="min-w-0">
+                  <span className="block truncate text-[9px] font-semibold uppercase tracking-[0.18em] text-white/65 sm:text-[10px] sm:tracking-[0.2em]">{tier}</span>
+                  <span className="mt-1.5 block truncate font-serif text-xl sm:mt-2 sm:text-3xl">{labels.included}</span>
                 </span>
-                <Rotate3D size={26} aria-hidden="true" />
+                <Rotate3D size={24} aria-hidden="true" />
               </span>
 
-              <span className="grid gap-2.5 sm:grid-cols-3">
-                <span className="rounded-2xl border border-white/22 bg-black/12 p-3 backdrop-blur-md">
-                  <InfinityIcon size={18} aria-hidden="true" />
-                  <span className="mt-3 block text-[10px] uppercase tracking-[0.12em] text-white/65">{labels.aiAccess}</span>
-                  <span className="mt-1 block text-sm font-medium">{unlimitedAi ? labels.unlimited : labels.standard}</span>
-                </span>
-                <span className="rounded-2xl border border-white/22 bg-black/12 p-3 backdrop-blur-md">
-                  <Cpu size={18} aria-hidden="true" />
-                  <span className="mt-3 block text-[10px] uppercase tracking-[0.12em] text-white/65">{labels.clodex}</span>
-                  <span className="mt-1 block text-sm font-medium">{clodex}</span>
-                </span>
-                <span className="rounded-2xl border border-white/22 bg-black/12 p-3 backdrop-blur-md">
-                  <ShieldCheck size={18} aria-hidden="true" />
-                  <span className="mt-3 block text-[10px] uppercase tracking-[0.12em] text-white/65">{role}</span>
-                  <span className="mt-1 block text-sm font-medium">{edition}</span>
-                </span>
+              <span className="grid grid-cols-3 gap-1.5 sm:gap-2.5">
+                {[
+                  { icon: InfinityIcon, label: labels.aiAccess, value: unlimitedAi ? labels.unlimited : labels.standard },
+                  { icon: Cpu, label: labels.clodex, value: clodex },
+                  { icon: ShieldCheck, label: role, value: edition },
+                ].map(({ icon: Icon, label, value }) => (
+                  <span key={label} className="min-w-0 rounded-xl border border-white/22 bg-black/12 p-2 backdrop-blur-md sm:rounded-2xl sm:p-3">
+                    <Icon size={16} aria-hidden="true" />
+                    <span className="mt-2 block truncate text-[8px] uppercase tracking-[0.08em] text-white/65 sm:mt-3 sm:text-[10px] sm:tracking-[0.12em]">{label}</span>
+                    <span className="mt-1 block truncate text-[10px] font-medium sm:text-sm">{value}</span>
+                  </span>
+                ))}
               </span>
 
-              <span className="flex items-center justify-between gap-4 text-[11px] text-white/70">
-                <span>{isAdmin ? labels.founderDuo : labels.memberEdition}</span>
-                <span className="inline-flex items-center gap-2"><Rotate3D size={14} /> {labels.flipHint}</span>
+              <span className="flex items-center justify-between gap-3 text-[9px] text-white/70 sm:text-[11px]">
+                <span className="truncate">{isAdmin ? labels.founderDuo : labels.memberEdition}</span>
+                <span className="inline-flex shrink-0 items-center gap-1.5"><Rotate3D size={13} /> {labels.flipHint}</span>
               </span>
             </span>
           </span>
         </motion.button>
       </motion.div>
+      <p id={hintId} className="sr-only">{labels.flipHint}</p>
     </article>
   );
 }
