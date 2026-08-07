@@ -90,18 +90,16 @@ test("production deploy verifies the canonical release after Wrangler", async ()
   assert.match(smoke, /2 \*\* \(attempt - 1\)/);
 });
 
-test("v0.16.8 publishes release, cache, and resilience documentation together", async () => {
-  const release = await read("lib/release-version.ts");
-  const preview = await read("lib/prerelease.ts");
-  const worker = await read("public/sw.js");
+test("v0.16.8 resilience contracts remain documented after later releases", async () => {
   const releaseDoc = await read("docs/releases/v0.16.8.md");
   const resilienceDoc = await read("docs/RESILIENCE.md");
+  const ready = await read("app/api/ready/route.ts");
+  const health = await read("worker/health-status.ts");
 
-  assert.match(release, /CURRENT_RELEASE_VERSION = "v0\.16\.8"/);
-  assert.match(release, /CURRENT_RELEASE_CODENAME = "Resilience Core"/);
-  assert.match(preview, /codename: "Resilience Core"/);
-  assert.match(worker, /CACHE_VERSION = "v0\.16\.8"/);
+  assert.match(releaseDoc, /Resilience Core/);
   assert.match(releaseDoc, /Cloudflare Git Integration/);
   assert.match(resilienceDoc, /TK — backend, quality, and reliability/);
   assert.match(resilienceDoc, /Single deployment writer/);
+  assert.match(ready, /CURRENT_RELEASE_VERSION/);
+  assert.match(health, /STALE_TTL_MS = 15 \* 60_000/);
 });
