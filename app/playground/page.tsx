@@ -5,11 +5,9 @@ import { auth } from "@/auth";
 import { ErmaNovaWorkspace } from "@/components/playground/ErmaNovaWorkspace";
 import { StitchHeader } from "@/components/site/StitchHeader";
 import { getLocale } from "@/lib/locale";
-import { isLocalPreviewEnabled } from "@/lib/local-preview";
 
 export default async function PlaygroundPage() {
-  const localPreview = isLocalPreviewEnabled();
-  const session = localPreview ? { user: { name: "TK Labs Preview" } } : await auth();
+  const session = await auth();
   if (!session?.user) redirect("/login");
 
   const locale = await getLocale();
