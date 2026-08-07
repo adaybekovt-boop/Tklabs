@@ -109,8 +109,9 @@ test("profile exposes local-data controls and the complete Workspace Vault", asy
   assert.match(controls, /loadArchive/);
   assert.match(controls, /clearArchive/);
   assert.match(vaultPage, /WorkspaceVault/);
-  assert.match(vault, /exportWorkspaceVault/);
-  assert.match(vault, /importWorkspaceVault/);
+  assert.match(vault, /createWorkspaceVault/);
+  assert.match(vault, /parseWorkspaceVault/);
+  assert.match(vault, /applyWorkspaceVault/);
 });
 
 test("the application publishes a standalone mobile manifest", async () => {
