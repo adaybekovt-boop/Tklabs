@@ -64,7 +64,7 @@ jobs:
         with:
           name: integration-diagnostics-${{ github.sha }}-${{ github.run_attempt }}
           path: integration-test.log
-          if-no-files-found: error
+          if-no-files-found: ignore
           retention-days: 3
       - name: Production build
         run: npm run build
