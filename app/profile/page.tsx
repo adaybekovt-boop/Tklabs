@@ -11,7 +11,6 @@ import {
   ScrollText,
   ShieldCheck,
   Sparkles,
-  UserRound,
 } from "lucide-react";
 
 import { auth } from "@/auth";
@@ -60,12 +59,12 @@ export default async function ProfilePage() {
     ? {
         intro: "Профиль теперь работает как понятный центр аккаунта: статус доступа, карта участника, локальные данные и основные действия собраны в одной последовательной структуре.",
         openChat: "Открыть AI-чат",
-        releaseNotes: "История обновлений",
-        workspaceVault: "Workspace Vault",
+        releases: "История обновлений",
+        vault: "Workspace Vault",
         localData: "Данные на устройстве",
         openChatHint: "Продолжить работу с Erma и диалогами",
-        releaseNotesHint: "Посмотреть текущий релиз и историю изменений",
-        workspaceVaultHint: "Создать полный локальный бэкап рабочего пространства",
+        releasesHint: "Посмотреть текущий релиз и историю изменений",
+        vaultHint: "Создать полный локальный бэкап рабочего пространства",
         localDataHint: "Управлять историей, черновиками и настройками чата",
         cardHelp: "Карта реагирует на указатель и переворачивается нажатием. На телефоне касание не блокирует вертикальную прокрутку.",
         foundersEdition: "Platinum Founders Edition",
@@ -94,12 +93,12 @@ export default async function ProfilePage() {
     : {
         intro: "The profile now works as a clear account hub: access status, membership card, local data, and primary actions follow one consistent hierarchy.",
         openChat: "Open AI chat",
-        releaseNotes: "Release history",
-        workspaceVault: "Workspace Vault",
+        releases: "Release history",
+        vault: "Workspace Vault",
         localData: "On-device data",
         openChatHint: "Continue working with Erma and conversations",
-        releaseNotesHint: "Review the current release and change history",
-        workspaceVaultHint: "Create a complete local workspace backup",
+        releasesHint: "Review the current release and change history",
+        vaultHint: "Create a complete local workspace backup",
         localDataHint: "Manage chat history, drafts, and preferences",
         cardHelp: "The card reacts to pointer movement and flips on press. Touch interaction does not block vertical scrolling.",
         foundersEdition: "Platinum Founders Edition",
@@ -126,43 +125,23 @@ export default async function ProfilePage() {
         archiveDetail: "Conversation history remains in this browser",
       };
 
-  const quickActions = [
+  const actions = [
     { href: "/playground", label: ui.openChat, hint: ui.openChatHint, icon: Bot },
-    { href: "/vault", label: ui.workspaceVault, hint: ui.workspaceVaultHint, icon: DatabaseBackup },
-    { href: "/patch-notes", label: ui.releaseNotes, hint: ui.releaseNotesHint, icon: ScrollText },
+    { href: "/vault", label: ui.vault, hint: ui.vaultHint, icon: DatabaseBackup },
+    { href: "/patch-notes", label: ui.releases, hint: ui.releasesHint, icon: ScrollText },
     { href: "#local-data", label: ui.localData, hint: ui.localDataHint, icon: HardDrive },
   ];
-
   const overviewCards = [
-    {
-      label: text.profile.membership.aiAccess,
-      value: unlimited ? text.profile.membership.unlimited : text.profile.membership.standard,
-      detail: ui.aiDetail,
-      icon: Bot,
-    },
-    {
-      label: text.profile.membership.clodex,
-      value: clodexLabel,
-      detail: ui.clodexDetail,
-      icon: Cpu,
-    },
-    {
-      label: ui.role,
-      value: isAdmin ? text.profile.membership.administrator : text.profile.membership.member,
-      detail: ui.roleDetail,
-      icon: ShieldCheck,
-    },
-    {
-      label: text.profile.archive,
-      value: text.profile.archiveValue,
-      detail: ui.archiveDetail,
-      icon: Archive,
-    },
+    { label: text.profile.membership.aiAccess, value: unlimited ? text.profile.membership.unlimited : text.profile.membership.standard, detail: ui.aiDetail, icon: Bot },
+    { label: text.profile.membership.clodex, value: clodexLabel, detail: ui.clodexDetail, icon: Cpu },
+    { label: ui.role, value: isAdmin ? text.profile.membership.administrator : text.profile.membership.member, detail: ui.roleDetail, icon: ShieldCheck },
+    { label: text.profile.archive, value: text.profile.archiveValue, detail: ui.archiveDetail, icon: Archive },
   ];
 
   return (
     <>
       <StitchHeader />
+      <style>{`.membership-card { touch-action: pan-y; }`}</style>
       <main className="stitch-container min-h-screen pb-section-gap pt-5 sm:pt-10">
         <MobileProfileSummary
           displayName={displayName}
@@ -184,19 +163,19 @@ export default async function ProfilePage() {
             clodex: text.profile.membership.clodex,
             archive: text.profile.archive,
             openChat: ui.openChat,
-            releases: ui.releaseNotes,
+            releases: ui.releases,
             localData: ui.localData,
-            vault: ui.workspaceVault,
+            vault: ui.vault,
             currentRelease: ui.currentRelease,
             profileStatus: ui.profileStatus,
             openChatHint: ui.openChatHint,
-            releasesHint: ui.releaseNotesHint,
+            releasesHint: ui.releasesHint,
             localDataHint: ui.localDataHint,
-            vaultHint: ui.workspaceVaultHint,
+            vaultHint: ui.vaultHint,
           }}
         />
 
-        <nav className="sticky top-[80px] z-30 mb-8 hidden items-center gap-1 overflow-x-auto rounded-full border border-outline-variant bg-surface/92 p-1.5 backdrop-blur-xl md:flex" aria-label={ui.navigation} data-profile-section-nav>
+        <nav className="sticky top-[80px] z-30 mb-8 hidden items-center gap-1 overflow-x-auto rounded-full border border-outline-variant bg-surface/95 p-1.5 backdrop-blur-xl md:flex" aria-label={ui.navigation} data-profile-section-nav>
           {[
             ["#membership", ui.membership],
             ["#overview", ui.overview],
@@ -216,35 +195,25 @@ export default async function ProfilePage() {
               <div className="relative">
                 <div className="flex items-start justify-between gap-4">
                   <div className="relative grid size-20 place-items-center overflow-hidden rounded-[1.65rem] border border-white/60 bg-surface-container-low text-xl font-semibold text-primary shadow-[0_14px_35px_rgba(15,23,42,.16)]">
-                    {profileImage ? (
-                      <Image src={profileImage} alt="" fill sizes="80px" unoptimized className="object-cover" />
-                    ) : (
-                      <span aria-hidden="true">{profileInitials}</span>
-                    )}
+                    {profileImage ? <Image src={profileImage} alt="" fill sizes="80px" unoptimized className="object-cover" /> : <span aria-hidden="true">{profileInitials}</span>}
                   </div>
                   <span className="inline-flex items-center gap-1.5 rounded-full border border-primary/15 bg-primary/10 px-3 py-2 text-[10px] font-semibold uppercase tracking-[0.1em] text-primary">
                     <ShieldCheck size={13} aria-hidden="true" /> {isAdmin ? text.profile.membership.administrator : text.profile.membership.member}
                   </span>
                 </div>
-
                 <p className="label-caps mt-7 text-secondary">{text.profile.eyebrow}</p>
                 <h1 id="profile-membership-title" className="display-title mt-3">{displayName}</h1>
                 <p className="mt-3 break-all text-sm text-on-surface-variant">{session?.user?.email ?? text.profile.localEmail}</p>
                 <p className="mt-6 leading-[1.7] text-on-surface-variant">{ui.intro}</p>
-
                 <div className="mt-6 flex items-center justify-between gap-4 rounded-2xl border border-outline-variant bg-surface/75 px-4 py-3">
                   <span className="text-xs text-on-surface-variant">{ui.currentRelease}</span>
                   <span className="text-xs font-semibold text-primary">{CURRENT_RELEASE_VERSION}</span>
                 </div>
-
                 <div className="mt-4 grid gap-2" data-profile-desktop-actions>
-                  {quickActions.map(({ href, label, hint, icon: Icon }) => (
+                  {actions.map(({ href, label, hint, icon: Icon }) => (
                     <Link key={href} href={href} className="group flex items-center gap-3 rounded-2xl border border-outline-variant bg-surface px-4 py-3 transition-[transform,border-color] hover:-translate-y-0.5 hover:border-primary focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-primary/20">
                       <span className="grid size-10 shrink-0 place-items-center rounded-2xl bg-surface-container-low text-primary"><Icon size={17} aria-hidden="true" /></span>
-                      <span className="min-w-0 flex-1">
-                        <span className="block truncate text-sm font-semibold text-primary">{label}</span>
-                        <span className="mt-0.5 block text-[11px] leading-[1.4] text-on-surface-variant">{hint}</span>
-                      </span>
+                      <span className="min-w-0 flex-1"><span className="block truncate text-sm font-semibold text-primary">{label}</span><span className="mt-0.5 block text-[11px] leading-[1.4] text-on-surface-variant">{hint}</span></span>
                       <ArrowUpRight size={15} aria-hidden="true" className="shrink-0 text-secondary transition-transform group-hover:-translate-y-0.5 group-hover:translate-x-0.5" />
                     </Link>
                   ))}
@@ -255,10 +224,7 @@ export default async function ProfilePage() {
 
           <ScrollReveal delay={0.08} className="md:col-span-7 md:col-start-6">
             <div className="mb-4 flex items-end justify-between gap-4 md:hidden">
-              <div>
-                <p className="label-caps text-secondary">{ui.membership}</p>
-                <h2 className="mt-2 font-serif text-3xl text-primary">{isAdmin ? ui.foundersEdition : ui.memberEdition}</h2>
-              </div>
+              <div><p className="label-caps text-secondary">{ui.membership}</p><h2 className="mt-2 font-serif text-3xl text-primary">{isAdmin ? ui.foundersEdition : ui.memberEdition}</h2></div>
               <span className="rounded-full border border-outline-variant bg-surface-container-low px-3 py-2 text-[10px] font-semibold uppercase tracking-[0.1em] text-primary">{CURRENT_RELEASE_VERSION}</span>
             </div>
             <MembershipCard
@@ -269,15 +235,7 @@ export default async function ProfilePage() {
               initials={profileInitials}
               unlimitedAi={unlimited}
               clodexState={access.clodexState}
-              labels={{
-                ...text.profile.membership,
-                foundersEdition: ui.foundersEdition,
-                memberEdition: ui.memberEdition,
-                founderDuo: ui.founderDuo,
-                included: ui.included,
-                flipCard: ui.flipCard,
-                flipHint: ui.flipHint,
-              }}
+              labels={{ ...text.profile.membership, foundersEdition: ui.foundersEdition, memberEdition: ui.memberEdition, founderDuo: ui.founderDuo, included: ui.included, flipCard: ui.flipCard, flipHint: ui.flipHint }}
             />
             <p className="mx-auto mt-4 max-w-[720px] text-center text-xs leading-[1.6] text-secondary">{ui.cardHelp}</p>
           </ScrollReveal>
@@ -285,19 +243,15 @@ export default async function ProfilePage() {
 
         <section id="overview" className="scroll-mt-32 py-10 md:py-16" aria-labelledby="profile-overview-title">
           <ScrollReveal>
-            <div className="mb-6 border-b border-outline-variant pb-5 sm:mb-7 sm:flex sm:items-end sm:justify-between sm:gap-5 sm:pb-6">
-              <div>
-                <p className="label-caps text-secondary">{ui.overview}</p>
-                <h2 id="profile-overview-title" className="headline-title mt-3">{text.profile.parameters}</h2>
-              </div>
+            <div className="mb-6 border-b border-outline-variant pb-5 sm:flex sm:items-end sm:justify-between sm:gap-5 sm:pb-6">
+              <div><p className="label-caps text-secondary">{ui.overview}</p><h2 id="profile-overview-title" className="headline-title mt-3">{text.profile.parameters}</h2></div>
               <p className="mt-4 max-w-xl text-sm leading-[1.6] text-on-surface-variant sm:mt-0">{ui.membershipNote}</p>
             </div>
           </ScrollReveal>
-
           <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
             {overviewCards.map(({ label, value, detail, icon: Icon }, index) => (
               <ScrollReveal key={label} delay={index * 0.05}>
-                <article className="group h-full rounded-2xl border border-outline-variant bg-surface-container-lowest p-5 transition-[transform,border-color,box-shadow] duration-200 hover:-translate-y-1 hover:border-primary/35 hover:shadow-[0_18px_45px_rgba(15,23,42,.08)]">
+                <article className="h-full rounded-2xl border border-outline-variant bg-surface-container-lowest p-5 transition-[transform,border-color,box-shadow] duration-200 hover:-translate-y-1 hover:border-primary/35 hover:shadow-[0_18px_45px_rgba(15,23,42,.08)]">
                   <span className="grid size-10 place-items-center rounded-2xl bg-surface-container-low text-primary"><Icon size={18} aria-hidden="true" /></span>
                   <p className="mt-5 text-[10px] font-semibold uppercase tracking-[0.1em] text-secondary">{label}</p>
                   <p className="mt-2 text-base font-semibold text-primary">{value}</p>
@@ -315,13 +269,10 @@ export default async function ProfilePage() {
               <span className="grid size-11 place-items-center rounded-2xl border border-outline-variant bg-surface-container-lowest"><Sparkles size={19} aria-hidden="true" /></span>
               <h2 className="headline-title mt-6">{text.profile.accessLevel}</h2>
               <p className="mt-5 leading-[1.7] text-on-surface-variant">{text.profile.description}</p>
-              <p className="mt-7 font-serif text-[28px] text-primary">
-                {isAdmin ? text.profile.adminAccess : unlimited ? text.profile.unlimitedModelsValue : text.profile.standardAccess}
-              </p>
+              <p className="mt-7 font-serif text-[28px] text-primary">{isAdmin ? text.profile.adminAccess : unlimited ? text.profile.unlimitedModelsValue : text.profile.standardAccess}</p>
               <p className="label-caps mt-2 text-secondary">{isAdmin ? text.profile.adminState : text.profile.active}</p>
             </div>
           </ScrollReveal>
-
           <ScrollReveal delay={0.08} className="md:col-span-7 md:col-start-6">
             <div className="overflow-hidden rounded-2xl border border-outline-variant bg-surface-container-lowest">
               {[
@@ -329,7 +280,7 @@ export default async function ProfilePage() {
                 [text.profile.dailyLimit, unlimited ? text.profile.unlimitedDailyValue : text.profile.dailyValue],
                 [text.profile.archive, text.profile.archiveValue],
                 [text.profile.clodex, clodexLabel],
-              ].map(([item, value], index) => (
+              ].map(([item, value]) => (
                 <div key={item} className="flex min-h-16 items-center justify-between gap-6 border-b border-outline-variant px-4 py-4 last:border-b-0 sm:px-5">
                   <span className="text-sm text-on-surface-variant">{item}</span>
                   <span className="max-w-[55%] break-words text-right text-xs font-semibold uppercase tracking-[0.08em] text-primary">{value}</span>
@@ -343,10 +294,7 @@ export default async function ProfilePage() {
 
         {(promoEligible || isAdmin) && (
           <section className="mt-section-gap grid gap-8 border-t border-outline-variant pt-10 md:grid-cols-12">
-            <div className="md:col-span-4">
-              <p className="label-caps text-secondary">{text.profile.adminToolsLabel}</p>
-              <h2 className="headline-title mt-4">{text.profile.adminToolsTitle}</h2>
-            </div>
+            <div className="md:col-span-4"><p className="label-caps text-secondary">{text.profile.adminToolsLabel}</p><h2 className="headline-title mt-4">{text.profile.adminToolsTitle}</h2></div>
             <div className="space-y-5 md:col-span-7 md:col-start-6">
               {promoEligible && <PromoCodePanel labels={text.profile.promo} />}
               {isAdmin && <Link href="/admin/terms" className="label-caps inline-flex border-b border-primary pb-2 text-primary">{text.profile.reviewAgreement} ↗</Link>}
