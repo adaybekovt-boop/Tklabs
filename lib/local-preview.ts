@@ -5,7 +5,9 @@ export type PreviewEnvironment = {
 };
 
 export function isLocalPreviewEnabled(environment: PreviewEnvironment = process.env) {
-  return environment.NODE_ENV === "development" && environment.TKLABS_LOCAL_PREVIEW === "true";
+  return environment.NODE_ENV === "development"
+    && (environment.TKLABS_LOCAL_PREVIEW === "true"
+      || environment.NEXT_PUBLIC_TKLABS_LOCAL_PREVIEW === "true");
 }
 
 export function isClientLocalPreviewEnabled(environment: PreviewEnvironment = process.env) {
