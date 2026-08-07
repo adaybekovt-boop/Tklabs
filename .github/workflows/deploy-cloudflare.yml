@@ -74,7 +74,7 @@ jobs:
         run: npm audit --omit=dev --audit-level=high
       - name: Validate Cloudflare runtime secret names
         run: npm run cloudflare:check-secrets
-      - name: Apply compatible D1 migrations
+      - name: Apply all D1 migrations (compatible only)
         run: npm run db:migrate
       - name: Deploy
         shell: bash
