@@ -53,6 +53,7 @@ function proxyAudio(
 ) {
   let reader: ReadableStreamDefaultReader<Uint8Array> | null = null;
   let settled = false;
+  let deliveredAudio = false;
   const release = async () => {
     if (settled) return;
     settled = true;
@@ -63,6 +64,7 @@ function proxyAudio(
     settled = true;
     await commitReservation(options.email, options.reservationId, options.requestId);
   };
+  const settleForDelivery = () => deliveredAudio ? commit() : release();
 
   const stream = new ReadableStream<Uint8Array>({
     start(controller) {
@@ -72,14 +74,20 @@ function proxyAudio(
           while (true) {
             const chunk = await reader!.read();
             if (chunk.done) {
-              await commit();
+              await settleForDelivery();
               controller.close();
               return;
             }
             controller.enqueue(chunk.value);
+            if (!deliveredAudio && chunk.value.byteLength > 0) {
+              // Cancellation after any successfully delivered audio must not
+              // refund a provider request or its character budget.
+              deliveredAudio = true;
+              await commit();
+            }
           }
         } catch (error) {
-          await release();
+          await settleForDelivery();
           controller.error(error);
         } finally {
           clearTimeout(options.timeout);
@@ -89,15 +97,15 @@ function proxyAudio(
     },
     async cancel(reason) {
       await reader?.cancel(reason);
-      await release();
+      await settleForDelivery();
       clearTimeout(options.timeout);
     },
   });
 
-  if (options.signal.aborted) void release();
+  if (options.signal.aborted) void settleForDelivery();
   else options.signal.addEventListener("abort", () => {
     void reader?.cancel("request_aborted");
-    void release();
+    void settleForDelivery();
   }, { once: true });
   return stream;
 }
