@@ -43,7 +43,18 @@ jobs:
       - name: Unit tests
         run: npm run test:unit
       - name: Integration tests
-        run: npm run test:integration
+        shell: bash
+        run: |
+          set -o pipefail
+          npm run test:integration 2>&1 | tee integration-test.log
+      - name: Upload integration diagnostics
+        if: failure()
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        with:
+          name: integration-diagnostics-${{ github.sha }}-${{ github.run_attempt }}
+          path: integration-test.log
+          if-no-files-found: error
+          retention-days: 3
       - name: Production build
         run: npm run build
       - name: Performance budget
