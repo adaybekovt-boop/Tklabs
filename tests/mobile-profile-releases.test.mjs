@@ -8,26 +8,38 @@ async function text(path) {
   return readFile(new URL(path, root), "utf8");
 }
 
-test("v0.11.1 gives the profile a dedicated compact mobile hierarchy", async () => {
+test("v0.16.7 gives profile one responsive hierarchy on mobile and desktop", async () => {
   const page = await text("app/profile/page.tsx");
   const summary = await text("components/profile/MobileProfileSummary.tsx");
+  const card = await text("components/profile/MembershipCard.tsx");
 
   assert.match(page, /MobileProfileSummary/);
-  assert.match(page, /mb-12 hidden items-start/);
-  assert.match(page, /mb-section-gap hidden md:block/);
+  assert.match(page, /data-profile-section-nav/);
+  assert.match(page, /id="membership"/);
+  assert.match(page, /id="overview"/);
+  assert.match(page, /id="account-details"/);
   assert.match(summary, /data-mobile-profile-summary/);
-  assert.match(summary, /href="#local-data"/);
-  assert.match(summary, /md:hidden/);
-  assert.match(summary, /<details/);
-  assert.match(summary, /release-v0-11-1/);
+  assert.match(summary, /data-profile-visual-hero/);
+  assert.match(summary, /data-profile-action-grid/);
+  assert.match(summary, /href="\/vault"/);
+  assert.match(summary, /releaseVersion/);
+  assert.doesNotMatch(summary, /release-v0-11-1/);
+  assert.match(card, /data-profile-membership-card/);
+  assert.match(card, /aspect-\[1\.38\/1\]/);
+  assert.match(card, /aria-describedby=\{hintId\}/);
 });
 
-test("local profile data actions use cancellable in-page confirmation", async () => {
+test("local profile data actions distinguish conversation export from complete Workspace Vault backup", async () => {
   const localData = await text("components/profile/ProfileLocalData.tsx");
 
   assert.match(localData, /type PendingAction = "clear" \| "reset" \| null/);
   assert.match(localData, /pendingAction !== "clear"/);
   assert.match(localData, /pendingAction !== "reset"/);
+  assert.match(localData, /data-profile-vault-card/);
+  assert.match(localData, /href="\/vault"/);
+  assert.match(localData, /CHAT_SETTING_KEYS/);
+  assert.match(localData, /10_000/);
+  assert.match(localData, /document\.body\.append\(link\)/);
   assert.match(localData, /aria-live="polite"/);
   assert.match(localData, /data-local-data-actions/);
   assert.match(localData, /id="local-data"/);
