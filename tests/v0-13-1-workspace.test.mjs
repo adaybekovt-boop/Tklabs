@@ -102,16 +102,19 @@ test("mobile composer keeps plus, message, voice, and send while settings stay i
   assert.match(modes, /Do not invent browsing or citations/);
 });
 
-test("mobile history and message actions are explicit while swipe remains optional", async () => {
+test("mobile history and message actions are explicit while edge swipe remains optional", async () => {
   const chat = await text("components/playground/PlaygroundChat.tsx");
-  const messages = await text("components/playground/MessageList.tsx");
+  const drawer = await text("components/playground/MobileChatDrawer.tsx");
+  const messages = await text("components/playground/ResponsiveMessageList.tsx");
 
-  assert.match(chat, /<HistoryDropdown/);
+  assert.match(chat, /<MobileChatDrawer/);
   assert.match(chat, /deltaX > 72/);
   assert.match(chat, /setMobileHistoryOpen\(true\)/);
+  assert.match(drawer, /ConversationArchive/);
+  assert.match(drawer, /data-mobile-chat-drawer/);
   assert.match(messages, /MoreHorizontal/);
-  assert.match(messages, /ActionMenu/);
-  assert.doesNotMatch(messages, /holdTimerRef/);
+  assert.match(messages, /ChatOverlay/);
+  assert.match(messages, /startLongPress/);
 });
 
 test("stream stop preserves partial text, tables scroll, and code can open fullscreen", async () => {
@@ -127,15 +130,15 @@ test("stream stop preserves partial text, tables scroll, and code can open fulls
 
 test("RU and EN controls stay directly reachable on mobile site and chat screens", async () => {
   const header = await text("components/site/StitchHeader.tsx");
-  const chat = await text("components/playground/PlaygroundChat.tsx");
+  const drawer = await text("components/playground/MobileChatDrawer.tsx");
 
   assert.match(header, /flex shrink-0 items-center gap-2 lg:hidden/);
   assert.match(header, /<LanguageToggle locale=\{locale\} label=\{text\.nav\.language\} \/>/);
-  assert.match(chat, /sm:hidden/);
-  assert.match(chat, /<LanguageToggle locale=\{locale\} label=\{text\.nav\.language\} \/>/);
+  assert.match(drawer, /<LanguageToggle locale=\{locale\} label=\{text\.nav\.language\} \/>/);
+  assert.match(drawer, /safe-area-bottom/);
 });
 
-test("every v0.13 release retains public Patch Notes and a release document", async () => {
+test("every v0.13 release remains in public Patch Notes and release documents", async () => {
   const releases = await text("lib/latest-release.ts");
   const page = await text("app/patch-notes/page.tsx");
   const v0130 = await text("docs/releases/v0.13.0.md");
@@ -144,7 +147,10 @@ test("every v0.13 release retains public Patch Notes and a release document", as
   assert.match(releases, /version: "v0\.13\.1"/);
   assert.match(releases, /version: "v0\.13\.0"/);
   assert.match(releases, /getReleaseHistory/);
-  assert.match(page, /const entries = getReleaseHistory\(locale\)/);
+  assert.match(page, /getReleaseHistory\(locale\)/);
+  assert.match(page, /getPreviewRelease\(locale\)/);
+  assert.match(page, /MobileReleaseBrowser/);
+  assert.match(page, /PatchNotesBrowser/);
   assert.match(v0130, /True Chat and Streaming/);
   assert.match(v0131, /трёхзон/);
   assert.match(v0131, /ветвлен/);
