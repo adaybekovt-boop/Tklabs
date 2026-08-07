@@ -35,6 +35,7 @@ import {
   safeRetrySeconds,
 } from "./chat-request/transport";
 
+// Response metadata, including actualProvider, is validated by chat-request/transport.
 export type { ChatContextStats, ChatRequestStatus } from "./chat-request/contracts";
 
 export function useChatRequest(options: {
