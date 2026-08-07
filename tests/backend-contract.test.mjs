@@ -45,10 +45,13 @@ test("status page uses live health checks", async () => {
 
   assert.match(route, /HEALTH_STATUS/);
   assert.match(worker, /PROVIDER_TIMEOUT_MS = 2_500/);
+  assert.match(worker, /PROVIDER_PROBE_ATTEMPTS = 2/);
   assert.match(worker, /integrate\.api\.nvidia\.com\/v1\/models/);
   assert.match(worker, /clodex\.xyz\/v1\/models/);
   assert.match(worker, /LIVE_TTL_MS = 60_000/);
-  assert.match(worker, /STALE_TTL_MS = 5 \* 60_000/);
+  assert.match(worker, /STALE_TTL_MS = 15 \* 60_000/);
+  assert.match(worker, /parseStoredHealth/);
+  assert.match(worker, /source: "stale", stale: true/);
   assert.match(route, /cache-control/);
   assert.match(page, /StatusBoard/);
   assert.match(board, /fetch\("\/api\/status"/);
@@ -196,11 +199,13 @@ test("developers section is available in navigation and footer surfaces", async 
   const page = await text("app/developers/page.tsx");
   const nav = await text("components/site/GlowNav.tsx");
   const footer = await text("components/site/StitchFooter.tsx");
-  const translations = await text("lib/i18n.ts");
 
-  assert.match(page, /text\.developers\.people/);
-  assert.match(translations, /name: "THOMAS TM"/);
-  assert.match(translations, /name: "TK"/);
+  assert.match(page, /<StitchHeader active="developers" \/>/);
+  assert.match(page, /<StitchFooter \/>/);
+  assert.match(page, /data-developer-ownership/);
+  assert.match(page, /data-engineering-system-map/);
+  assert.match(page, /tkRole: "Backend, качество и отказоустойчивость"/);
+  assert.match(page, /thomasRole: "Product architecture and AI systems"/);
   await access(new URL("public/images/developers/thomas-tm.jpg", root));
   await access(new URL("public/images/developers/tk.jpg", root));
   assert.match(nav, /href: "\/developers"/);

@@ -39,15 +39,11 @@ test("mobile bottom navigation prioritizes AI chat and groups every secondary de
   assert.match(header, /Workspace Vault/);
 });
 
-test("Profile Studio publishes the release and cache bump together", async () => {
-  const release = await read("lib/release-version.ts");
-  const preview = await read("lib/prerelease.ts");
-  const worker = await read("public/sw.js");
+test("Profile Studio remains preserved as a historical release", async () => {
   const doc = await read("docs/releases/v0.16.7.md");
 
-  assert.match(release, /CURRENT_RELEASE_VERSION = "v0\.16\.7"/);
-  assert.match(release, /CURRENT_RELEASE_CODENAME = "Profile Studio"/);
-  assert.match(preview, /codename: "Profile Studio"/);
-  assert.match(worker, /CACHE_VERSION = "v0\.16\.7"/);
+  assert.match(doc, /Profile Studio/);
+  assert.match(doc, /v0\.16\.7/);
   assert.match(doc, /tklabs-v0\.16\.7-static/);
+  assert.match(doc, /mobile bottom navigation/i);
 });
