@@ -7,7 +7,7 @@ function sseBody(events) {
 }
 
 async function waitForClientShell(page) {
-  await expect(page.locator("[data-locale-toggle]")).toHaveAttribute("data-locale-ready", "true");
+  await expect(page.locator("[data-locale-toggle]").first()).toHaveAttribute("data-locale-ready", "true");
 }
 
 async function submitVisibleComposer(page, prompt) {
@@ -42,10 +42,10 @@ test("public shell, playground, and browser language state remain usable", async
   const initialButton = initialLocale === "ru" ? "RU" : "EN";
   const nextButton = nextLocale === "ru" ? "RU" : "EN";
 
-  await page.getByRole("button", { name: nextButton, exact: true }).click();
+  await page.getByRole("button", { name: nextButton, exact: true }).first().click();
   await expectPersistedLocale(page, nextLocale);
 
-  await page.getByRole("button", { name: initialButton, exact: true }).click();
+  await page.getByRole("button", { name: initialButton, exact: true }).first().click();
   await expectPersistedLocale(page, initialLocale === "ru" ? "ru" : "en");
 
   await page.goto("/playground");
@@ -136,6 +136,10 @@ test("primary surfaces have one main landmark and no unnamed visible buttons", a
     const labelledBy = button.getAttribute("aria-labelledby")?.trim() ?? "";
     const title = button.getAttribute("title")?.trim() ?? "";
     return !text && !label && !labelledBy && !title;
-  }).length);
-  expect(unnamedButtons).toBe(0);
+  }).map((button) => ({
+    html: button.outerHTML.slice(0, 500),
+    className: button.className,
+    testId: button.getAttribute("data-testid"),
+  })));
+  expect(unnamedButtons, JSON.stringify(unnamedButtons, null, 2)).toEqual([]);
 });
