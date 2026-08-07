@@ -30,15 +30,14 @@ test("safe edit keeps an explicit path back to the original conversation", async
   assert.match(chat, /submitted: true/);
 });
 
-test("v0.16.5 release and cache contracts cover safe prompt branches", async () => {
+test("release history retains the v0.16.5 Safe Prompt Branches contract", async () => {
   const releaseVersion = await read("lib/release-version.ts");
-  const prerelease = await read("lib/prerelease.ts");
   const releaseDoc = await read("docs/releases/v0.16.5.md");
   const worker = await read("public/sw.js");
 
-  assert.match(releaseVersion, /CURRENT_RELEASE_VERSION = "v0\.16\.5"/);
-  assert.match(prerelease, /Safe Prompt Branches/);
-  assert.match(prerelease, /исходный диалог сохранён/i);
+  assert.match(releaseDoc, /Safe Prompt Branches/);
   assert.match(releaseDoc, /branch-preserving/);
-  assert.match(worker, /CACHE_VERSION = "v0\.16\.5"/);
+  assert.match(releaseDoc, /original conversation/i);
+  assert.match(releaseVersion, /CURRENT_RELEASE_VERSION = "v0\.16\.[5-9][0-9]*"/);
+  assert.match(worker, /CACHE_VERSION = "v0\.16\.[5-9][0-9]*"/);
 });
