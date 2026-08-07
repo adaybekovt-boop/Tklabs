@@ -9,19 +9,23 @@ function sseBody(events) {
 }
 
 async function waitForClientShell(page) {
-  await expect(page.locator("[data-locale-toggle]").first()).toHaveAttribute("data-locale-ready", "true");
+  await expect(page.locator("[data-locale-toggle]").first()).toHaveAttribute(
+    "data-locale-ready",
+    "true",
+    { timeout: 15_000 },
+  );
 }
 
 async function submitVisibleComposer(page, prompt) {
   const textarea = page.locator("textarea:visible").first();
   await expect(textarea).toBeVisible();
   await textarea.fill(prompt);
+
   const form = textarea.locator("xpath=ancestor::form[1]");
-  if (await form.count()) {
-    await form.evaluate((element) => element.requestSubmit());
-  } else {
-    await textarea.press("Enter");
-  }
+  await expect(form).toHaveCount(1);
+  const sendButton = form.getByRole("button", { name: /Отправить|Send/i });
+  await expect(sendButton).toBeEnabled();
+  await sendButton.click();
 }
 
 async function expectPersistedLocale(page, locale) {
@@ -103,7 +107,11 @@ test("mocked SSE reaches the transcript without external providers", async ({ pa
   });
 
   await page.goto(PLAYGROUND_HARNESS);
+  const demoRequest = page.waitForRequest((request) => (
+    request.method() === "POST" && new URL(request.url()).pathname === "/api/demo"
+  ));
   await submitVisibleComposer(page, "Run the browser assurance contract");
+  await demoRequest;
   await expect(page.getByText("Browser assurance response", { exact: false })).toBeVisible();
   await expect(page.getByText("Run the browser assurance contract", { exact: false })).toBeVisible();
 });
