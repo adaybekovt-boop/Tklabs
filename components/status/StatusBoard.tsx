@@ -3,6 +3,7 @@
 import { Check, CircleAlert, CircleX, LoaderCircle, RefreshCw } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 
+import "@/lib/public-branding";
 import { getDictionary, type Locale } from "@/lib/i18n";
 
 type HealthStatus = "operational" | "degraded" | "down" | "not_configured";

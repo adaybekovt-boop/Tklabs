@@ -3,8 +3,10 @@ import type { Metadata, Viewport } from "next";
 import "@/app/globals.css";
 import "@/app/motion.css";
 import "@/app/interface-polish.css";
+import "@/lib/public-branding";
 import { PwaRuntime } from "@/components/pwa/PwaRuntime";
 import { MotionOrchestrator } from "@/components/site/MotionOrchestrator";
+import { PublicBrandingGuard } from "@/components/site/PublicBrandingGuard";
 import { getLocale } from "@/lib/locale";
 
 const THEME_INIT_SCRIPT = `try {
@@ -60,6 +62,7 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
       </head>
       <body>
         <MotionOrchestrator />
+        <PublicBrandingGuard />
         {children}
         <PwaRuntime />
       </body>

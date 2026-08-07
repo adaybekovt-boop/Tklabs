@@ -2,7 +2,8 @@
 
 const CACHE_PREFIX = "tklabs";
 const CACHE_VERSION = "v0.17.5";
-const STATIC_CACHE = `${CACHE_PREFIX}-${CACHE_VERSION}-static`;
+const CACHE_REVISION = "access-policy-r1";
+const STATIC_CACHE = `${CACHE_PREFIX}-${CACHE_VERSION}-${CACHE_REVISION}-static`;
 const OFFLINE_URL = "/offline";
 const PRECACHE_URLS = [
   OFFLINE_URL,
