@@ -33,17 +33,17 @@ function jsonResponse(payload: unknown, requestId: string, status = 200) {
 
 function errorText(language: Language, type: "access" | "limit" | "provider" | "configuration" | "context") {
   const ru = {
-    access: "Сначала активируйте доступ к моделям в профиле.",
-    limit: "Лимит Clodex исчерпан. Попробуйте снова после сброса окна.",
-    provider: "Clodex не ответил. Попробуйте ещё раз.",
-    configuration: "Доступ к моделям пока настраивается.",
+    access: "Сначала активируйте дополнительный API-доступ в профиле.",
+    limit: "Лимит External API исчерпан. Попробуйте снова после сброса окна.",
+    provider: "External API не ответил. Попробуйте ещё раз.",
+    configuration: "Дополнительный API-доступ пока настраивается.",
     context: "Контекст диалога превышает допустимый лимит или содержит некорректные сообщения.",
   };
   const en = {
-    access: "Activate model access in your profile first.",
-    limit: "The Clodex limit is exhausted. Try again when the window resets.",
-    provider: "Clodex did not respond. Please try again.",
-    configuration: "Model access is being configured.",
+    access: "Activate additional API access in your profile first.",
+    limit: "The External API limit is exhausted. Try again when the window resets.",
+    provider: "The External API did not respond. Please try again.",
+    configuration: "Additional API access is being configured.",
     context: "The conversation context exceeds the allowed limit or contains invalid messages.",
   };
   return (language === "ru" ? ru : en)[type];
@@ -51,7 +51,7 @@ function errorText(language: Language, type: "access" | "limit" | "provider" | "
 
 export async function POST(request: Request) {
   const requestId = newRequestId();
-  if (!isClodexEnabled()) return jsonResponse({ error: "Clodex access is disabled.", requestId }, requestId, 404);
+  if (!isClodexEnabled()) return jsonResponse({ error: "External API access is disabled.", requestId }, requestId, 404);
   if (!isTrustedRequestOrigin(request)) return jsonResponse({ error: "Request origin is not allowed.", requestId }, requestId, 403);
 
   let session;
