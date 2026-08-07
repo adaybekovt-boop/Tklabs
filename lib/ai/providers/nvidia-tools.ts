@@ -1,5 +1,5 @@
 import type { ChatContextMessage } from "@/lib/ai/context";
-import { fetchWithTimeout, PROVIDER_TIMEOUT_MS, withTimeout } from "@/lib/ai/provider-http";
+import { PROVIDER_TIMEOUT_MS, withProviderResponse } from "@/lib/ai/provider-http";
 import { NVIDIA_ENDPOINT } from "@/lib/ai/providers/nvidia";
 import { executeReadOnlyTool, type LocalArchiveSearchEntry, type RawNvidiaToolCall } from "@/lib/ai/tools/executor";
 import { extractReleaseVersions } from "@/lib/ai/tools/intents";
@@ -97,20 +97,22 @@ async function requestPlanner(input: NvidiaToolLoopInput, messages: NvidiaPlanne
   let lastError: unknown;
   for (const key of keys) {
     try {
-      const response = await fetchWithTimeout(NVIDIA_ENDPOINT, {
+      const planned = await withProviderResponse(NVIDIA_ENDPOINT, {
         method: "POST",
         signal: input.signal,
         headers: { authorization: `Bearer ${key}`, "content-type": "application/json", accept: "application/json" },
         body: JSON.stringify(plannerBody(messages)),
-      });
-      if (!response.ok) {
-        const errorText = await response.text().catch(() => "");
-        if (shouldRotate(response.status, errorText)) { lastError = new Error("nvidia_key_rejected"); continue; }
-        throw Object.assign(new Error("nvidia_tool_planner_http_error"), { status: response.status });
-      }
-      const payload = await withTimeout(response.json().catch(() => null), PROVIDER_TIMEOUT_MS) as NvidiaPlannerResponse | null;
-      if (!payload?.choices?.[0]?.message) throw new Error("nvidia_tool_planner_empty");
-      return payload.choices[0].message;
+      }, async (response) => {
+        if (!response.ok) {
+          const errorText = await response.text().catch(() => "");
+          if (shouldRotate(response.status, errorText)) throw new Error("nvidia_key_rejected");
+          throw Object.assign(new Error("nvidia_tool_planner_http_error"), { status: response.status });
+        }
+        const payload = await response.json().catch(() => null) as NvidiaPlannerResponse | null;
+        if (!payload?.choices?.[0]?.message) throw new Error("nvidia_tool_planner_empty");
+        return payload.choices[0].message;
+      }, { timeoutMs: PROVIDER_TIMEOUT_MS });
+      return planned;
     } catch (error) {
       if (input.signal?.aborted) throw error;
       lastError = error;
