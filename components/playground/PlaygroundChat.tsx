@@ -4,7 +4,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { ArrowDown, FolderKanban, GitBranch, Menu, PanelRightOpen, SquarePen, X } from "lucide-react";
 
@@ -185,7 +185,11 @@ export function PlaygroundChat({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchParams]);
 
-  useEffect(() => { setInput(readChatDraft(archive.sessionId)); }, [archive.sessionId]);
+  useLayoutEffect(() => {
+    // Restore the per-session draft before the browser can accept user input.
+    // A passive effect can race the first keystroke after hydration and erase it.
+    setInput(readChatDraft(archive.sessionId));
+  }, [archive.sessionId]);
   useEffect(() => {
     const timer = window.setTimeout(() => writeChatDraft(archive.sessionId, input), 180);
     return () => window.clearTimeout(timer);
@@ -237,6 +241,11 @@ export function PlaygroundChat({
     if (message?.role === "assistant") setCompareTargetId(message.id);
     setDrawerTab(tab);
     setDrawerOpen(true);
+  }
+
+  function closeWorkspace() {
+    setDrawerOpen(false);
+    setCompareTargetId(null);
   }
 
   function handleAttachmentsChange(attachments: ChatInputAttachment[]) {
@@ -471,7 +480,7 @@ export function PlaygroundChat({
         responseMode={responseMode}
         reasonEnabled={reasonEnabled}
         project={currentProject}
-        onClose={() => setDrawerOpen(false)}
+        onClose={() => closeWorkspace()}
         onCompareModelChange={setCompareModel}
         onCompareLast={compareSelectedAnswer}
         onResponseModeChange={setResponseMode}
@@ -481,11 +490,9 @@ export function PlaygroundChat({
 
       <MobileChatDrawer
         open={mobileHistoryOpen}
-        locale={locale}
         onClose={() => setMobileHistoryOpen(false)}
-        onNewChat={startNewDialog}
-        onOpenArtifacts={onOpenArtifacts}
-        onOpenRuns={onOpenRuns}
+        locale={locale}
+        onNewDialog={startNewDialog}
       />
     </div>
   );
