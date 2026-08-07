@@ -63,6 +63,20 @@ export default async function PatchNotesPage() {
             </div>
             <FlowButton href="/playground" text={ui.openChat} dark className="shrink-0" />
           </div>
+          <div className="mt-6 grid gap-3 border-t border-outline-variant/50 pt-5 md:grid-cols-2" data-preview-release-notices>
+            <section className="rounded-2xl border border-outline-variant/70 bg-surface-container-low p-4" aria-labelledby="preview-known-issues-title">
+              <h2 id="preview-known-issues-title" className="label-caps text-secondary">{ui.knownIssues}</h2>
+              <ul className="mt-3 space-y-2 text-xs leading-5 text-on-surface-variant sm:text-[13px]">
+                {previewRelease.knownIssues.map((item) => <li key={item}>— {item}</li>)}
+              </ul>
+            </section>
+            <section className="rounded-2xl border border-outline-variant/70 bg-surface-container-low p-4" aria-labelledby="preview-migration-title">
+              <h2 id="preview-migration-title" className="label-caps text-secondary">{ui.migration}</h2>
+              <ul className="mt-3 space-y-2 text-xs leading-5 text-on-surface-variant sm:text-[13px]">
+                {previewRelease.migrationNotes.map((item) => <li key={item}>— {item}</li>)}
+              </ul>
+            </section>
+          </div>
         </section>
 
         <section className="mb-6 flex flex-wrap items-center justify-between gap-3 border-b border-outline-variant pb-4" aria-labelledby="patch-notes-list-title">

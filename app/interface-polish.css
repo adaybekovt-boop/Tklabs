@@ -1,0 +1,7 @@
+/* v0.16.9 corrective overrides.
+   The document root owns page scrolling; body must not become a second
+   independent scroll container on iOS and other touch browsers. */
+body {
+  overflow-y: visible;
+  -webkit-overflow-scrolling: auto;
+}

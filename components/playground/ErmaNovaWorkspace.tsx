@@ -3,7 +3,7 @@
 /* eslint-disable react-hooks/set-state-in-effect -- browser-only workspace state hydrates from localStorage. */
 
 import { lazy, Suspense, useEffect, useState } from "react";
-import { Activity, ChevronLeft, FileText, MessageSquareText, Sparkles, Workflow } from "lucide-react";
+import { Activity, ChevronLeft, FileText, MessageSquareText, Workflow } from "lucide-react";
 
 import Link from "next/link";
 import { LanguageToggle } from "@/components/site/LanguageToggle";
