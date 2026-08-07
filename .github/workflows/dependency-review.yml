@@ -1,0 +1,52 @@
+name: Dependency Review
+
+on:
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  dependency-review:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+      - name: Review dependency changes
+        id: review
+        continue-on-error: true
+        uses: actions/dependency-review-action@a1d282b36b6f3519aa1f3fc636f609c47dddb294 # v5.0.0
+        with:
+          fail-on-severity: high
+          comment-summary-in-pr: always
+      - name: Classify dependency-review failure
+        if: steps.review.outcome == 'failure'
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          api="https://api.github.com/repos/${GITHUB_REPOSITORY}/dependency-graph/sbom"
+          status="$(curl --silent --show-error --output /tmp/dependency-sbom.json --write-out '%{http_code}' \
+            --header 'Accept: application/vnd.github+json' \
+            --header "Authorization: Bearer $GITHUB_TOKEN" \
+            --header 'X-GitHub-Api-Version: 2022-11-28' \
+            "$api")"
+
+          if [ "$status" = "404" ]; then
+            echo "::warning::Dependency Graph is disabled for this repository; Dependency Review cannot run until the owner enables it."
+            exit 0
+          fi
+
+          if [ "$status" = "200" ]; then
+            echo "Dependency Graph is available, so the Dependency Review failure is actionable."
+            exit 1
+          fi
+
+          echo "Dependency Graph capability probe failed with HTTP $status."
+          cat /tmp/dependency-sbom.json || true
+          exit 1

@@ -1,0 +1,10 @@
+# Repository-wide ownership
+* @adaybekovt-boop @kandykbayevtagir-wq
+
+# Production and data boundaries
+/app/api/ @adaybekovt-boop @kandykbayevtagir-wq
+/lib/ai/ @adaybekovt-boop @kandykbayevtagir-wq
+/worker/ @adaybekovt-boop @kandykbayevtagir-wq
+/db/ @adaybekovt-boop @kandykbayevtagir-wq
+/drizzle/ @adaybekovt-boop @kandykbayevtagir-wq
+/.github/workflows/ @adaybekovt-boop @kandykbayevtagir-wq

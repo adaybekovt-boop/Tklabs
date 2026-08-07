@@ -1,0 +1,24 @@
+name: Feature request
+description: Propose a bounded product or platform improvement
+title: "feature: "
+labels: [enhancement]
+body:
+  - type: textarea
+    attributes:
+      label: User problem
+    validations:
+      required: true
+  - type: textarea
+    attributes:
+      label: Proposed outcome
+      description: Describe behavior, not an implementation-only preference.
+    validations:
+      required: true
+  - type: textarea
+    attributes:
+      label: Boundaries and risks
+      description: Include auth, privacy, provider cost, mobile, migration, and rollback considerations.
+  - type: textarea
+    attributes:
+      label: Acceptance evidence
+      description: State the tests or observable result required for completion.

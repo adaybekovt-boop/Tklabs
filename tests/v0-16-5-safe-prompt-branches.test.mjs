@@ -4,6 +4,10 @@ import test from "node:test";
 
 const read = (path) => readFile(new URL(`../${path}`, import.meta.url), "utf8");
 
+function declaredVersion(sourceText, constantName) {
+  return sourceText.match(new RegExp(`${constantName}\\s*=\\s*"([^"]+)"`))?.[1] ?? null;
+}
+
 test("prompt editing creates a safe conversation branch", async () => {
   const chat = await read("components/playground/PlaygroundChat.tsx");
 
@@ -38,6 +42,6 @@ test("release history retains the v0.16.5 Safe Prompt Branches contract", async 
   assert.match(releaseDoc, /Safe Prompt Branches/);
   assert.match(releaseDoc, /branch-preserving/);
   assert.match(releaseDoc, /original conversation/i);
-  assert.match(releaseVersion, /CURRENT_RELEASE_VERSION = "v0\.16\.[5-9][0-9]*"/);
-  assert.match(worker, /CACHE_VERSION = "v0\.16\.[5-9][0-9]*"/);
+  assert.equal(declaredVersion(releaseVersion, "CURRENT_RELEASE_VERSION"), declaredVersion(worker, "CACHE_VERSION"));
+  assert.match(releaseVersion, /CURRENT_RELEASE_VERSION = "v\d+\.\d+\.\d+"/);
 });

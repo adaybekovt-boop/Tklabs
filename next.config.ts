@@ -1,6 +1,9 @@
 import type { NextConfig } from "next";
 
+import { assertProductionPreviewDisabled } from "./lib/local-preview";
 import { SECURITY_HEADERS } from "./lib/security-headers.mjs";
+
+assertProductionPreviewDisabled();
 
 const nextConfig: NextConfig = {
   async headers() {

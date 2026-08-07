@@ -1,5 +1,6 @@
 import { estimateTextTokens, type PreparedChatContext } from "@/lib/ai/context";
 import { logAiProviderFailure } from "@/lib/ai/logging";
+import { ProviderTimeoutError } from "@/lib/ai/provider-http";
 import { generateWithClodex } from "@/lib/ai/providers/clodex";
 import { localFallbackResult } from "@/lib/ai/response";
 import type { AiGenerationResult, AiToolCallTrace } from "@/lib/ai/types";
@@ -87,8 +88,10 @@ export async function resolveFallback(input: {
 }
 
 export function providerFailureReason(error: unknown) {
+  if (error instanceof ProviderTimeoutError) return error.code;
   if (error instanceof Error && error.message === "nvidia_not_configured") return "nvidia_not_configured";
   if (error instanceof Error && error.message === "nvidia_output_blocked") return "safety_output_blocked";
+  if (error instanceof Error && error.message === "nvidia_output_too_large") return "nvidia_output_too_large";
   return "nvidia_request_failed";
 }
 

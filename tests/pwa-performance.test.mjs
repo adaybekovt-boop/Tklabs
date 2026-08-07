@@ -6,15 +6,21 @@ async function source(path) {
   return readFile(new URL(`../${path}`, import.meta.url), "utf8");
 }
 
-test("PWA runtime is mounted globally and registers a versioned service worker", async () => {
+function declaredVersion(sourceText, constantName) {
+  return sourceText.match(new RegExp(`${constantName}\\s*=\\s*"([^"]+)"`))?.[1] ?? null;
+}
+
+test("PWA runtime is mounted globally and registers a release-synchronized service worker", async () => {
   const layout = await source("app/layout.tsx");
   const runtime = await source("components/pwa/PwaRuntime.tsx");
   const worker = await source("public/sw.js");
+  const release = await source("lib/release-version.ts");
 
   assert.match(layout, /<PwaRuntime\s*\/>/);
   assert.match(runtime, /serviceWorker\.register\("\/sw\.js"/);
   assert.match(runtime, /beforeinstallprompt/);
-  assert.match(worker, /CACHE_VERSION = "v0\.16\.9"/);
+  assert.equal(declaredVersion(worker, "CACHE_VERSION"), declaredVersion(release, "CURRENT_RELEASE_VERSION"));
+  assert.match(worker, /CACHE_VERSION = "v\d+\.\d+\.\d+"/);
   assert.doesNotThrow(() => new Function(worker));
 });
 

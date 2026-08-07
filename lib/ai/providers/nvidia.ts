@@ -1,12 +1,19 @@
 import { getErmaSystemPrompt, type ErmaModel, type ErmaTone } from "@/lib/models/server";
 import { AI_PRIVILEGED_SYSTEM_PROMPT, AI_SAFETY_SYSTEM_PROMPT, evaluateAssistantContent } from "@/lib/ai-safety";
-import { fetchWithTimeout, PROVIDER_TIMEOUT_MS, withTimeout } from "@/lib/ai/provider-http";
+import {
+  PROVIDER_STREAM_IDLE_TIMEOUT_MS,
+  PROVIDER_STREAM_TOTAL_TIMEOUT_MS,
+  PROVIDER_TIMEOUT_MS,
+  withProviderResponse,
+} from "@/lib/ai/provider-http";
 import { normalizeAiTextPair } from "@/lib/ai/reasoning";
 import { inferResponseLanguage, responseLanguageInstruction, type ResponseLanguage } from "@/lib/ai/response-language";
 import type { ChatContextMessage } from "@/lib/ai/context";
 
 export const NVIDIA_ENDPOINT = "https://integrate.api.nvidia.com/v1/chat/completions";
 const NVIDIA_KEY_COOLDOWN_MS = 15 * 60 * 1000;
+const STREAM_SAFETY_WINDOW_CHARACTERS = 12_000;
+const STREAM_ANSWER_LIMIT_CHARACTERS = 96_000;
 
 type Language = "ru" | "en";
 type ReasoningEffort = "low" | "medium" | "high";
@@ -148,33 +155,34 @@ function shouldRotateKey(responseStatus: number, errorText: string) {
 
 async function fetchWithKey(input: NvidiaGenerationInput, apiKey: string) {
   const messages = messagesForInput(input);
-  const response = await fetchWithTimeout(NVIDIA_ENDPOINT, {
+  return withProviderResponse(NVIDIA_ENDPOINT, {
     method: "POST",
     signal: input.signal,
     headers: { authorization: `Bearer ${apiKey}`, "content-type": "application/json", accept: "application/json" },
     body: JSON.stringify(buildNvidiaBody(messages, input.language, input.model, input.requestedReasoning, input.effort, input.allowCode, input.tone, input.summary, false)),
-  });
-  if (!response.ok) {
-    const errorText = await response.text().catch(() => "");
-    if (shouldRotateKey(response.status, errorText)) throw new NvidiaKeyRotationError();
-    throw Object.assign(new Error("nvidia_http_error"), { status: response.status });
-  }
-  const payload = (await withTimeout(response.json().catch(() => null))) as NvidiaResponse | null;
-  const message = payload?.choices?.[0]?.message;
-  const answer = message?.content ?? payload?.choices?.[0]?.text ?? "";
-  if (typeof answer !== "string" || !answer.trim()) throw new Error("nvidia_empty_response");
-  const thinking = typeof message?.reasoning_content === "string" ? message.reasoning_content.trim() : "";
-  const normalized = normalizeAiTextPair({ answer: answer.trim(), thinking: thinking || undefined });
-  if (!normalized.answer) throw new Error("nvidia_empty_response");
-  const evaluation = evaluateAssistantContent(normalized, { allowCode: input.allowCode });
-  if (evaluation.verdict === "unsafe") throw new Error("nvidia_output_blocked");
-  if (evaluation.verdict === "empty") throw new Error("nvidia_empty_response");
-  return {
-    answer: evaluation.answer,
-    reasoningUsed: evaluation.reasoningUsed,
-    inputTokens: payload?.usage?.prompt_tokens,
-    outputTokens: payload?.usage?.completion_tokens,
-  };
+  }, async (response) => {
+    if (!response.ok) {
+      const errorText = await response.text().catch(() => "");
+      if (shouldRotateKey(response.status, errorText)) throw new NvidiaKeyRotationError();
+      throw Object.assign(new Error("nvidia_http_error"), { status: response.status });
+    }
+    const payload = (await response.json().catch(() => null)) as NvidiaResponse | null;
+    const message = payload?.choices?.[0]?.message;
+    const answer = message?.content ?? payload?.choices?.[0]?.text ?? "";
+    if (typeof answer !== "string" || !answer.trim()) throw new Error("nvidia_empty_response");
+    const thinking = typeof message?.reasoning_content === "string" ? message.reasoning_content.trim() : "";
+    const normalized = normalizeAiTextPair({ answer: answer.trim(), thinking: thinking || undefined });
+    if (!normalized.answer) throw new Error("nvidia_empty_response");
+    const evaluation = evaluateAssistantContent(normalized, { allowCode: input.allowCode });
+    if (evaluation.verdict === "unsafe") throw new Error("nvidia_output_blocked");
+    if (evaluation.verdict === "empty") throw new Error("nvidia_empty_response");
+    return {
+      answer: evaluation.answer,
+      reasoningUsed: evaluation.reasoningUsed,
+      inputTokens: payload?.usage?.prompt_tokens,
+      outputTokens: payload?.usage?.completion_tokens,
+    };
+  }, { timeoutMs: PROVIDER_TIMEOUT_MS });
 }
 
 function parseSsePayload(block: string) {
@@ -193,69 +201,86 @@ async function streamWithKey(
   onDelta: (delta: string) => void | Promise<void>,
 ) {
   const messages = messagesForInput(input);
-  const response = await fetchWithTimeout(NVIDIA_ENDPOINT, {
+  return withProviderResponse(NVIDIA_ENDPOINT, {
     method: "POST",
     signal: input.signal,
     headers: { authorization: `Bearer ${apiKey}`, "content-type": "application/json", accept: "text/event-stream" },
     body: JSON.stringify(buildNvidiaBody(messages, input.language, input.model, input.requestedReasoning, input.effort, input.allowCode, input.tone, input.summary, true)),
-  });
-  if (!response.ok) {
-    const errorText = await response.text().catch(() => "");
-    if (shouldRotateKey(response.status, errorText)) throw new NvidiaKeyRotationError();
-    throw Object.assign(new Error("nvidia_http_error"), { status: response.status });
-  }
-  if (!response.body) throw new Error("nvidia_stream_unavailable");
-
-  const reader = response.body.getReader();
-  const decoder = new TextDecoder();
-  let buffer = "";
-  let answer = "";
-  let reasoningUsed = false;
-  let usage: NvidiaUsage | undefined;
-
-  while (true) {
-    const { done, value } = await reader.read();
-    buffer += decoder.decode(value ?? new Uint8Array(), { stream: !done });
-    const blocks = buffer.split(/\r?\n\r?\n/);
-    buffer = done ? "" : (blocks.pop() ?? "");
-
-    for (const block of blocks) {
-      const data = parseSsePayload(block);
-      if (!data || data === "[DONE]") continue;
-      let payload: NvidiaResponse;
-      try {
-        payload = JSON.parse(data) as NvidiaResponse;
-      } catch {
-        continue;
-      }
-      if (payload.usage) usage = payload.usage;
-      const delta = payload.choices?.[0]?.delta;
-      if (typeof delta?.reasoning_content === "string" && delta.reasoning_content) reasoningUsed = true;
-      if (typeof delta?.content !== "string" || !delta.content) continue;
-
-      const candidate = `${answer}${delta.content}`;
-      const safety = evaluateAssistantContent({ answer: candidate }, { allowCode: input.allowCode });
-      if (safety.verdict === "unsafe") {
-        await reader.cancel().catch(() => undefined);
-        throw new Error("nvidia_output_blocked");
-      }
-      answer = candidate;
-      await onDelta(delta.content);
+  }, async (response, lifecycle) => {
+    if (!response.ok) {
+      const errorText = await response.text().catch(() => "");
+      if (shouldRotateKey(response.status, errorText)) throw new NvidiaKeyRotationError();
+      throw Object.assign(new Error("nvidia_http_error"), { status: response.status });
     }
-    if (done) break;
-  }
+    if (!response.body) throw new Error("nvidia_stream_unavailable");
 
-  const normalized = normalizeAiTextPair({ answer: answer.trim(), thinking: reasoningUsed ? "reasoning" : undefined });
-  if (!normalized.answer) throw new Error("nvidia_empty_response");
-  const evaluation = evaluateAssistantContent(normalized, { allowCode: input.allowCode });
-  if (evaluation.verdict === "unsafe") throw new Error("nvidia_output_blocked");
-  if (evaluation.verdict === "empty") throw new Error("nvidia_empty_response");
-  return {
-    answer: evaluation.answer,
-    reasoningUsed: reasoningUsed || evaluation.reasoningUsed,
-    inputTokens: usage?.prompt_tokens,
-    outputTokens: usage?.completion_tokens,
-  };
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = "";
+    const answerChunks: string[] = [];
+    let answerLength = 0;
+    let safetyWindow = "";
+    let reasoningUsed = false;
+    let usage: NvidiaUsage | undefined;
+
+    try {
+      while (true) {
+        const { done, value } = await reader.read();
+        lifecycle.touch();
+        buffer += decoder.decode(value ?? new Uint8Array(), { stream: !done });
+        const blocks = buffer.split(/\r?\n\r?\n/);
+        buffer = done ? "" : (blocks.pop() ?? "");
+
+        for (const block of blocks) {
+          const data = parseSsePayload(block);
+          if (!data || data === "[DONE]") continue;
+          let payload: NvidiaResponse;
+          try {
+            payload = JSON.parse(data) as NvidiaResponse;
+          } catch {
+            continue;
+          }
+          if (payload.usage) usage = payload.usage;
+          const delta = payload.choices?.[0]?.delta;
+          if (typeof delta?.reasoning_content === "string" && delta.reasoning_content) reasoningUsed = true;
+          if (typeof delta?.content !== "string" || !delta.content) continue;
+
+          answerLength += delta.content.length;
+          if (answerLength > STREAM_ANSWER_LIMIT_CHARACTERS) {
+            await reader.cancel("nvidia_output_too_large").catch(() => undefined);
+            throw new Error("nvidia_output_too_large");
+          }
+          answerChunks.push(delta.content);
+          safetyWindow = `${safetyWindow}${delta.content}`.slice(-STREAM_SAFETY_WINDOW_CHARACTERS);
+          const safety = evaluateAssistantContent({ answer: safetyWindow }, { allowCode: input.allowCode });
+          if (safety.verdict === "unsafe") {
+            await reader.cancel("nvidia_output_blocked").catch(() => undefined);
+            throw new Error("nvidia_output_blocked");
+          }
+          await onDelta(delta.content);
+        }
+        if (done) break;
+      }
+    } finally {
+      reader.releaseLock();
+    }
+
+    const answer = answerChunks.join("");
+    const normalized = normalizeAiTextPair({ answer: answer.trim(), thinking: reasoningUsed ? "reasoning" : undefined });
+    if (!normalized.answer) throw new Error("nvidia_empty_response");
+    const evaluation = evaluateAssistantContent(normalized, { allowCode: input.allowCode });
+    if (evaluation.verdict === "unsafe") throw new Error("nvidia_output_blocked");
+    if (evaluation.verdict === "empty") throw new Error("nvidia_empty_response");
+    return {
+      answer: evaluation.answer,
+      reasoningUsed: reasoningUsed || evaluation.reasoningUsed,
+      inputTokens: usage?.prompt_tokens,
+      outputTokens: usage?.completion_tokens,
+    };
+  }, {
+    timeoutMs: PROVIDER_STREAM_TOTAL_TIMEOUT_MS,
+    idleTimeoutMs: PROVIDER_STREAM_IDLE_TIMEOUT_MS,
+  });
 }
 
 export async function generateWithNvidia(input: NvidiaGenerationInput): Promise<NvidiaGenerationResult> {
@@ -266,7 +291,7 @@ export async function generateWithNvidia(input: NvidiaGenerationInput): Promise<
   let lastRotationError: NvidiaKeyRotationError | undefined;
   for (const index of indexes) {
     try {
-      const result = await withTimeout(fetchWithKey({ ...input, effort: normalizeEffort(input.effort) }, keys[index]), PROVIDER_TIMEOUT_MS);
+      const result = await fetchWithKey({ ...input, effort: normalizeEffort(input.effort) }, keys[index]);
       preferredNvidiaKeyIndex = index;
       return { ...result, actualModel: input.model.nvidiaModel ?? "nvidia-model" };
     } catch (error) {

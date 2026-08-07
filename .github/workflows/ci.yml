@@ -23,12 +23,12 @@ permissions:
 jobs:
   check:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 18
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
       - name: Setup Node
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
         with:
           node-version: 22
           cache: npm
@@ -36,6 +36,17 @@ jobs:
         run: npm ci
       - name: Audit production dependencies
         run: npm audit --omit=dev --audit-level=high
+      - name: Scan tracked files for committed secrets
+        run: npm run security:secrets
+      - name: Generate CycloneDX SBOM
+        run: npm run security:sbom
+      - name: Upload supply-chain evidence
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        with:
+          name: supply-chain-evidence-${{ github.sha }}
+          path: sbom.cdx.json
+          if-no-files-found: error
+          retention-days: 5
       - name: Typecheck
         run: npm run typecheck
       - name: Lint
@@ -43,7 +54,18 @@ jobs:
       - name: Unit tests
         run: npm run test:unit
       - name: Integration tests
-        run: npm run test:integration
+        shell: bash
+        run: |
+          set -o pipefail
+          npm run test:integration 2>&1 | tee integration-test.log
+      - name: Upload integration diagnostics
+        if: failure()
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        with:
+          name: integration-diagnostics-${{ github.sha }}-${{ github.run_attempt }}
+          path: integration-test.log
+          if-no-files-found: ignore
+          retention-days: 3
       - name: Production build
         run: npm run build
       - name: Performance budget
@@ -51,7 +73,7 @@ jobs:
       - name: Cloudflare Worker dry-run
         run: npx wrangler deploy --dry-run --config dist/server/wrangler.json
       - name: Upload validated Worker build
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
         with:
           name: worker-build-${{ github.sha }}
           path: dist

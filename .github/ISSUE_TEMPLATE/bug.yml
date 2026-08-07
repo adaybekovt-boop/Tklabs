@@ -1,0 +1,24 @@
+name: Bug report
+description: Report a reproducible product or reliability defect
+title: "bug: "
+labels: [bug]
+body:
+  - type: textarea
+    attributes:
+      label: Reproduction
+      description: Include route, viewport, account state, and exact steps.
+    validations:
+      required: true
+  - type: textarea
+    attributes:
+      label: Expected and actual behavior
+    validations:
+      required: true
+  - type: input
+    attributes:
+      label: Release and request ID
+      description: Never include credentials, access codes, or private user data.
+  - type: textarea
+    attributes:
+      label: Evidence
+      description: Safe logs, screenshots, and browser details.

@@ -31,7 +31,11 @@ Shared systems must still have a primary operational owner. Production backend a
 
 ### 1. Request containment
 
-External provider calls have bounded timeouts. NVIDIA supports key rotation and cooldown for quota or authentication failures. The API can use Clodex or a local safe fallback when the selected route is unavailable.
+Provider deadlines cover the complete response-consumption lifecycle, not only the time needed to receive HTTP headers.
+
+`withProviderResponse` keeps one composed abort scope active while JSON is parsed or SSE is read. The scope forwards the route signal, applies a total deadline, optionally applies a stream idle deadline, aborts the upstream connection, and removes timers and listeners when response consumption finishes.
+
+NVIDIA streaming uses a 120-second total deadline and a 20-second idle deadline. Accumulated output is bounded, and streaming safety evaluation uses a rolling window followed by one complete final evaluation. NVIDIA supports key rotation and cooldown for quota or authentication failures. The API can use Clodex or a local safe fallback when the selected route is unavailable.
 
 A provider failure must not:
 
@@ -39,6 +43,7 @@ A provider failure must not:
 - clear the local archive;
 - invalidate Workspace Vault data;
 - expose provider credentials;
+- leave a provider stream running after browser cancellation;
 - crash unrelated pages.
 
 ### 2. UI recovery
@@ -69,14 +74,35 @@ A production release is complete only when all of these refer to the same versio
 - `/api/ready` response;
 - canonical-domain smoke test.
 
+### 6. Supply-chain evidence
+
+Repository automation is part of the production trust boundary.
+
+- GitHub Actions use immutable commit SHAs.
+- CodeQL analyzes JavaScript and TypeScript changes.
+- Dependabot opens bounded npm and workflow update pull requests.
+- Production dependencies are audited before validation and deployment.
+- Runtime secret values remain in Cloudflare; repository automation checks names only.
+
 ## Deployment path
 
 1. GitHub Actions validates dependencies, TypeScript, lint, unit tests, integration tests, production build, performance budget, and Wrangler dry-run.
-2. The production workflow rebuilds from the lockfile and validates required secret names.
-3. Pending D1 migrations are applied through the migration runner.
-4. Wrangler deploys the generated Worker configuration.
-5. `scripts/smoke-test-production.mjs` checks the canonical domain with bounded retries.
-6. The smoke test verifies the required bindings, expected release, and manifest.
+2. CodeQL performs a separate JavaScript and TypeScript security analysis.
+3. The production workflow rebuilds from the lockfile and validates required secret names.
+4. Pending D1 migrations are applied through the migration runner.
+5. Wrangler deploys the generated Worker configuration.
+6. `scripts/smoke-test-production.mjs` checks the canonical domain with bounded retries.
+7. The smoke test verifies the required bindings, expected release, and manifest.
+
+## Database migration compatibility
+
+Production migrations follow an expand, migrate, contract sequence:
+
+1. **Expand:** add nullable columns, new tables, or compatible indexes without removing fields used by the current Worker.
+2. **Migrate:** deploy code that can read old and new state, then backfill incrementally where required.
+3. **Contract:** remove legacy fields or assumptions only in a later release after production evidence confirms that no active Worker depends on them.
+
+A migration merged with a Worker release must be backward-compatible with the previous known-good Worker because a deployment can fail after D1 migration succeeds. Destructive schema changes require a separate reviewed release and an explicit rollback plan.
 
 ## Single deployment writer
 
@@ -90,12 +116,13 @@ When production verification fails:
 
 1. Do not treat a successful Wrangler command as proof that the canonical domain is healthy.
 2. Record the failing release, commit SHA, readiness response, and Cloudflare deployment identifier.
-3. Determine whether the failure is binding configuration, application startup, migration, routing, or an external provider.
+3. Determine whether the failure is binding configuration, application startup, migration, routing, provider timeout, provider idle stall, or another external dependency.
 4. Preserve local user data and avoid broad cache deletion unless the cache namespace is confirmed as the cause.
 5. Roll back deliberately to the last known good Worker version when required.
-6. Add or update a regression contract before retrying the deployment.
+6. Confirm that any already-applied D1 migration remains compatible with the rollback target.
+7. Add or update a regression contract before retrying the deployment.
 
-Automatic rollback is intentionally not enabled in v0.16.8. A failed smoke test stops the workflow and preserves evidence for a controlled decision.
+Automatic rollback is intentionally not enabled in v0.17.0. A failed smoke test stops the workflow and preserves evidence for a controlled decision.
 
 ## Cache policy
 

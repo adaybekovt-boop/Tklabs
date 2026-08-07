@@ -6,17 +6,8 @@ import Markdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 
 import { ChatOverlay } from "@/components/playground/ChatOverlay";
+import { safeMarkdownUrl } from "@/lib/safe-markdown-url";
 import { cn } from "@/lib/utils";
-
-function safeUrlTransform(url: string) {
-  try {
-    const parsed = new URL(url, "https://tklabs.uk");
-    if (parsed.protocol === "http:" || parsed.protocol === "https:" || parsed.protocol === "mailto:") return url;
-  } catch {
-    // Invalid links are rendered as text by react-markdown.
-  }
-  return "";
-}
 
 function FullscreenCodeBlock({ children }: { children: ReactNode }) {
   const [open, setOpen] = useState(false);
@@ -40,9 +31,9 @@ export function MarkdownMessage({ content }: { content: string }) {
   return (
     <Markdown
       remarkPlugins={[remarkGfm]}
-      urlTransform={safeUrlTransform}
+      urlTransform={safeMarkdownUrl}
       components={{
-        a: ({ href, children }) => href ? <a href={href} target="_blank" rel="noreferrer noopener" className="underline decoration-outline-variant underline-offset-4 hover:text-chat-accent">{children}</a> : <>{children}</>,
+        a: ({ href, children }) => href && href !== "#blocked-url" ? <a href={href} target="_blank" rel="noreferrer noopener" className="underline decoration-outline-variant underline-offset-4 hover:text-chat-accent">{children}</a> : <>{children}</>,
         pre: ({ children }) => <FullscreenCodeBlock>{children}</FullscreenCodeBlock>,
         code: ({ className, children, ...props }) => <code className={cn("rounded bg-surface-container-low px-1.5 py-0.5 text-[0.9em]", className)} {...props}>{children}</code>,
         table: ({ children }) => <div className="my-3 max-w-full overflow-x-auto overscroll-x-contain"><table className="min-w-max border-collapse text-left text-[13px]">{children}</table></div>,

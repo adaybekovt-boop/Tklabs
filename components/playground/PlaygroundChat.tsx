@@ -4,7 +4,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { ArrowDown, FolderKanban, GitBranch, Menu, PanelRightOpen, SquarePen, X } from "lucide-react";
 
@@ -185,7 +185,11 @@ export function PlaygroundChat({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchParams]);
 
-  useEffect(() => { setInput(readChatDraft(archive.sessionId)); }, [archive.sessionId]);
+  useLayoutEffect(() => {
+    // Restore the per-session draft before the browser can accept user input.
+    // A passive effect can race the first keystroke after hydration and erase it.
+    setInput(readChatDraft(archive.sessionId));
+  }, [archive.sessionId]);
   useEffect(() => {
     const timer = window.setTimeout(() => writeChatDraft(archive.sessionId, input), 180);
     return () => window.clearTimeout(timer);

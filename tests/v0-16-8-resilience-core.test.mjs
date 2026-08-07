@@ -56,19 +56,19 @@ test("HealthStatus recovers corrupted snapshots and bounds stale fallback", asyn
   assert.match(health, /cache: "no-store"/);
 });
 
-test("CI and integration tests use current action and Node loader runtimes", async () => {
+test("CI and deployment actions are current and pinned to immutable commits", async () => {
   const ci = await read(".github/workflows/ci.yml");
   const deploy = await read(".github/workflows/deploy-cloudflare.yml");
   const packageJson = JSON.parse(await read("package.json"));
   const loader = await read("tests/register-cloudflare-loader.mjs");
 
-  assert.match(ci, /actions\/checkout@v6/);
-  assert.match(ci, /actions\/setup-node@v6/);
-  assert.match(ci, /actions\/upload-artifact@v6/);
-  assert.doesNotMatch(ci, /actions\/.+@v4/);
-  assert.match(deploy, /actions\/checkout@v6/);
-  assert.match(deploy, /actions\/setup-node@v6/);
-  assert.doesNotMatch(deploy, /actions\/.+@v4/);
+  assert.match(ci, /actions\/checkout@[a-f0-9]{40} # v6/);
+  assert.match(ci, /actions\/setup-node@[a-f0-9]{40} # v6/);
+  assert.match(ci, /actions\/upload-artifact@[a-f0-9]{40} # v6/);
+  assert.match(deploy, /actions\/checkout@[a-f0-9]{40} # v6/);
+  assert.match(deploy, /actions\/setup-node@[a-f0-9]{40} # v6/);
+  assert.doesNotMatch(ci, /^\s*uses:\s+actions\/.+@v\d+/m);
+  assert.doesNotMatch(deploy, /^\s*uses:\s+actions\/.+@v\d+/m);
   assert.match(packageJson.scripts["test:integration"], /register-cloudflare-loader/);
   assert.doesNotMatch(packageJson.scripts["test:integration"], /experimental-loader/);
   assert.match(loader, /register\(/);
