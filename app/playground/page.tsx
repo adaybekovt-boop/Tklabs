@@ -7,6 +7,8 @@ import { StitchHeader } from "@/components/site/StitchHeader";
 import { getLocale } from "@/lib/locale";
 
 export default async function PlaygroundPage() {
+  // Security boundary: never call isLocalPreviewEnabled here. Browser assurance
+  // uses the localhost-and-header-gated harness instead of bypassing Auth.js.
   const session = await auth();
   if (!session?.user) redirect("/login");
 
