@@ -3,6 +3,9 @@ import { respondWithDemoJson } from "./json-responder";
 import { prepareDemoRequest } from "./request-context";
 import { DemoStreamSession } from "./stream-session";
 
+// Architecture boundary: createDemoQuota, quota.commit(), quota.release(), and
+// prepareReadOnlyToolAugmentation are delegated to request-context, responders,
+// and DemoStreamSession. The public route remains transport orchestration only.
 export const runtime = "edge";
 
 export async function POST(request: Request) {
