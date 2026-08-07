@@ -4,6 +4,10 @@ import test from "node:test";
 
 const read = (path) => readFile(new URL(`../${path}`, import.meta.url), "utf8");
 
+function declaredVersion(sourceText, constantName) {
+  return sourceText.match(new RegExp(`${constantName}\\s*=\\s*"([^"]+)"`))?.[1] ?? null;
+}
+
 test("ConversationArchive keeps an accessible labelled region", async () => {
   const archive = await read("components/playground/ConversationArchive.tsx");
 
@@ -33,17 +37,14 @@ test("Patch Notes exposes known limitations and migration notes", async () => {
   assert.match(patchNotes, /previewRelease\.migrationNotes\.map/);
 });
 
-test("v0.16.9 synchronizes release, cache, documentation, and preview metadata", async () => {
+test("v0.16.9 Interface Polish remains documented after later releases", async () => {
   const release = await read("lib/release-version.ts");
-  const preview = await read("lib/prerelease.ts");
   const worker = await read("public/sw.js");
   const releaseDoc = await read("docs/releases/v0.16.9.md");
 
-  assert.match(release, /CURRENT_RELEASE_VERSION = "v0\.16\.9"/);
-  assert.match(release, /CURRENT_RELEASE_CODENAME = "Interface Polish"/);
-  assert.match(preview, /codename: "Interface Polish"/);
-  assert.match(preview, /tklabs-v0\.16\.9-static/);
-  assert.match(worker, /CACHE_VERSION = "v0\.16\.9"/);
+  assert.equal(declaredVersion(release, "CURRENT_RELEASE_VERSION"), declaredVersion(worker, "CACHE_VERSION"));
+  assert.match(release, /CURRENT_RELEASE_VERSION = "v\d+\.\d+\.\d+"/);
   assert.match(releaseDoc, /Interface Polish/);
   assert.match(releaseDoc, /tklabs-v0\.16\.9-static/);
+  assert.match(releaseDoc, /accessib/i);
 });
