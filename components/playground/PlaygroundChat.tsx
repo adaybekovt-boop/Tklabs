@@ -243,11 +243,6 @@ export function PlaygroundChat({
     setDrawerOpen(true);
   }
 
-  function closeWorkspace() {
-    setDrawerOpen(false);
-    setCompareTargetId(null);
-  }
-
   function handleAttachmentsChange(attachments: ChatInputAttachment[]) {
     const addedFile = attachments.length > composerAttachments.length;
     setComposerAttachments(attachments);
@@ -480,7 +475,7 @@ export function PlaygroundChat({
         responseMode={responseMode}
         reasonEnabled={reasonEnabled}
         project={currentProject}
-        onClose={() => closeWorkspace()}
+        onClose={() => setDrawerOpen(false)}
         onCompareModelChange={setCompareModel}
         onCompareLast={compareSelectedAnswer}
         onResponseModeChange={setResponseMode}
@@ -490,9 +485,11 @@ export function PlaygroundChat({
 
       <MobileChatDrawer
         open={mobileHistoryOpen}
-        onClose={() => setMobileHistoryOpen(false)}
         locale={locale}
-        onNewDialog={startNewDialog}
+        onClose={() => setMobileHistoryOpen(false)}
+        onNewChat={startNewDialog}
+        onOpenArtifacts={onOpenArtifacts}
+        onOpenRuns={onOpenRuns}
       />
     </div>
   );
