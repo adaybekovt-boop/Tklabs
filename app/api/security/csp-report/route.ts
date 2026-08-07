@@ -1,4 +1,4 @@
-import { readRequestBody, RequestBodyTooLargeError } from "@/lib/request-body";
+import { parseJsonBody, RequestBodyTooLargeError } from "@/lib/request-body";
 
 export const runtime = "edge";
 
@@ -28,12 +28,9 @@ function sanitizeReport(payload: unknown) {
 
 export async function POST(request: Request) {
   try {
-    const raw = await readRequestBody(request, CSP_REPORT_LIMIT_BYTES);
-    const payload = JSON.parse(raw) as unknown;
+    const payload = await parseJsonBody<unknown>(request, CSP_REPORT_LIMIT_BYTES);
     const report = sanitizeReport(payload);
-    if (!report) {
-      return new Response(null, { status: 400, headers: { "cache-control": "no-store" } });
-    }
+    if (!report) return new Response(null, { status: 400, headers: { "cache-control": "no-store" } });
     console.warn("security.csp_violation", report);
     return new Response(null, { status: 204, headers: { "cache-control": "no-store" } });
   } catch (error) {
