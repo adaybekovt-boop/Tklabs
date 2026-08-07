@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Check, CopyPlus, FolderKanban, MoreHorizontal, Pencil, Pin, Plus, Search, SquarePen, Trash2, X } from "lucide-react";
+import { Check, CopyPlus, FolderKanban, MoreHorizontal, Pencil, Pin, Search, SquarePen, Trash2, X } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 
 import { getDictionary, type Locale } from "@/lib/i18n";
@@ -99,6 +99,7 @@ export function ConversationArchive({ locale, onNavigate, headingId = "conversat
 
   return (
     <section className={compact ? "pt-3" : "mt-8 border-t border-outline-variant/30 pt-6"} aria-labelledby={headingId}>
+      <h2 id={headingId} className="sr-only">{text.chat.history}</h2>
       <div className="mb-3 flex items-center justify-between gap-2 px-2">
         <Link href="/playground" onClick={onNavigate} className="grid size-8 place-items-center rounded-full text-on-secondary-container hover:bg-surface-container-low hover:text-primary" aria-label={text.chat.newDialog} title={text.chat.newDialog}>
           <SquarePen size={16} />
