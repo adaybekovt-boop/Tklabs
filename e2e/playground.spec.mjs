@@ -18,18 +18,26 @@ async function submitVisibleComposer(page, prompt) {
   }
 }
 
+async function expectPersistedLocale(page, locale) {
+  await expect.poll(() => page.evaluate(() => localStorage.getItem("tklab-locale"))).toBe(locale);
+  await expect.poll(async () => {
+    const cookies = await page.context().cookies();
+    return cookies.find((cookie) => cookie.name === "tklab-locale")?.value ?? null;
+  }).toBe(locale);
+  await page.reload();
+  await expect(page.locator("html")).toHaveAttribute("lang", locale);
+}
+
 test("public shell, playground, and browser language state remain usable", async ({ page }) => {
   await page.goto("/");
   await expect(page.locator("html")).toHaveAttribute("lang", /^(ru|en)$/);
   await expect(page.getByRole("button", { name: "EN", exact: true })).toBeVisible();
 
   await page.getByRole("button", { name: "EN", exact: true }).click();
-  await expect.poll(() => page.evaluate(() => document.documentElement.lang)).toBe("en");
-  await expect.poll(() => page.evaluate(() => localStorage.getItem("tklab-locale"))).toBe("en");
+  await expectPersistedLocale(page, "en");
 
   await page.getByRole("button", { name: "RU", exact: true }).click();
-  await expect.poll(() => page.evaluate(() => document.documentElement.lang)).toBe("ru");
-  await expect.poll(() => page.evaluate(() => localStorage.getItem("tklab-locale"))).toBe("ru");
+  await expectPersistedLocale(page, "ru");
 
   await page.goto("/playground");
   await expect(page.locator("textarea:visible").first()).toBeVisible();
