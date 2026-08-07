@@ -21,7 +21,7 @@ test("v0.16.7 gives profile one responsive hierarchy on mobile and desktop", asy
   assert.match(summary, /data-mobile-profile-summary/);
   assert.match(summary, /data-profile-visual-hero/);
   assert.match(summary, /data-profile-action-grid/);
-  assert.match(summary, /href="\/vault"/);
+  assert.match(summary, /href: "\/vault"/);
   assert.match(summary, /releaseVersion/);
   assert.doesNotMatch(summary, /release-v0-11-1/);
   assert.match(card, /data-profile-membership-card/);
