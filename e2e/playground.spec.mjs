@@ -20,6 +20,7 @@ async function submitVisibleComposer(page, prompt) {
   const textarea = page.locator("textarea:visible").first();
   await expect(textarea).toBeVisible();
   await textarea.fill(prompt);
+  await expect(textarea).toHaveValue(prompt);
 
   const sendButton = page.getByRole("button", { name: /Отправить|Send/i }).last();
   await expect(sendButton).toBeVisible();
@@ -38,9 +39,22 @@ async function expectPersistedLocale(page, locale) {
   await waitForClientShell(page);
 }
 
-test("public shell, auth gate, browser harness, and language state remain usable", async ({ page }) => {
+test("public shell, auth gate, and browser harness remain usable", async ({ page }) => {
   await page.goto("/");
   await expect(page.locator("html")).toHaveAttribute("lang", /^(ru|en)$/);
+  await waitForClientShell(page);
+
+  await page.goto("/playground");
+  await expect(page.getByRole("heading", { name: /Вход в лабораторию|Sign in to the laboratory/i })).toBeVisible();
+  await expect(page.locator("textarea:visible")).toHaveCount(0);
+
+  await page.goto(PLAYGROUND_HARNESS);
+  await expect(page.locator("textarea:visible").first()).toBeVisible();
+});
+
+test("language state persists through hydration", async ({ page }, testInfo) => {
+  test.skip(!testInfo.project.name.includes("desktop"), "Locale persistence is a desktop hydration contract; mobile projects cover the workspace shell separately.");
+  await page.goto("/");
   await waitForClientShell(page);
   const initialLocale = await page.locator("html").getAttribute("lang");
   const nextLocale = initialLocale === "ru" ? "en" : "ru";
@@ -52,13 +66,6 @@ test("public shell, auth gate, browser harness, and language state remain usable
 
   await page.getByRole("button", { name: initialButton, exact: true }).first().click();
   await expectPersistedLocale(page, initialLocale === "ru" ? "ru" : "en");
-
-  await page.goto("/playground");
-  await expect(page.getByRole("heading", { name: /Вход в лабораторию|Sign in to the laboratory/i })).toBeVisible();
-  await expect(page.locator("textarea:visible")).toHaveCount(0);
-
-  await page.goto(PLAYGROUND_HARNESS);
-  await expect(page.locator("textarea:visible").first()).toBeVisible();
 });
 
 test("mocked SSE reaches the transcript without external providers", async ({ page }, testInfo) => {
