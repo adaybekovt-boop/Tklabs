@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
-import { Activity, FileText, Menu, MessageSquareText, Plus, Workflow, X } from "lucide-react";
+import { Activity, DatabaseBackup, FileText, Menu, MessageSquareText, Plus, Workflow, X } from "lucide-react";
 
 import { ConversationArchive } from "@/components/playground/ConversationArchive";
 import { LanguageToggle } from "@/components/site/LanguageToggle";
@@ -117,6 +117,7 @@ export function MobileChatDrawer({
             <button type="button" onClick={openFlow} className="mt-1 flex min-h-12 w-full items-center gap-3 rounded-xl border border-primary/20 bg-primary/5 px-3 text-left text-sm font-medium text-primary hover:bg-primary/10"><Workflow size={17} />Erma Flow<span className="ml-auto rounded-full bg-primary px-2 py-0.5 text-[9px] font-semibold uppercase tracking-[0.08em] text-on-primary">new</span></button>
             {onOpenArtifacts && <button type="button" onClick={() => { onOpenArtifacts(); onClose(); }} className="mt-1 flex min-h-11 w-full items-center gap-3 rounded-xl px-3 text-left text-sm text-on-surface-variant hover:bg-surface-container-low"><FileText size={17} />{ru ? "Артефакты" : "Artifacts"}</button>}
             {onOpenRuns && <button type="button" onClick={() => { onOpenRuns(); onClose(); }} className="mt-1 flex min-h-11 w-full items-center gap-3 rounded-xl px-3 text-left text-sm text-on-surface-variant hover:bg-surface-container-low"><Activity size={17} />Agent Runs</button>}
+            <Link href="/vault" onClick={onClose} className="mt-1 flex min-h-11 w-full items-center gap-3 rounded-xl px-3 text-left text-sm text-on-surface-variant hover:bg-surface-container-low hover:text-primary"><DatabaseBackup size={17} />Workspace Vault<span className="ml-auto rounded-full border border-outline-variant px-2 py-0.5 text-[9px] uppercase tracking-[0.08em]">local</span></Link>
           </section>
 
           <ConversationArchive locale={locale} onNavigate={onClose} headingId="mobile-chat-history-title" compact />

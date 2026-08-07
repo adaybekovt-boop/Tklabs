@@ -14,6 +14,7 @@ export async function StitchFooter() {
   const resourcesTitle = locale === "ru" ? "Ресурсы" : "Resources";
   const legalTitle = locale === "ru" ? "Правовая информация" : "Legal";
   const chatLabel = locale === "ru" ? "AI-чат" : "AI chat";
+  const vaultLabel = "Workspace Vault";
 
   return (
     <footer className="mt-section-gap border-t-[0.5px] border-primary bg-surface">
@@ -44,6 +45,7 @@ export async function StitchFooter() {
                 <Link className={footerLinkClass} href="/developers">{text.footer.developers}</Link>
                 <Link className={footerLinkClass} href="/patch-notes">{text.footer.patchNotes}</Link>
                 <Link className={footerLinkClass} href="/truth">{text.footer.truth}</Link>
+                <Link className={footerLinkClass} href="/vault">{vaultLabel}</Link>
               </nav>
             </details>
 
@@ -87,6 +89,7 @@ export async function StitchFooter() {
                 <Link className={desktopLinkClass} href="/developers">{text.footer.developers}</Link>
                 <Link className={desktopLinkClass} href="/patch-notes">{text.footer.patchNotes}</Link>
                 <Link className={desktopLinkClass} href="/truth">{text.footer.truth}</Link>
+                <Link className={desktopLinkClass} href="/vault">{vaultLabel}</Link>
               </div>
             </nav>
             <nav aria-label={legalTitle}>
