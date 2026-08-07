@@ -43,7 +43,7 @@ jobs:
         shell: bash
         run: |
           printf '%s\n' "version_id=${{ inputs.version_id }}" "reason=${{ inputs.reason }}" "actor=${{ github.actor }}" "source_sha=${{ github.sha }}" > rollback-evidence.txt
-      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: rollback-evidence-${{ github.run_id }}
           path: rollback-evidence.txt
