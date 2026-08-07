@@ -31,13 +31,16 @@ async function expectPersistedLocale(page, locale) {
 test("public shell, playground, and browser language state remain usable", async ({ page }) => {
   await page.goto("/");
   await expect(page.locator("html")).toHaveAttribute("lang", /^(ru|en)$/);
-  await expect(page.getByRole("button", { name: "EN", exact: true })).toBeVisible();
+  const initialLocale = await page.locator("html").getAttribute("lang");
+  const nextLocale = initialLocale === "ru" ? "en" : "ru";
+  const initialButton = initialLocale === "ru" ? "RU" : "EN";
+  const nextButton = nextLocale === "ru" ? "RU" : "EN";
 
-  await page.getByRole("button", { name: "EN", exact: true }).click();
-  await expectPersistedLocale(page, "en");
+  await page.getByRole("button", { name: nextButton, exact: true }).click();
+  await expectPersistedLocale(page, nextLocale);
 
-  await page.getByRole("button", { name: "RU", exact: true }).click();
-  await expectPersistedLocale(page, "ru");
+  await page.getByRole("button", { name: initialButton, exact: true }).click();
+  await expectPersistedLocale(page, initialLocale === "ru" ? "ru" : "en");
 
   await page.goto("/playground");
   await expect(page.locator("textarea:visible").first()).toBeVisible();
