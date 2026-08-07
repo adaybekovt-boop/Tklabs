@@ -1,5 +1,7 @@
 import { expect, test } from "@playwright/test";
 
+const PLAYGROUND_HARNESS = "/browser-assurance/playground";
+
 function sseBody(events) {
   return events.map(({ event, data }) => (
     `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`
@@ -33,7 +35,7 @@ async function expectPersistedLocale(page, locale) {
   await waitForClientShell(page);
 }
 
-test("public shell, playground, and browser language state remain usable", async ({ page }) => {
+test("public shell, auth gate, browser harness, and language state remain usable", async ({ page }) => {
   await page.goto("/");
   await expect(page.locator("html")).toHaveAttribute("lang", /^(ru|en)$/);
   await waitForClientShell(page);
@@ -49,6 +51,10 @@ test("public shell, playground, and browser language state remain usable", async
   await expectPersistedLocale(page, initialLocale === "ru" ? "ru" : "en");
 
   await page.goto("/playground");
+  await expect(page.getByRole("heading", { name: /Вход в лабораторию|Sign in to the laboratory/i })).toBeVisible();
+  await expect(page.locator("textarea:visible")).toHaveCount(0);
+
+  await page.goto(PLAYGROUND_HARNESS);
   await expect(page.locator("textarea:visible").first()).toBeVisible();
 });
 
@@ -96,7 +102,7 @@ test("mocked SSE reaches the transcript without external providers", async ({ pa
     });
   });
 
-  await page.goto("/playground");
+  await page.goto(PLAYGROUND_HARNESS);
   await submitVisibleComposer(page, "Run the browser assurance contract");
   await expect(page.getByText("Browser assurance response", { exact: false })).toBeVisible();
   await expect(page.getByText("Run the browser assurance contract", { exact: false })).toBeVisible();
@@ -104,7 +110,7 @@ test("mocked SSE reaches the transcript without external providers", async ({ pa
 
 test("mobile playground stays inside the viewport and exposes the mobile composer", async ({ page }, testInfo) => {
   test.skip(!testInfo.project.name.includes("mobile"), "Mobile viewport contract");
-  await page.goto("/playground");
+  await page.goto(PLAYGROUND_HARNESS);
   await expect(page.getByTestId("mobile-prompt-input")).toBeVisible();
   const overflow = await page.evaluate(() => ({
     viewport: window.innerWidth,
@@ -127,8 +133,8 @@ test("offline shell and manifest remain installable browser surfaces", async ({ 
   expect(Array.isArray(manifest.icons)).toBeTruthy();
 });
 
-test("primary surfaces have one main landmark and no unnamed visible buttons", async ({ page }) => {
-  await page.goto("/playground");
+test("primary workspace surface has one main landmark and no unnamed visible buttons", async ({ page }) => {
+  await page.goto(PLAYGROUND_HARNESS);
   await expect(page.locator("main")).toHaveCount(1);
   const unnamedButtons = await page.locator("button:visible").evaluateAll((buttons) => buttons.filter((button) => {
     const text = button.textContent?.trim() ?? "";
