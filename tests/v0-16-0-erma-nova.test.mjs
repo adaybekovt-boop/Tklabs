@@ -11,28 +11,28 @@ import { CURRENT_RELEASE_BADGE, CURRENT_RELEASE_VERSION } from "../lib/release-v
 
 const read = (path) => readFile(new URL(`../${path}`, import.meta.url), "utf8");
 
-test("v0.16.4 is the shared major preview release", async () => {
+test("v0.16.5 is the shared major preview release", async () => {
   const release = getPreviewRelease("en");
   const current = getCurrentRelease("en");
   const homePage = await read("app/page.tsx");
   const patchPage = await read("app/patch-notes/page.tsx");
-  const releaseDoc = await read("docs/releases/v0.16.4.md");
+  const releaseDoc = await read("docs/releases/v0.16.5.md");
 
-  assert.equal(CURRENT_RELEASE_VERSION, "v0.16.4");
-  assert.equal(CURRENT_RELEASE_BADGE, "v0.16.4");
+  assert.equal(CURRENT_RELEASE_VERSION, "v0.16.5");
+  assert.equal(CURRENT_RELEASE_BADGE, "v0.16.5");
   assert.equal(release.version, CURRENT_RELEASE_VERSION);
   assert.equal(current.version, CURRENT_RELEASE_VERSION);
   assert.equal(release.channel, "preview");
   assert.equal(release.majorUpdate, true);
   assert.equal(release.codename, "Erma Flow");
   assert.equal(release.stability, "beta");
-  assert.match(release.title, /Motion & Controlled Work/);
+  assert.match(release.title, /Safe Prompt Branches/);
   assert.match(homePage, /getCurrentRelease/);
   assert.doesNotMatch(homePage, /getLatestRelease/);
   assert.match(patchPage, /MAJOR UPDATE · PRE-RELEASE/);
   assert.match(patchPage, /getPreviewRelease/);
-  assert.match(releaseDoc, /Erma Flow/);
-  assert.match(releaseDoc, /Motion System/);
+  assert.match(releaseDoc, /Safe Prompt Branches/);
+  assert.match(releaseDoc, /branch-preserving/);
 });
 
 test("Erma Flow connects workspace, mobile navigation, runs, artifacts, and motion", async () => {
@@ -90,7 +90,7 @@ test("Erma Nova mobile chat keeps the dedicated mobile surfaces", async () => {
   assert.match(composer, /handlePrimaryAction/);
   assert.match(messages, /ChatOverlay/);
   assert.match(messages, /startLongPress/);
-  assert.match(messages, /max-w-\[86%\]/);
+  assert.match(messages, /max-w-\[82%\]/);
   assert.doesNotMatch(messages, /assistant-message-card/);
   assert.match(artifacts, /data-mobile-artifact-picker/);
   assert.match(artifacts, /data-mobile-version-history/);

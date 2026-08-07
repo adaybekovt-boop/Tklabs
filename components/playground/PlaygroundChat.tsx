@@ -6,7 +6,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { ArrowDown, FolderKanban, Menu, PanelRightOpen, SquarePen } from "lucide-react";
+import { ArrowDown, FolderKanban, GitBranch, Menu, PanelRightOpen, SquarePen, X } from "lucide-react";
 
 import { ChatContextDrawer } from "@/components/playground/ChatContextDrawer";
 import { ConversationArchive } from "@/components/playground/ConversationArchive";
@@ -14,7 +14,7 @@ import { MobileChatDrawer } from "@/components/playground/MobileChatDrawer";
 import { ResponsiveChatComposer } from "@/components/playground/ResponsiveChatComposer";
 import { ResponsiveMessageList, type ResponsiveMessageListProps } from "@/components/playground/ResponsiveMessageList";
 import type { ChatMessage } from "@/components/playground/MessageList";
-import type { ChatInputAttachment, ChatInputModel } from "@/components/ui/ai-chat-input";
+import type { ChatInputAttachment, ChatInputModel, ChatInputSubmitMeta } from "@/components/ui/ai-chat-input";
 import { LanguageToggle } from "@/components/site/LanguageToggle";
 import { SiteLogo } from "@/components/site/SiteLogo";
 import { ThemeToggle } from "@/components/site/ThemeToggle";
@@ -43,6 +43,11 @@ import { cn } from "@/lib/utils";
 
 const TIER_LABEL: Record<ErmaTier, string> = { light: "Fast", medium: "Balanced", heavy: "Deep" };
 type DrawerTab = "activity" | "context" | "settings";
+type PromptEditBranchState = {
+  sourceSessionId: string;
+  sourceTitle: string;
+  submitted: boolean;
+};
 
 export function PlaygroundChat({
   locale,
@@ -70,6 +75,7 @@ export function PlaygroundChat({
   const [composerAttachments, setComposerAttachments] = useState<ChatInputAttachment[]>([]);
   const [currentProject, setCurrentProject] = useState("");
   const [mobileHistoryOpen, setMobileHistoryOpen] = useState(false);
+  const [promptEditBranch, setPromptEditBranch] = useState<PromptEditBranchState | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const shouldFollowRef = useRef(true);
   const promptRef = useRef<HTMLDivElement>(null);
@@ -220,6 +226,7 @@ export function PlaygroundChat({
     setShowJumpLatest(false);
     setDrawerOpen(false);
     setMobileHistoryOpen(false);
+    setPromptEditBranch(null);
     shouldFollowRef.current = true;
     speech.stopSpeech();
     router.replace("/playground");
@@ -248,8 +255,76 @@ export function PlaygroundChat({
     archive.setSessionId(branch.id);
     chat.setMessages(branch.messages);
     setCurrentProject(branch.project ?? "");
+    setPromptEditBranch(null);
     router.push(`/playground?session=${encodeURIComponent(branch.id)}`);
     shouldFollowRef.current = true;
+  }
+
+  function editPromptInBranch(message: ChatMessage) {
+    if (chat.isPending || message.role !== "user") return;
+    const messageIndex = chat.messages.findIndex((entry) => entry.id === message.id);
+    if (messageIndex < 0) return;
+
+    const sourceSessionId = archive.sessionIdRef.current;
+    const firstPrompt = chat.messages.find((entry) => entry.role === "user")?.content ?? "Conversation";
+    archive.save(firstPrompt, selectedModel?.id ?? DEFAULT_ERMA_MODEL_KEY, chat.messages);
+    const source = getSession(sourceSessionId);
+    const sourceTitle = source?.title ?? firstPrompt.slice(0, 56);
+    const previousMessage = messageIndex > 0 ? chat.messages[messageIndex - 1] : null;
+    let branchId: string;
+
+    if (previousMessage) {
+      const branch = branchSession(
+        sourceSessionId,
+        previousMessage.id,
+        `${sourceTitle} · ${locale === "ru" ? "редактирование" : "edited branch"}`,
+      );
+      if (!branch) return;
+      branchId = branch.id;
+      archive.setSessionId(branch.id);
+      chat.setMessages(branch.messages);
+      setCurrentProject(branch.project ?? "");
+      router.push(`/playground?session=${encodeURIComponent(branch.id)}`);
+    } else {
+      branchId = archive.reset();
+      chat.clearMessages();
+      setCurrentProject("");
+      router.push("/playground");
+    }
+
+    setComposerAttachments([]);
+    setInput(message.content);
+    writeChatDraft(branchId, message.content);
+    setPromptEditBranch({ sourceSessionId, sourceTitle, submitted: false });
+    setShowJumpLatest(false);
+    shouldFollowRef.current = true;
+    speech.stopSpeech();
+    focusComposer();
+  }
+
+  function returnToOriginalConversation() {
+    if (!promptEditBranch || chat.isPending) return;
+    const source = getSession(promptEditBranch.sourceSessionId);
+    if (!source) {
+      setPromptEditBranch(null);
+      return;
+    }
+    archive.setSessionId(source.id);
+    setModelKey(source.model);
+    setCurrentProject(source.project ?? "");
+    chat.setMessages(source.messages);
+    setComposerAttachments([]);
+    setInput(readChatDraft(source.id));
+    setPromptEditBranch(null);
+    setShowJumpLatest(false);
+    shouldFollowRef.current = true;
+    router.push(`/playground?session=${encodeURIComponent(source.id)}`);
+  }
+
+  function handlePromptSubmit(prompt: string, submitMeta: ChatInputSubmitMeta) {
+    const accepted = chat.handleSubmit(prompt, submitMeta);
+    if (accepted) setPromptEditBranch((current) => current ? { ...current, submitted: true } : current);
+    return accepted;
   }
 
   function compareSelectedAnswer() {
@@ -278,7 +353,7 @@ export function PlaygroundChat({
     onRetry: chat.retryMessage,
     onRegenerate: chat.regenerateMessage,
     onRestorePrevious: (message) => chat.restorePreviousVersion(message.id),
-    onEdit: (message) => { setInput(message.content); focusComposer(); },
+    onEdit: editPromptInBranch,
     onBranch: branchFromMessage,
     onOpenWorkspace: (message) => openWorkspace(message, "settings"),
     onToggleContext: (message) => chat.toggleMessageContext(message.id),
@@ -340,12 +415,23 @@ export function PlaygroundChat({
         </div>
 
         <div className="chat-composer-area safe-area-bottom w-full shrink-0 border-t border-outline-variant bg-surface/96 px-3 pb-2 pt-2 backdrop-blur-md sm:px-5 sm:pb-3 sm:pt-3 md:px-8">
+          {promptEditBranch && (
+            <div data-branch-preserving-edit className="mx-auto mb-2 flex w-full max-w-[780px] items-center gap-3 rounded-2xl border border-primary/30 bg-primary/5 px-3 py-2.5 text-primary shadow-sm">
+              <span className="grid size-9 shrink-0 place-items-center rounded-full bg-primary text-on-primary"><GitBranch size={15} /></span>
+              <div className="min-w-0 flex-1">
+                <p className="text-[12px] font-semibold">{locale === "ru" ? (promptEditBranch.submitted ? "Изменённая ветка создана" : "Безопасное редактирование запроса") : (promptEditBranch.submitted ? "Edited branch created" : "Safe prompt editing")}</p>
+                <p className="mt-0.5 truncate text-[10px] text-on-secondary-container">{locale === "ru" ? "Исходный диалог сохранён" : "Original conversation preserved"}: {promptEditBranch.sourceTitle}</p>
+              </div>
+              <button type="button" onClick={returnToOriginalConversation} disabled={chat.isPending} className="min-h-9 shrink-0 rounded-full border border-primary/30 px-3 text-[10px] font-medium hover:bg-primary/10 disabled:opacity-40">{locale === "ru" ? (promptEditBranch.submitted ? "Открыть исходный" : "Отменить") : (promptEditBranch.submitted ? "Open original" : "Cancel")}</button>
+              <button type="button" onClick={() => setPromptEditBranch(null)} className="grid size-9 shrink-0 place-items-center rounded-full hover:bg-primary/10" aria-label={text.chat.close}><X size={14} /></button>
+            </div>
+          )}
           {contextWarning && <button type="button" onClick={() => openWorkspace(undefined, "context")} className="mx-auto mb-2 flex w-full max-w-[780px] items-center justify-center rounded-xl px-2 py-1 text-[10px] text-error hover:bg-error-container sm:text-[11px]">{locale === "ru" ? "Контекст близок к лимиту — открыть управление" : "Context is close to the limit — review"}</button>}
           <ResponsiveChatComposer
             ref={promptRef}
             value={input}
             onChange={setInput}
-            onSubmit={chat.handleSubmit}
+            onSubmit={handlePromptSubmit}
             models={models}
             selectedModelId={selectedModel?.id ?? DEFAULT_ERMA_MODEL_KEY}
             onModelChange={setModelKey}
