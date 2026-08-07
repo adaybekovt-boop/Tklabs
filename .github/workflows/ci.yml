@@ -1,4 +1,4 @@
-﻿name: Validate
+name: Validate
 
 on:
   push:
@@ -23,12 +23,12 @@ permissions:
 jobs:
   check:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
       - name: Setup Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: 22
           cache: npm
@@ -51,9 +51,9 @@ jobs:
       - name: Cloudflare Worker dry-run
         run: npx wrangler deploy --dry-run --config dist/server/wrangler.json
       - name: Upload validated Worker build
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
-          name: worker-build
+          name: worker-build-${{ github.sha }}
           path: dist
           if-no-files-found: error
           include-hidden-files: true

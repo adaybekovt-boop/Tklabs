@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - main
+  workflow_dispatch:
 
 concurrency:
   group: cloudflare-production
@@ -15,7 +16,7 @@ permissions:
 jobs:
   deploy:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
     env:
       CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
       CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
@@ -33,16 +34,24 @@ jobs:
       TTS_PRIVILEGED_DAILY_CHARACTER_QUOTA: ${{ vars.TTS_PRIVILEGED_DAILY_CHARACTER_QUOTA || '100000' }}
     steps:
       - name: Checkout pushed main commit
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           ref: ${{ github.sha }}
+          persist-credentials: false
       - name: Setup Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: 22
           cache: npm
       - name: Install dependencies
         run: npm ci
+      - name: Resolve release identity
+        shell: bash
+        run: |
+          set -euo pipefail
+          release="$(node --input-type=module -e 'import fs from "node:fs"; const source=fs.readFileSync("lib/release-version.ts","utf8"); const match=source.match(/CURRENT_RELEASE_VERSION\s*=\s*"([^"]+)"/); if(!match) process.exit(1); console.log(match[1]);')"
+          echo "EXPECTED_RELEASE=$release" >> "$GITHUB_ENV"
+          echo "Deploying release: $release"
       - name: Normalize Cloudflare deployment credentials
         shell: bash
         run: |
@@ -86,7 +95,16 @@ jobs:
           {
             echo "## Cloudflare Worker"
             echo
-            echo "[Open deployed site]($url)"
+            echo "[Open deployed Worker]($url)"
+            echo
+            echo "Canonical site: $AUTH_URL"
+            echo
+            echo "Release: $EXPECTED_RELEASE"
             echo
             echo "Deployed commit: `${{ github.sha }}`"
           } >> "$GITHUB_STEP_SUMMARY"
+      - name: Verify canonical production readiness
+        env:
+          SMOKE_ATTEMPTS: "8"
+          SMOKE_TIMEOUT_MS: "5000"
+        run: SMOKE_BASE_URL="$AUTH_URL" npm run smoke:production

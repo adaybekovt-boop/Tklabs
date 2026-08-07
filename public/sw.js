@@ -1,7 +1,7 @@
 /* global self, caches, Request, Response, fetch, URL */
 
 const CACHE_PREFIX = "tklabs";
-const CACHE_VERSION = "v0.16.7";
+const CACHE_VERSION = "v0.16.8";
 const STATIC_CACHE = `${CACHE_PREFIX}-${CACHE_VERSION}-static`;
 const OFFLINE_URL = "/offline";
 const PRECACHE_URLS = [

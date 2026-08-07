@@ -11,28 +11,28 @@ import { CURRENT_RELEASE_BADGE, CURRENT_RELEASE_VERSION } from "../lib/release-v
 
 const read = (path) => readFile(new URL(`../${path}`, import.meta.url), "utf8");
 
-test("v0.16.7 is the shared major preview release", async () => {
+test("v0.16.8 is the shared major preview release", async () => {
   const release = getPreviewRelease("en");
   const current = getCurrentRelease("en");
   const homePage = await read("app/page.tsx");
   const patchPage = await read("app/patch-notes/page.tsx");
-  const releaseDoc = await read("docs/releases/v0.16.7.md");
+  const releaseDoc = await read("docs/releases/v0.16.8.md");
 
-  assert.equal(CURRENT_RELEASE_VERSION, "v0.16.7");
-  assert.equal(CURRENT_RELEASE_BADGE, "v0.16.7");
+  assert.equal(CURRENT_RELEASE_VERSION, "v0.16.8");
+  assert.equal(CURRENT_RELEASE_BADGE, "v0.16.8");
   assert.equal(release.version, CURRENT_RELEASE_VERSION);
   assert.equal(current.version, CURRENT_RELEASE_VERSION);
   assert.equal(release.channel, "preview");
   assert.equal(release.majorUpdate, true);
-  assert.equal(release.codename, "Profile Studio");
+  assert.equal(release.codename, "Resilience Core");
   assert.equal(release.stability, "beta");
-  assert.match(release.title, /Account Hub & Navigation Clarity/);
+  assert.match(release.title, /Reliability, Readiness & Engineering Ownership/);
   assert.match(homePage, /getCurrentRelease/);
   assert.doesNotMatch(homePage, /getLatestRelease/);
   assert.match(patchPage, /MAJOR UPDATE · PRE-RELEASE/);
   assert.match(patchPage, /getPreviewRelease/);
-  assert.match(releaseDoc, /Profile Studio/);
-  assert.match(releaseDoc, /mobile bottom navigation/i);
+  assert.match(releaseDoc, /Resilience Core/);
+  assert.match(releaseDoc, /readiness/i);
 });
 
 test("Erma Flow connects workspace, mobile navigation, runs, artifacts, and motion", async () => {

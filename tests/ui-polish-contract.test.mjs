@@ -62,7 +62,9 @@ test("secondary surfaces keep branding restrained and the mobile footer is group
   assert.match(footer, /<details/);
   assert.match(footer, /Правовая информация|Legal/);
   assert.match(footer, /href="\/vault"/);
-  assert.doesNotMatch(developers, /0\{index \+ 1\} \/ TK LAB/);
+  assert.match(developers, /data-developer-ownership/);
+  assert.match(developers, /data-engineering-system-map/);
+  assert.doesNotMatch(developers, /text-\[100px\]|text-\[120px\]/);
   assert.match(home, /getCurrentRelease/);
   assert.match(home, /aspect-\[16\/10\]/);
   assert.doesNotMatch(home, /FlaskConical/);

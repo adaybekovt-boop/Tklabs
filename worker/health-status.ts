@@ -22,10 +22,13 @@ type HealthStatusEnv = {
 };
 
 type SnapshotRow = { payload: string; expires_at: number; stale_until: number };
+type StoredHealth = Omit<HealthPayload, "source" | "stale">;
 
 const LIVE_TTL_MS = 60_000;
-const STALE_TTL_MS = 5 * 60_000;
+const STALE_TTL_MS = 15 * 60_000;
 const PROVIDER_TIMEOUT_MS = 2_500;
+const PROVIDER_PROBE_ATTEMPTS = 2;
+const PROVIDER_RETRY_DELAY_MS = 140;
 
 function firstEnv(env: HealthStatusEnv, ...names: (keyof HealthStatusEnv)[]) {
   for (const name of names) {
@@ -35,19 +38,56 @@ function firstEnv(env: HealthStatusEnv, ...names: (keyof HealthStatusEnv)[]) {
   return "";
 }
 
-async function probe(url: string, headers: Record<string, string>): Promise<Pick<HealthCheck, "status" | "latencyMs">> {
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), PROVIDER_TIMEOUT_MS);
-  const startedAt = Date.now();
+function delay(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function parseStoredHealth(payload: string): StoredHealth | null {
   try {
-    const response = await fetch(url, { method: "GET", headers, signal: controller.signal });
-    const status: HealthState = response.ok ? "operational" : response.status < 500 ? "degraded" : "down";
-    return { status, latencyMs: Date.now() - startedAt };
+    const parsed = JSON.parse(payload) as Partial<StoredHealth>;
+    if (
+      typeof parsed.checkedAt !== "string"
+      || typeof parsed.ok !== "boolean"
+      || !Array.isArray(parsed.services)
+      || parsed.services.some((service) => (
+        !service
+        || typeof service.id !== "string"
+        || !["operational", "degraded", "down", "not_configured"].includes(service.status)
+      ))
+    ) return null;
+    return parsed as StoredHealth;
   } catch {
-    return { status: "down", latencyMs: Date.now() - startedAt };
-  } finally {
-    clearTimeout(timeout);
+    return null;
   }
+}
+
+async function probe(url: string, headers: Record<string, string>): Promise<Pick<HealthCheck, "status" | "latencyMs">> {
+  const startedAt = Date.now();
+  let lastStatus: HealthState = "down";
+
+  for (let attempt = 1; attempt <= PROVIDER_PROBE_ATTEMPTS; attempt += 1) {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), PROVIDER_TIMEOUT_MS);
+    try {
+      const response = await fetch(url, {
+        method: "GET",
+        headers,
+        signal: controller.signal,
+        cache: "no-store",
+      });
+      if (response.ok) return { status: "operational", latencyMs: Date.now() - startedAt };
+      lastStatus = response.status === 429 || response.status < 500 ? "degraded" : "down";
+      if (lastStatus === "degraded") break;
+    } catch {
+      lastStatus = "down";
+    } finally {
+      clearTimeout(timeout);
+    }
+
+    if (attempt < PROVIDER_PROBE_ATTEMPTS) await delay(PROVIDER_RETRY_DELAY_MS * attempt);
+  }
+
+  return { status: lastStatus, latencyMs: Date.now() - startedAt };
 }
 
 async function providerCheck(id: string, url: string, headers: Record<string, string>, configured: boolean, required = true): Promise<HealthCheck> {
@@ -55,7 +95,7 @@ async function providerCheck(id: string, url: string, headers: Record<string, st
   return { id, required, ...(await probe(url, headers)) };
 }
 
-async function buildHealth(env: HealthStatusEnv): Promise<Omit<HealthPayload, "source" | "stale">> {
+async function buildHealth(env: HealthStatusEnv): Promise<StoredHealth> {
   const nvidiaKey = firstEnv(env, "NVIDIA_API_KEY_PRIMARY", "NVIDIA_API_KEY_SECONDARY", "NVIDIA_API_KEY_1", "NVIDIA_API_KEY");
   const clodexKey = firstEnv(env, "CLODEX_API_KEY");
   const clodexEnabled = env.CLODEX_ENABLED?.trim().toLowerCase() === "true";
@@ -72,6 +112,7 @@ async function buildHealth(env: HealthStatusEnv): Promise<Omit<HealthPayload, "s
     Promise.resolve<HealthCheck>({ id: "auth", status: authConfigured ? "operational" : "not_configured", latencyMs: null }),
     Promise.resolve<HealthCheck>({ id: "access", status: rateLimitConfigured ? "operational" : "not_configured", latencyMs: null }),
   ]);
+
   return {
     checkedAt: new Date().toISOString(),
     ok: checks.filter((check) => check.required !== false).every((check) => check.status === "operational"),
@@ -82,7 +123,7 @@ async function buildHealth(env: HealthStatusEnv): Promise<Omit<HealthPayload, "s
 /** Shared status cache. Durable Object serialization provides single-flight
  * refreshes across Worker isolates without a process-local Map. */
 export class HealthStatus extends DurableObject<HealthStatusEnv> {
-  private refreshPromise: Promise<Omit<HealthPayload, "source" | "stale">> | null = null;
+  private refreshPromise: Promise<StoredHealth> | null = null;
 
   constructor(ctx: DurableObjectState, env: HealthStatusEnv) {
     super(ctx, env);
@@ -94,27 +135,40 @@ export class HealthStatus extends DurableObject<HealthStatusEnv> {
   async getStatus(): Promise<HealthPayload> {
     const now = Date.now();
     const row = this.ctx.storage.sql.exec<SnapshotRow>("SELECT payload, expires_at, stale_until FROM health_snapshot WHERE slot = 1").toArray()[0];
-    if (row && now < row.expires_at) {
-      const cached = JSON.parse(row.payload) as Omit<HealthPayload, "source" | "stale">;
-      return { ...cached, source: "cache", stale: false };
+    const stored = row ? parseStoredHealth(row.payload) : null;
+
+    if (row && !stored) {
+      this.ctx.storage.sql.exec("DELETE FROM health_snapshot WHERE slot = 1");
+      console.warn("health.snapshot_corrupt", { action: "deleted" });
+    }
+
+    if (row && stored && now < row.expires_at) {
+      return { ...stored, source: "cache", stale: false };
     }
 
     if (!this.refreshPromise) {
       this.refreshPromise = (async () => {
         const live = await buildHealth(this.env);
-        this.ctx.storage.sql.exec("INSERT INTO health_snapshot (slot, payload, expires_at, stale_until) VALUES (1, ?, ?, ?) ON CONFLICT(slot) DO UPDATE SET payload = excluded.payload, expires_at = excluded.expires_at, stale_until = excluded.stale_until", JSON.stringify(live), now + LIVE_TTL_MS, now + STALE_TTL_MS);
+        const refreshedAt = Date.now();
+        this.ctx.storage.sql.exec(
+          "INSERT INTO health_snapshot (slot, payload, expires_at, stale_until) VALUES (1, ?, ?, ?) ON CONFLICT(slot) DO UPDATE SET payload = excluded.payload, expires_at = excluded.expires_at, stale_until = excluded.stale_until",
+          JSON.stringify(live),
+          refreshedAt + LIVE_TTL_MS,
+          refreshedAt + STALE_TTL_MS,
+        );
         return live;
       })().finally(() => {
         this.refreshPromise = null;
       });
     }
+
     try {
       const live = await this.refreshPromise;
       return { ...live, source: "live", stale: false };
-    } catch {
-      if (row && now < row.stale_until) {
-        const stale = JSON.parse(row.payload) as Omit<HealthPayload, "source" | "stale">;
-        return { ...stale, source: "stale", stale: true };
+    } catch (error) {
+      if (row && stored && now < row.stale_until) {
+        console.warn("health.refresh_failed", { fallback: "stale", reason: error instanceof Error ? error.message : "unknown" });
+        return { ...stored, source: "stale", stale: true };
       }
       throw new Error("health_refresh_failed");
     }
