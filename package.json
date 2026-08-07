@@ -1,10 +1,8 @@
 {
   "name": "tkai",
-  "version": "0.1.0",
+  "version": "0.17.5",
   "private": true,
-  "engines": {
-    "node": ">=22.13.0"
-  },
+  "engines": { "node": ">=22.13.0" },
   "scripts": {
     "dev": "vinext dev",
     "build": "vinext build",
@@ -16,9 +14,11 @@
     "test": "npm run test:unit && npm run test:integration",
     "security:secrets": "node scripts/check-secrets.mjs",
     "security:sbom": "npm sbom --sbom-format cyclonedx > sbom.cdx.json",
+    "release:check": "node scripts/check-release-consistency.mjs",
+    "migration:safety": "node scripts/check-migration-safety.mjs",
     "perf:budget": "node scripts/check-performance-budget.mjs",
     "smoke:production": "node scripts/smoke-test-production.mjs",
-    "check": "npm run typecheck && npm run lint && npm run security:secrets && npm test && npm run build && npm run perf:budget",
+    "check": "npm run typecheck && npm run lint && npm run security:secrets && npm run migration:safety && npm run release:check && npm test && npm run build && npm run perf:budget",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "node scripts/migrate-d1.mjs",
     "cloudflare:check-secrets": "node scripts/check-cloudflare-secrets.mjs"
