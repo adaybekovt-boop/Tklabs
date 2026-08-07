@@ -29,8 +29,8 @@ export async function StitchHeader({ active, chatMode = false }: StitchHeaderPro
   }
 
   const sectionLabels: Record<ActiveSection, string> = locale === "ru"
-    ? { home: "Главная", models: "Модели", access: "Модели", laboratory: "AI-чат", status: "Статус", documentation: "Документация", developers: "Команда", "patch-notes": "Обновления", truth: "Принципы" }
-    : { home: "Home", models: "Models", access: "Models", laboratory: "AI chat", status: "Status", documentation: "Documentation", developers: "Team", "patch-notes": "Updates", truth: "Principles" };
+    ? { home: "Главная", models: "Модели", access: "Доступ", laboratory: "AI-чат", status: "Статус", documentation: "Документация", developers: "Команда", "patch-notes": "Обновления", truth: "Принципы" }
+    : { home: "Home", models: "Models", access: "Access", laboratory: "AI chat", status: "Status", documentation: "Documentation", developers: "Team", "patch-notes": "Updates", truth: "Principles" };
 
   const navLabels = locale === "ru"
     ? { chat: "AI-чат", models: "Модели", updates: "Обновления", status: "Статус" }
@@ -39,18 +39,26 @@ export async function StitchHeader({ active, chatMode = false }: StitchHeaderPro
   const mobileLabels = locale === "ru"
     ? {
         home: "Главная",
-        chat: "Чат",
+        chat: "AI-чат",
         updates: "Обновления",
         profile: "Профиль",
         more: "Ещё",
-        menuTitle: "Ресурсы",
+        menuTitle: "Все разделы",
         close: "Закрыть меню",
+        workspaceTitle: "Рабочее пространство",
+        resourcesTitle: "Информация и команда",
         models: text.footer.models,
-        access: text.footer.access,
+        modelsHint: "Сравнение Erma-моделей и их возможностей",
+        vault: "Workspace Vault",
+        vaultHint: "Полный локальный бэкап и восстановление данных",
         status: text.footer.status,
+        statusHint: "Проверка доступности сервисов и AI-провайдеров",
         documentation: text.footer.documentation,
+        documentationHint: "Инструкции, API и устройство платформы",
         developers: text.footer.developers,
+        developersHint: "Команда, роли и история TK LAB",
         principles: text.footer.truth,
+        principlesHint: "Принципы продукта, безопасности и прозрачности",
         login: text.nav.login,
         themeLight: text.nav.themeLight,
         themeDark: text.nav.themeDark,
@@ -58,18 +66,26 @@ export async function StitchHeader({ active, chatMode = false }: StitchHeaderPro
       }
     : {
         home: "Home",
-        chat: "Chat",
+        chat: "AI chat",
         updates: "Updates",
         profile: "Profile",
         more: "More",
-        menuTitle: "Resources",
+        menuTitle: "All sections",
         close: "Close menu",
+        workspaceTitle: "Workspace",
+        resourcesTitle: "Information and team",
         models: text.footer.models,
-        access: text.footer.access,
+        modelsHint: "Compare Erma models and their capabilities",
+        vault: "Workspace Vault",
+        vaultHint: "Complete local backup and restore",
         status: text.footer.status,
+        statusHint: "Check service and AI provider availability",
         documentation: text.footer.documentation,
+        documentationHint: "Guides, API details, and platform architecture",
         developers: text.footer.developers,
+        developersHint: "Team, roles, and the TK LAB story",
         principles: text.footer.truth,
+        principlesHint: "Product, safety, and transparency principles",
         login: text.nav.login,
         themeLight: text.nav.themeLight,
         themeDark: text.nav.themeDark,
