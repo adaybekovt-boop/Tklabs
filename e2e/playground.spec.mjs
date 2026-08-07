@@ -21,9 +21,8 @@ async function submitVisibleComposer(page, prompt) {
   await expect(textarea).toBeVisible();
   await textarea.fill(prompt);
 
-  const form = textarea.locator("xpath=ancestor::form[1]");
-  await expect(form).toHaveCount(1);
-  const sendButton = form.getByRole("button", { name: /Отправить|Send/i });
+  const sendButton = page.getByRole("button", { name: /Отправить|Send/i }).last();
+  await expect(sendButton).toBeVisible();
   await expect(sendButton).toBeEnabled();
   await sendButton.click();
 }
