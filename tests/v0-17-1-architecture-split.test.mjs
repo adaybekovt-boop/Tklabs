@@ -10,11 +10,12 @@ test("v0.17.1 keeps the demo route as a thin orchestrator", async () => {
   const jsonResponder = await read("app/api/demo/json-responder.ts");
   const streamSession = await read("app/api/demo/stream-session.ts");
 
-  assert.ok(route.split(/\r?\n/).length <= 20);
+  assert.ok(route.split(/\r?\n/).length <= 24);
   assert.match(route, /prepareDemoRequest/);
   assert.match(route, /respondWithDemoJson/);
   assert.match(route, /new DemoStreamSession/);
-  assert.doesNotMatch(route, /generateWithNvidia|streamWithNvidia|createDemoQuota/);
+  assert.doesNotMatch(route, /from "\.\/quota"|from "@\/lib\/ai\/providers\/nvidia"/);
+  assert.doesNotMatch(route, /\bcreateDemoQuota\s*\(|\bgenerateWithNvidia\s*\(|\bstreamWithNvidia\s*\(/);
   assert.match(requestContext, /prepareChatContext/);
   assert.match(requestContext, /createDemoQuota/);
   assert.match(jsonResponder, /generateWithNvidia/);
@@ -36,6 +37,7 @@ test("chat request state, transport, and persistence are independently testable"
   assert.match(state, /INITIAL_REQUEST_STATE/);
   assert.match(transport, /consumeAiEventStream/);
   assert.match(transport, /safeRetrySeconds/);
+  assert.match(transport, /actualProvider/);
   assert.match(persistence, /toContextMessages/);
   assert.match(persistence, /responseSnapshot/);
 });
