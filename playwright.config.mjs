@@ -27,6 +27,9 @@ export default defineConfig({
     screenshot: "only-on-failure",
     video: "retain-on-failure",
     serviceWorkers: "allow",
+    extraHTTPHeaders: {
+      "x-tklabs-browser-assurance": "tklabs-playwright-v1",
+    },
   },
   webServer: {
     command: `${previewEnvironment} npm run dev -- --hostname 127.0.0.1 --port ${port}`,
