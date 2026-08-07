@@ -3,6 +3,7 @@ import type { Metadata, Viewport } from "next";
 import "@/app/globals.css";
 import "@/app/motion.css";
 import "@/app/interface-polish.css";
+import "@/lib/public-branding";
 import { PwaRuntime } from "@/components/pwa/PwaRuntime";
 import { MotionOrchestrator } from "@/components/site/MotionOrchestrator";
 import { getLocale } from "@/lib/locale";
