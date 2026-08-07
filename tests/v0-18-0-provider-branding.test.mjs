@@ -22,16 +22,17 @@ test("public provider model labels no longer expose the legacy name", () => {
 });
 
 test("neutral API route exists and product branding is applied globally", async () => {
-  const [route, layout, branding, serverModels] = await Promise.all([
+  const [route, layout, guard, serverModels] = await Promise.all([
     readFile(new URL("../app/api/external-api/route.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/layout.tsx", import.meta.url), "utf8"),
-    readFile(new URL("../lib/public-branding.ts", import.meta.url), "utf8"),
+    readFile(new URL("../components/site/PublicBrandingGuard.tsx", import.meta.url), "utf8"),
     readFile(new URL("../lib/models/clodex-server.ts", import.meta.url), "utf8"),
   ]);
 
   assert.match(route, /app\/api\/clodex\/route/);
-  assert.match(layout, /lib\/public-branding/);
-  assert.match(branding, /MutationObserver/);
+  assert.match(layout, /PublicBrandingGuard/);
+  assert.match(guard, /MutationObserver/);
+  assert.match(guard, /neutralizeNode\(document\.documentElement\)/);
   assert.doesNotMatch(serverModels, /name:\s*"Clodex/i);
   assert.match(serverModels, /name:\s*"External API/);
 });
