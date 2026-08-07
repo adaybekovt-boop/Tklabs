@@ -4,17 +4,17 @@ export type PreviewEnvironment = {
   NEXT_PUBLIC_TKLABS_LOCAL_PREVIEW?: string;
 };
 
-function hasExplicitPreviewFlags(environment: PreviewEnvironment) {
-  return environment.TKLABS_LOCAL_PREVIEW === "true"
-    && environment.NEXT_PUBLIC_TKLABS_LOCAL_PREVIEW === "true";
-}
-
 export function isLocalPreviewEnabled(environment: PreviewEnvironment = process.env) {
-  // Server preview requires two independent opt-in flags. Vinext may compile the
-  // shared module with a production-like NODE_ENV even while its dev server is
-  // running, so production safety is enforced at config/build time instead of
-  // relying on NODE_ENV inside the runtime bundle.
-  return hasExplicitPreviewFlags(environment);
+  const serverFlag = environment.TKLABS_LOCAL_PREVIEW === "true";
+  const publicFlag = environment.NEXT_PUBLIC_TKLABS_LOCAL_PREVIEW === "true";
+
+  // Normal local development keeps the simple server-side opt-in. Vinext may
+  // compile the shared runtime module with a production-like NODE_ENV even
+  // while `vinext dev` is serving Playwright; that case requires both flags.
+  // A real production build rejects either flag in next.config.ts before the
+  // Worker artifact can be produced.
+  if (environment.NODE_ENV === "development") return serverFlag || publicFlag;
+  return serverFlag && publicFlag;
 }
 
 export function isClientLocalPreviewEnabled(environment: PreviewEnvironment = process.env) {
