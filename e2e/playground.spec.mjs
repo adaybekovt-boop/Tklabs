@@ -15,6 +15,14 @@ async function waitForClientShell(page) {
     "true",
     { timeout: 15_000 },
   );
+  // Server rendering intentionally starts from the mobile-safe surface. On wide
+  // viewports React then reconciles to the desktop composer. Do not type into the
+  // transient textarea while that route/hydration transition is still entering.
+  await expect(page.locator("html")).not.toHaveAttribute(
+    "data-route-transition",
+    "entering",
+    { timeout: 15_000 },
+  );
 }
 
 async function submitVisibleComposer(page, prompt) {
@@ -52,10 +60,12 @@ async function expectViewportPinned(locator) {
       viewportTop: visualViewport?.offsetTop ?? 0,
       viewportBottom: (visualViewport?.offsetTop ?? 0) + (visualViewport?.height ?? window.innerHeight),
       parentIsBody: element.parentElement === document.body,
+      bodyTransform: getComputedStyle(document.body).transform,
     };
   });
   expect(geometry.position).toBe("fixed");
   expect(geometry.parentIsBody).toBeTruthy();
+  expect(geometry.bodyTransform).toBe("none");
   expect(geometry.top).toBeGreaterThanOrEqual(geometry.viewportTop - 2);
   expect(geometry.bottom).toBeLessThanOrEqual(geometry.viewportBottom + 2);
 }
