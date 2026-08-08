@@ -5,6 +5,7 @@ import { PatchNotesBrowser } from "@/components/site/PatchNotesBrowser";
 import { StitchFooter } from "@/components/site/StitchFooter";
 import { StitchHeader } from "@/components/site/StitchHeader";
 import { getDictionary } from "@/lib/i18n";
+import { getIntelligenceEngineReleases } from "@/lib/intelligence-engine-releases";
 import { getReleaseHistory } from "@/lib/latest-release";
 import { getLocale } from "@/lib/locale";
 import { getPreviewRelease } from "@/lib/prerelease";
@@ -19,12 +20,13 @@ export default async function PatchNotesPage() {
   const locale = await getLocale();
   const text = getDictionary(locale);
   const previewRelease = getPreviewRelease(locale);
+  const intelligence = getIntelligenceEngineReleases(locale);
   const trust = getTrustArchitectureReleases(locale);
   const evolution = getWorkspaceEvolutionReleases(locale);
   const history = getReleaseHistory(locale);
   const claimed = new Set([previewRelease.version]);
   const entries: PublicReleaseNote[] = [previewRelease];
-  for (const collection of [trust, evolution, history]) {
+  for (const collection of [intelligence, trust, evolution, history]) {
     for (const entry of collection) {
       if (claimed.has(entry.version)) continue;
       claimed.add(entry.version);
