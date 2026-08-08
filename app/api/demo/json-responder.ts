@@ -9,9 +9,9 @@ import { jsonResponse } from "./http";
 import type { PreparedDemoRequest } from "./request-context";
 
 export async function respondWithDemoJson(input: PreparedDemoRequest) {
-  const { request, body, requestId, language, model, requestedReasoning, effort, tone, privilegedAccount, context, documents, quota, rateLimitCookie, startedAt, requestedModel } = input;
+  const { request, body, requestId, prompt, context, language, model, requestedReasoning, effort, tone, privilegedAccount, documents, quota, rateLimitCookie, startedAt, requestedModel } = input;
 
-  const toolAugmentation = await prepareReadOnlyToolAugmentation({ request, requestId, context, language, model, localArchive: body.localArchive, documents, allowCodeSandbox: privilegedAccount, signal: request.signal });
+  const toolAugmentation = await prepareReadOnlyToolAugmentation({ request, requestId, prompt, context, language, model, localArchive: body.localArchive, documents, allowCodeSandbox: privilegedAccount, signal: request.signal });
   const fallbackPrompt = contextualFallbackPrompt(context, toolAugmentation.summary);
 
   try {

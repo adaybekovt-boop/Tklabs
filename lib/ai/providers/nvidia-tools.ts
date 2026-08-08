@@ -22,7 +22,7 @@ type Language = "ru" | "en";
 type NvidiaPlannerMessage = { role: "system" | "user" | "assistant" | "tool"; content: string | null; tool_call_id?: string; tool_calls?: RawNvidiaToolCall[] };
 type NvidiaPlannerResponse = { choices?: Array<{ message?: { content?: string | null; tool_calls?: RawNvidiaToolCall[] } }> };
 
-export type NvidiaToolLoopInput = { messages: ChatContextMessage[]; summary?: string; language: Language; model: ErmaModel; requestId: string; localArchive: LocalArchiveSearchEntry[]; documents: ChatAttachment[]; allowCodeSandbox?: boolean; getServiceStatus: (signal: AbortSignal) => Promise<HealthPayload>; signal?: AbortSignal };
+export type NvidiaToolLoopInput = { prompt: string; messages: ChatContextMessage[]; summary?: string; language: Language; model: ErmaModel; requestId: string; localArchive: LocalArchiveSearchEntry[]; documents: ChatAttachment[]; allowCodeSandbox?: boolean; getServiceStatus: (signal: AbortSignal) => Promise<HealthPayload>; signal?: AbortSignal };
 export type NvidiaToolLoopResult = { controlBlock?: string; untrustedContextBlock?: string; traces: AiToolCallTrace[]; route?: ErmaIntelligenceRoute; evidence?: ErmaEvidence[]; verification?: ErmaVerificationResult };
 
 function nvidiaKeys() { const primary = process.env.NVIDIA_API_KEY_PRIMARY?.trim() || process.env.NVIDIA_API_KEY_1?.trim() || process.env.NVIDIA_API_KEY?.trim() || ""; const secondary = process.env.NVIDIA_API_KEY_SECONDARY?.trim() || process.env.NVIDIA_API_KEY_2?.trim() || ""; return [primary, secondary].filter((key, index, keys): key is string => Boolean(key) && keys.indexOf(key) === index); }
@@ -43,12 +43,11 @@ function plannerModelId() { return ERMA_MODELS.find((model) => model.tier === "l
 function plannerBody(messages: NvidiaPlannerMessage[], tools: readonly NvidiaToolDefinition[]) { const model = plannerModelId(); if (!model) throw new Error("nvidia_tool_planner_model_unavailable"); return { model, messages, tools, tool_choice: "auto", parallel_tool_calls: false, temperature: 0.05, top_p: 0.7, max_tokens: 384, stream: false, chat_template_kwargs: { enable_thinking: false } }; }
 function shouldRotate(status: number, body: string) { return [401, 402, 403, 429].includes(status) || /quota|rate[ -]?limit|credit|exhausted|throttl/i.test(body); }
 async function requestPlanner(input: NvidiaToolLoopInput, messages: NvidiaPlannerMessage[], tools: readonly NvidiaToolDefinition[]) { const keys = nvidiaKeys(); if (!keys.length) throw new Error("nvidia_not_configured"); let lastError: unknown; for (const key of keys) { try { return await withProviderResponse(NVIDIA_ENDPOINT, { method: "POST", signal: input.signal, headers: { authorization: `Bearer ${key}`, "content-type": "application/json", accept: "application/json" }, body: JSON.stringify(plannerBody(messages, tools)) }, async (response) => { if (!response.ok) { const errorText = await response.text().catch(() => ""); if (shouldRotate(response.status, errorText)) throw new Error("nvidia_key_rejected"); throw Object.assign(new Error("nvidia_tool_planner_http_error"), { status: response.status }); } const payload = await response.json().catch(() => null) as NvidiaPlannerResponse | null; if (!payload?.choices?.[0]?.message) throw new Error("nvidia_tool_planner_empty"); return payload.choices[0].message; }, { timeoutMs: PROVIDER_TIMEOUT_MS }); } catch (error) { if (input.signal?.aborted) throw error; lastError = error; } } throw lastError ?? new Error("nvidia_tool_planner_unavailable"); }
-function latestUserPrompt(messages: ChatContextMessage[]) { return [...messages].reverse().find((message) => message.role === "user")?.content ?? ""; }
 function controlFor(route: ErmaIntelligenceRoute, verification: ErmaVerificationResult, language: Language) { return [`ERMA INTELLIGENCE ROUTE:\n${JSON.stringify(route)}`, verificationPromptBlock(verification), buildAnswerDirective(route, verification, language)].join("\n\n").slice(0, 12_000); }
 
 export async function runNvidiaToolLoop(input: NvidiaToolLoopInput): Promise<NvidiaToolLoopResult> {
   const capabilities = getErmaCapabilities(input.model.key);
-  const prompt = latestUserPrompt(input.messages);
+  const prompt = input.prompt;
   if (!input.model.nvidiaModel || !capabilities.toolCalling.enabled) return { traces: [] };
   const route = boundRouteToToolCapability(routeErmaTask(prompt), capabilities.toolCalling.maxCalls, capabilities.toolCalling.maxRounds);
   const dynamicContext = buildDynamicContext({ route, query: prompt, messages: input.messages, documents: input.documents });

@@ -11,7 +11,7 @@ import { normalizeEffort, normalizeLanguage, normalizeTone, type ChatRequest, ty
 import { contextErrorResponse, jsonResponse, promptErrorResponse } from "./http";
 import { createDemoQuota, type DemoQuota } from "./quota";
 
-export type PreparedDemoRequest = { request: Request; body: ChatRequest; requestId: string; language: Language; model: ErmaModel; requestedReasoning: boolean; effort: ReasoningEffort; tone: ErmaTone; privilegedAccount: boolean; context: PreparedChatContext; documents: ChatAttachment[]; quota: DemoQuota; rateLimitCookie: string | null; startedAt: number; requestedModel: string };
+export type PreparedDemoRequest = { request: Request; body: ChatRequest; prompt: string; requestId: string; language: Language; model: ErmaModel; requestedReasoning: boolean; effort: ReasoningEffort; tone: ErmaTone; privilegedAccount: boolean; context: PreparedChatContext; documents: ChatAttachment[]; quota: DemoQuota; rateLimitCookie: string | null; startedAt: number; requestedModel: string };
 export type DemoRequestPreparation = { response: Response } | { prepared: PreparedDemoRequest };
 async function sessionEmail() { try { const session = await auth(); return session?.user?.email?.trim().toLowerCase() ?? ""; } catch { return ""; } }
 
@@ -48,5 +48,5 @@ export async function prepareDemoRequest(request: Request): Promise<DemoRequestP
   const quotaResult = await createDemoQuota({ request, requestId, language, sessionEmail: email, privileged: privilegedAccount });
   if ("response" in quotaResult) return quotaResult;
 
-  return { prepared: { request, body: normalizedBody, requestId, language, model, requestedReasoning, effort, tone, privilegedAccount, context, documents: validatedPrompt.attachments, quota: quotaResult.quota, rateLimitCookie: quotaResult.quota.cookie, startedAt: Date.now(), requestedModel } };
+  return { prepared: { request, body: normalizedBody, prompt: validatedPrompt.prompt, requestId, language, model, requestedReasoning, effort, tone, privilegedAccount, context, documents: validatedPrompt.attachments, quota: quotaResult.quota, rateLimitCookie: quotaResult.quota.cookie, startedAt: Date.now(), requestedModel } };
 }

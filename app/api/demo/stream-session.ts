@@ -41,10 +41,10 @@ export class DemoStreamSession {
   private startPayload() { const { context, requestId } = this.input; return { requestId, status: "connecting", context: { estimatedTokens: context.estimatedTokens, messages: context.includedMessageCount, attachments: context.attachmentCount, limit: context.contextLimit, compacted: context.compacted } }; }
 
   private async run() {
-    const { request, body, requestId, language, model, requestedReasoning, effort, tone, privilegedAccount, context, documents, quota, startedAt, requestedModel } = this.input;
+    const { request, body, requestId, prompt, context, language, model, requestedReasoning, effort, tone, privilegedAccount, documents, quota, startedAt, requestedModel } = this.input;
     this.send("start", this.startPayload());
     try {
-      const toolAugmentation = await prepareReadOnlyToolAugmentation({ request, requestId, context, language, model, localArchive: body.localArchive, documents, allowCodeSandbox: privilegedAccount, signal: this.providerController.signal });
+      const toolAugmentation = await prepareReadOnlyToolAugmentation({ request, requestId, prompt, context, language, model, localArchive: body.localArchive, documents, allowCodeSandbox: privilegedAccount, signal: this.providerController.signal });
       this.toolCalls = toolAugmentation.traces;
       this.augmentedSummary = toolAugmentation.summary;
       for (const trace of this.toolCalls) this.send("tool", trace);
