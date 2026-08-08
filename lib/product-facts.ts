@@ -1,7 +1,7 @@
 export type ProductFactsLocale = "ru" | "en";
 export type StorageMode = "local" | "synced" | "ephemeral";
 
-export const PRODUCT_FACTS_VERSION = "2026-08-08";
+export const PRODUCT_FACTS_VERSION = "2026-08-09";
 export const PRODUCT_POSITIONING = {
   ru: "Local-first AI workspace с явным контролем данных.",
   en: "A local-first AI workspace with explicit data control.",
@@ -27,6 +27,14 @@ export const PRODUCT_FACTS = {
     attachmentsLeaveDeviceWhenSent: true,
     providerClass: "external-model-provider",
   },
+  webGrounding: {
+    automaticForCurrentAndHighRiskFacts: true,
+    queryMinimizedBeforeSearch: true,
+    preferredProvider: "Google Search grounding",
+    fallbacks: ["Google Programmable Search for existing customers", "Brave Search"] as const,
+    fullConversationSentToSearchProvider: false,
+    openedPagesTreatedAsUntrustedData: true,
+  },
   reasoning: {
     hiddenChainOfThoughtReturned: false,
     genericReasoningUsedFlagOnly: true,
@@ -42,6 +50,7 @@ export const PRODUCT_FACTS = {
     outputsRequireVerification: true,
     fallbacksAreDisclosed: true,
     imageRouting: "automatic-hidden-vision-tier",
+    exactFactRouting: "automatic-grounded-core-or-higher-tier",
   },
   account: {
     authentication: "Google OAuth via Auth.js",
@@ -75,6 +84,15 @@ export const PRODUCT_DATA_ROUTES = [
     note: {
       ru: "Ephemeral отключает долговременное сохранение рабочей сессии, но не отменяет передачу запроса, текста документов или прикреплённых изображений провайдеру для генерации.",
       en: "Ephemeral disables durable workspace persistence but does not remove provider transmission of the request, document text, or attached images required for generation.",
+    },
+  },
+  {
+    id: "web-grounding",
+    storageMode: "ephemeral" as const,
+    route: ["device", "TK LAB Worker", "external web-search provider", "public source pages"],
+    note: {
+      ru: "Для актуальных и рискованных точных фактов Erma может автоматически отправить внешнему поисковому провайдеру минимизированный поисковый запрос. Полная история чата в поисковый запрос не включается; найденные страницы считаются недоверенными данными.",
+      en: "For current or high-risk exact facts, Erma may automatically send a minimized search query to an external search provider. The full chat history is not included in that search query, and retrieved pages are treated as untrusted data.",
     },
   },
 ] as const;
