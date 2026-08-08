@@ -76,12 +76,49 @@ export function MotionOrchestrator() {
 
   useEffect(() => {
     const root = document.documentElement;
-    root.dataset.routeTransition = "true";
-    const frame = requestAnimationFrame(() => {
-      delete root.dataset.routeTransition;
-    });
-    return () => cancelAnimationFrame(frame);
+    root.dataset.routeTransition = "entering";
+    const timer = window.setTimeout(() => {
+      if (root.dataset.routeTransition === "entering") delete root.dataset.routeTransition;
+    }, 420);
+    return () => window.clearTimeout(timer);
   }, [pathname]);
+
+  useEffect(() => {
+    const root = document.documentElement;
+    let cleanupTimer = 0;
+
+    function handleNavigationIntent(event: MouseEvent) {
+      if (
+        event.defaultPrevented
+        || event.button !== 0
+        || event.metaKey
+        || event.ctrlKey
+        || event.shiftKey
+        || event.altKey
+      ) return;
+
+      const source = event.target instanceof Element ? event.target.closest<HTMLAnchorElement>("a[href]") : null;
+      if (!source || source.target || source.hasAttribute("download")) return;
+
+      const next = new URL(source.href, window.location.href);
+      if (next.origin !== window.location.origin) return;
+      const current = new URL(window.location.href);
+      const routeChanged = next.pathname !== current.pathname || next.search !== current.search;
+      if (!routeChanged) return;
+
+      root.dataset.routeTransition = "leaving";
+      window.clearTimeout(cleanupTimer);
+      cleanupTimer = window.setTimeout(() => {
+        if (root.dataset.routeTransition === "leaving") delete root.dataset.routeTransition;
+      }, 700);
+    }
+
+    document.addEventListener("click", handleNavigationIntent, true);
+    return () => {
+      document.removeEventListener("click", handleNavigationIntent, true);
+      window.clearTimeout(cleanupTimer);
+    };
+  }, []);
 
   return null;
 }
