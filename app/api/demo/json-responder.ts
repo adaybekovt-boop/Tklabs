@@ -4,7 +4,7 @@ import { createAiResponseMeta } from "@/lib/ai/response";
 import { prepareReadOnlyToolAugmentation } from "@/lib/ai/tools/route-tools";
 import { safetyRefusal } from "@/lib/ai-safety";
 
-import { contextualFallbackPrompt, providerFailureReason, resolveFallback, withContextMetadata, withToolCalls } from "./fallback";
+import { contextualFallbackPrompt, providerFailureReason, resolveFallback, visionUnavailableText, withContextMetadata, withToolCalls } from "./fallback";
 import { jsonResponse } from "./http";
 import type { PreparedDemoRequest } from "./request-context";
 
@@ -32,6 +32,14 @@ export async function respondWithDemoJson(input: PreparedDemoRequest) {
       const meta = createAiResponseMeta(safetyResult, requestedModel, requestId, startedAt);
       logAiRequest(meta);
       return jsonResponse({ answer: safetyResult.answer, meta }, requestId, 200, rateLimitCookie);
+    }
+
+    if (images.length) {
+      await quota.release();
+      const visionResult = withContextMetadata(withToolCalls({ answer: visionUnavailableText(language), provider: "edge-fallback", actualModel: "vision-unavailable", fallbackReason: reason }, toolAugmentation.traces), context);
+      const meta = createAiResponseMeta(visionResult, requestedModel, requestId, startedAt, 503);
+      logAiRequest(meta);
+      return jsonResponse({ answer: visionResult.answer, meta }, requestId, 200, rateLimitCookie);
     }
 
     const fallback = withContextMetadata(withToolCalls(await resolveFallback({ prompt: fallbackPrompt, language, allowCode: privilegedAccount, requestId, requestedModel, primaryReason: reason, signal: request.signal }), toolAugmentation.traces), context);
