@@ -11,7 +11,7 @@ function sseBody(events) {
 
 async function waitForClientShell(page) {
   await expect(
-    page.locator('[data-app-dock], [data-mobile-workspace-switcher], [data-testid="prompt-input"]').first(),
+    page.locator('[data-app-dock], [data-mobile-workspace-switcher]').first(),
   ).toBeAttached({ timeout: 15_000 });
   // Server rendering intentionally starts from the mobile-safe surface. On wide
   // viewports React then reconciles to the desktop composer. Do not type into the
