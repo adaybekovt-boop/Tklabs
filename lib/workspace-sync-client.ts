@@ -1,69 +1,17 @@
 "use client";
 
+import { getWorkspacePrivacyMode } from "@/lib/privacy-mode";
+
 const SNAPSHOT_VERSION = 1 as const;
 const MAX_SNAPSHOT_CHARACTERS = 1_700_000;
 const DRAFT_PREFIX = "tklabs.chat-draft.v1:";
-const EXACT_KEYS = new Set([
-  "tklab.archive.v1",
-  "tklab.settings.v1",
-  "tklabs.workspace-artifacts.v1",
-  "tklabs.erma-flow.runs.v1",
-  "tklabs.response-mode",
-  "tklabs.erma-nova.workspace-tab",
-  "tklabs-theme",
-]);
-
+const EXACT_KEYS = new Set(["tklab.archive.v1", "tklab.settings.v1", "tklabs.workspace-artifacts.v1", "tklabs.erma-flow.runs.v1", "tklabs.response-mode", "tklabs.erma-nova.workspace-tab", "tklabs-theme"]);
 export type LocalWorkspaceSnapshot = { version: typeof SNAPSHOT_VERSION; createdAt: number; values: Record<string, string> };
 export type RemoteWorkspaceSnapshot = { payload: string; revision: number; checksum: string; updatedAt: string };
 function allowedKey(key: string) { return EXACT_KEYS.has(key) || key.startsWith(DRAFT_PREFIX); }
-
-export function collectWorkspaceSnapshot(storage: Storage = window.localStorage) {
-  const values: Record<string, string> = {};
-  for (let index = 0; index < storage.length; index += 1) {
-    const key = storage.key(index);
-    if (!key || !allowedKey(key)) continue;
-    const value = storage.getItem(key);
-    if (value != null) values[key] = value;
-  }
-  const payload = JSON.stringify({ version: SNAPSHOT_VERSION, createdAt: Date.now(), values } satisfies LocalWorkspaceSnapshot);
-  if (Array.from(payload).length > MAX_SNAPSHOT_CHARACTERS) throw new Error("workspace_snapshot_too_large");
-  return payload;
-}
-
-export function applyWorkspaceSnapshot(payload: string, storage: Storage = window.localStorage) {
-  const parsed = JSON.parse(payload) as Partial<LocalWorkspaceSnapshot>;
-  if (parsed.version !== SNAPSHOT_VERSION || !parsed.values || typeof parsed.values !== "object" || Array.isArray(parsed.values)) throw new Error("workspace_snapshot_invalid");
-  const entries = Object.entries(parsed.values); let total = 0;
-  for (const [key, value] of entries) { if (!allowedKey(key) || typeof value !== "string") throw new Error("workspace_snapshot_invalid"); total += key.length + value.length; if (total > MAX_SNAPSHOT_CHARACTERS) throw new Error("workspace_snapshot_too_large"); }
-  for (const [key, value] of entries) storage.setItem(key, value);
-  return entries.length;
-}
-
-export function clearLocalWorkspace(storage: Storage = window.localStorage) {
-  const keys: string[] = [];
-  for (let index = 0; index < storage.length; index += 1) { const key = storage.key(index); if (key && allowedKey(key)) keys.push(key); }
-  for (const key of keys) storage.removeItem(key);
-  return keys.length;
-}
-
-export async function fetchRemoteWorkspaceSnapshot(): Promise<{ available: boolean; snapshot: RemoteWorkspaceSnapshot | null }> {
-  const response = await fetch("/api/account/workspace-sync", { cache: "no-store" });
-  if (response.status === 503) return { available: false, snapshot: null };
-  if (!response.ok) throw new Error(`workspace_sync_read_${response.status}`);
-  return response.json();
-}
-
-export async function uploadWorkspaceSnapshot(payload: string, expectedRevision: number | null) {
-  const response = await fetch("/api/account/workspace-sync", { method: "PUT", headers: { "content-type": "application/json" }, body: JSON.stringify({ payload, expectedRevision }) });
-  if (response.status === 503) return { available: false, snapshot: null };
-  if (response.status === 409) throw new Error("workspace_sync_conflict");
-  if (!response.ok) throw new Error(`workspace_sync_write_${response.status}`);
-  return response.json() as Promise<{ available: true; snapshot: Omit<RemoteWorkspaceSnapshot, "payload"> }>;
-}
-
-export async function deleteRemoteWorkspaceSnapshot() {
-  const response = await fetch("/api/account/workspace-sync", { method: "DELETE" });
-  if (response.status === 503) return { available: false, deleted: false };
-  if (!response.ok) throw new Error(`workspace_sync_delete_${response.status}`);
-  return response.json() as Promise<{ available: true; deleted: boolean }>;
-}
+export function collectWorkspaceSnapshot(storage: Storage = window.localStorage) { const values: Record<string, string> = {}; for (let index = 0; index < storage.length; index += 1) { const key = storage.key(index); if (!key || !allowedKey(key)) continue; const value = storage.getItem(key); if (value != null) values[key] = value; } const payload = JSON.stringify({ version: SNAPSHOT_VERSION, createdAt: Date.now(), values } satisfies LocalWorkspaceSnapshot); if (Array.from(payload).length > MAX_SNAPSHOT_CHARACTERS) throw new Error("workspace_snapshot_too_large"); return payload; }
+export function applyWorkspaceSnapshot(payload: string, storage: Storage = window.localStorage) { const parsed = JSON.parse(payload) as Partial<LocalWorkspaceSnapshot>; if (parsed.version !== SNAPSHOT_VERSION || !parsed.values || typeof parsed.values !== "object" || Array.isArray(parsed.values)) throw new Error("workspace_snapshot_invalid"); const entries = Object.entries(parsed.values); let total = 0; for (const [key, value] of entries) { if (!allowedKey(key) || typeof value !== "string") throw new Error("workspace_snapshot_invalid"); total += key.length + value.length; if (total > MAX_SNAPSHOT_CHARACTERS) throw new Error("workspace_snapshot_too_large"); } for (const [key, value] of entries) storage.setItem(key, value); return entries.length; }
+export function clearLocalWorkspace(storage: Storage = window.localStorage) { const keys: string[] = []; for (let index = 0; index < storage.length; index += 1) { const key = storage.key(index); if (key && allowedKey(key)) keys.push(key); } for (const key of keys) storage.removeItem(key); return keys.length; }
+export async function fetchRemoteWorkspaceSnapshot(): Promise<{ available: boolean; snapshot: RemoteWorkspaceSnapshot | null }> { const response = await fetch("/api/account/workspace-sync", { cache: "no-store" }); if (response.status === 503) return { available: false, snapshot: null }; if (!response.ok) throw new Error(`workspace_sync_read_${response.status}`); return response.json(); }
+export async function uploadWorkspaceSnapshot(payload: string, expectedRevision: number | null) { if (getWorkspacePrivacyMode() === "ephemeral") throw new Error("workspace_sync_disabled_in_ephemeral_mode"); const response = await fetch("/api/account/workspace-sync", { method: "PUT", headers: { "content-type": "application/json" }, body: JSON.stringify({ payload, expectedRevision }) }); if (response.status === 503) return { available: false, snapshot: null }; if (response.status === 409) throw new Error("workspace_sync_conflict"); if (!response.ok) throw new Error(`workspace_sync_write_${response.status}`); return response.json() as Promise<{ available: true; snapshot: Omit<RemoteWorkspaceSnapshot, "payload"> }>; }
+export async function deleteRemoteWorkspaceSnapshot() { const response = await fetch("/api/account/workspace-sync", { method: "DELETE" }); if (response.status === 503) return { available: false, deleted: false }; if (!response.ok) throw new Error(`workspace_sync_delete_${response.status}`); return response.json() as Promise<{ available: true; deleted: boolean }>; }
