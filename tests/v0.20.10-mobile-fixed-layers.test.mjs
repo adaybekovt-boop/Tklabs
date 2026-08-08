@@ -72,21 +72,13 @@ test("Browser Assurance reproduces tall-page consent and pinned navigation failu
   assert.match(browser, /parentIsBody/);
 });
 
-test("v0.20.10 release metadata and service-worker cache are synchronized", async () => {
-  const packageJson = JSON.parse(await source("package.json"));
-  const packageLock = JSON.parse(await source("package-lock.json"));
-  const releaseVersion = await source("lib/release-version.ts");
+test("v0.20.10 Mobile Fixed Layers remains preserved as a historical release", async () => {
   const updates = await source("lib/trust-architecture-releases.ts");
-  const serviceWorker = await source("public/sw.js");
   const releaseDoc = await source("docs/releases/v0.20.10.md");
+  const navigationMotion = await source("app/navigation-motion.css");
 
-  assert.equal(packageJson.version, "0.20.10");
-  assert.equal(packageLock.version, "0.20.10");
-  assert.equal(packageLock.packages[""].version, "0.20.10");
-  assert.match(releaseVersion, /CURRENT_RELEASE_VERSION = "v0\.20\.10"/);
-  assert.match(releaseVersion, /CURRENT_RELEASE_CODENAME = "Mobile Fixed Layers"/);
   assert.match(updates, /version: "v0\.20\.10"/);
-  assert.match(serviceWorker, /CACHE_VERSION = "v0\.20\.10"/);
-  assert.match(serviceWorker, /CACHE_REVISION = "mobile-fixed-layers-r1"/);
+  assert.match(updates, /Mobile Fixed Layers/);
   assert.match(releaseDoc, /v0\.20\.10 — Mobile Fixed Layers/);
+  assert.match(navigationMotion, /viewport-safe-page-enter/);
 });
