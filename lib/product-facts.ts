@@ -32,13 +32,16 @@ export const PRODUCT_FACTS = {
     genericReasoningUsedFlagOnly: true,
   },
   files: {
-    accepted: ["txt", "md", "csv", "json", "pdf"] as const,
+    accepted: ["txt", "md", "csv", "json", "pdf", "jpg", "jpeg", "png", "webp"] as const,
     pdfExtraction: "best-effort-local-text-extraction",
+    imagePreparation: "local-resize-and-compression-before-provider-processing",
+    imageUnderstanding: "external-multimodal-model-provider",
   },
   ai: {
     productModels: ["Erma Lite", "Erma Core", "Erma Pro"] as const,
     outputsRequireVerification: true,
     fallbacksAreDisclosed: true,
+    imageRouting: "automatic-hidden-vision-tier",
   },
   account: {
     authentication: "Google OAuth via Auth.js",
@@ -70,8 +73,8 @@ export const PRODUCT_DATA_ROUTES = [
     storageMode: "ephemeral" as const,
     route: ["device", "TK LAB Worker", "external model provider"],
     note: {
-      ru: "Ephemeral отключает долговременное сохранение рабочей сессии, но не отменяет передачу запроса провайдеру для генерации.",
-      en: "Ephemeral disables durable workspace persistence but does not remove provider transmission required for generation.",
+      ru: "Ephemeral отключает долговременное сохранение рабочей сессии, но не отменяет передачу запроса, текста документов или прикреплённых изображений провайдеру для генерации.",
+      en: "Ephemeral disables durable workspace persistence but does not remove provider transmission of the request, document text, or attached images required for generation.",
     },
   },
 ] as const;

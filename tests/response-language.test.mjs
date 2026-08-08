@@ -72,7 +72,8 @@ test("provider language instructions are explicit and follow the latest user tur
 
   const nvidia = await readFile(new URL("../lib/ai/providers/nvidia.ts", import.meta.url), "utf8");
   const clodex = await readFile(new URL("../lib/ai/providers/clodex.ts", import.meta.url), "utf8");
-  assert.match(nvidia, /inferResponseLanguage\(latestUserPrompt\(messages\), interfaceLanguage\)/);
+  assert.match(nvidia, /inferResponseLanguage\(latestUserPrompt\(textMessages\), interfaceLanguage\)/);
+  assert.match(nvidia, /attachImagesToLatestUser\(textMessages, images\)/);
   assert.match(clodex, /inferResponseLanguage\(latestUserContent\(providerMessages, prompt\), interfaceLanguage\)/);
   assert.doesNotMatch(nvidia, /Reply in English and keep the answer natural for the user's language/);
 });

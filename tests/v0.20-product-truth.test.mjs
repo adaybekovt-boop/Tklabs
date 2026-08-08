@@ -11,7 +11,13 @@ test("v0.20 product truth registry describes real storage and provider boundarie
   assert.equal(PRODUCT_FACTS.workspaceSync.automatic, false);
   assert.equal(PRODUCT_FACTS.workspaceSync.endToEndEncrypted, false);
   assert.equal(PRODUCT_FACTS.providerProcessing.promptLeavesDevice, true);
-  assert.deepEqual(PRODUCT_FACTS.files.accepted, ["txt", "md", "csv", "json", "pdf"]);
+  for (const format of ["txt", "md", "csv", "json", "pdf"]) assert.ok(PRODUCT_FACTS.files.accepted.includes(format));
+});
+
+test("later multimodal releases can extend product truth without changing the v0.20 storage contract", () => {
+  for (const format of ["jpg", "jpeg", "png", "webp"]) assert.ok(PRODUCT_FACTS.files.accepted.includes(format));
+  assert.equal(PRODUCT_FACTS.files.imageUnderstanding, "external-multimodal-model-provider");
+  assert.equal(PRODUCT_FACTS.ai.imageRouting, "automatic-hidden-vision-tier");
 });
 
 test("privacy modes never claim on-device inference", () => {
