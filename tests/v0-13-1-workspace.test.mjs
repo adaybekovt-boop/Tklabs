@@ -128,12 +128,12 @@ test("stream stop preserves partial text, tables scroll, and code can open fulls
   assert.match(markdown, /Open code fullscreen/);
 });
 
-test("RU and EN controls stay directly reachable on mobile site and chat screens", async () => {
-  const header = await text("components/site/StitchHeader.tsx");
+test("RU and EN controls stay reachable through current mobile navigation surfaces", async () => {
+  const dock = await text("components/site/AppDock.tsx");
   const drawer = await text("components/playground/MobileChatDrawer.tsx");
 
-  assert.match(header, /flex shrink-0 items-center gap-2 lg:hidden/);
-  assert.match(header, /<LanguageToggle locale=\{locale\} label=\{text\.nav\.language\} \/>/);
+  assert.match(dock, /LanguageToggle locale=\{locale\} label=\{labels\.language\}/);
+  assert.match(dock, /safe-area-inset-bottom/);
   assert.match(drawer, /<LanguageToggle locale=\{locale\} label=\{text\.nav\.language\} \/>/);
   assert.match(drawer, /safe-area-bottom/);
 });

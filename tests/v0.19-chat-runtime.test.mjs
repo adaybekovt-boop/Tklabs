@@ -23,13 +23,13 @@ test("v0.19.3 context compaction keeps recent messages verbatim and older work a
   const history = Array.from({ length: 28 }, (_, index) => ({
     role: index % 2 === 0 ? "user" : "assistant",
     content: index < 12
-      ? `Goal ${index}: we need to build the workspace with constraint only read-only tools. ${"x".repeat(1200)}`
-      : `Recent turn ${index}: ${"y".repeat(1200)}`,
+      ? `Goal ${index}: we need to build the workspace with constraint only read-only tools. ${"x".repeat(1800)}`
+      : `Recent turn ${index}: ${"y".repeat(1800)}`,
   }));
-  const prepared = prepareChatContext({ history, currentUserContent: "Continue the implementation.", contextLimit: 12_000, outputReserve: 2_000 });
+  const prepared = prepareChatContext({ history, currentUserContent: "Continue the implementation.", contextLimit: 8_192, outputReserve: 2_048 });
   assert.equal(prepared.compacted, true);
   assert.ok(prepared.summary);
   assert.match(prepared.summary ?? "", /Goals:|Constraints:/);
   assert.equal(prepared.messages.at(-1)?.content, "Continue the implementation.");
-  assert.ok(prepared.estimatedTokens <= 10_000);
+  assert.ok(prepared.estimatedTokens <= 6_144);
 });

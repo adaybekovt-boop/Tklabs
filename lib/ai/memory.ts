@@ -14,7 +14,8 @@ export type StructuredChatMemory = {
 };
 
 const MAX_ITEM_CHARACTERS = 520;
-const MAX_ITEMS_PER_SECTION = 6;
+const MAX_STRUCTURED_ITEMS_PER_SECTION = 6;
+const MAX_FACT_ITEMS = 12;
 const MAX_MEMORY_CHARACTERS = 8_000;
 
 function compact(value: string) {
@@ -31,11 +32,11 @@ function key(value: string) {
   return compact(value).toLocaleLowerCase();
 }
 
-function pushUnique(target: string[], value: string) {
+function pushUnique(target: string[], value: string, maxItems = MAX_STRUCTURED_ITEMS_PER_SECTION) {
   const clean = excerpt(value);
   if (!clean || target.some((item) => key(item) === key(clean))) return;
   target.push(clean);
-  if (target.length > MAX_ITEMS_PER_SECTION) target.shift();
+  if (target.length > maxItems) target.shift();
 }
 
 function looksLikeConstraint(text: string) {
@@ -72,7 +73,7 @@ export function buildStructuredChatMemory(messages: MemoryMessage[]): Structured
       && !looksLikeOpenTask(text)
       && !(message.role === "user" && looksLikeGoal(text))
     ) {
-      pushUnique(memory.facts, `${message.role === "user" ? "User" : "Assistant"}: ${text}`);
+      pushUnique(memory.facts, `${message.role === "user" ? "User" : "Assistant"}: ${text}`, MAX_FACT_ITEMS);
     }
   }
 

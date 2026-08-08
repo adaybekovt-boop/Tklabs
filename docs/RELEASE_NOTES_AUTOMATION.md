@@ -10,9 +10,9 @@ Release Drafter configuration lives in `.github/release-drafter.yml`. The workfl
 
 ## Bootstrap and automatic lifecycle
 
-The repository did not previously publish GitHub Releases or tags even though the source release identity reached v0.17.5. The workflow therefore has an explicit first-run bootstrap: while no published GitHub Release exists, it maintains a draft `v0.18.0` and scans changes only after the v0.17.5 merge boundary (`2026-08-07T07:57:18Z`). This prevents old repository history from being treated as a new release and avoids Release Drafter inventing an unrelated initial version.
+The repository still has no published GitHub Release baseline even though the source release history extends beyond v0.17.5. The current first-run bootstrap therefore maintains a draft `v0.19.7`, the completed Workspace Evolution preview requested for this major cycle, while scanning changes only after the known v0.17.5 merge boundary (`2026-08-07T07:57:18Z`). This keeps older repository history out of the new draft and prevents Release Drafter from inventing an unrelated initial version.
 
-The bootstrap draft is never published automatically. Once the first GitHub Release is explicitly published, subsequent runs use Release Drafter's normal semantic version resolution from that published baseline.
+The first-run bootstrap draft is never published automatically. Once a GitHub Release is explicitly published, subsequent runs use Release Drafter's normal semantic version resolution from that published baseline.
 
 On pull-request activity the autolabeler classifies conventional fix/feature/docs work using the repository's existing `bug`, `enhancement`, and `documentation` labels.
 
@@ -44,6 +44,6 @@ The autolabeler also recognizes matching branch prefixes such as `fix/`, `hotfix
 
 ## Public Patch Notes page
 
-The in-product Patch Notes page keeps the existing historical release browser, but no longer duplicates generic “Open chat” calls to action. It links to GitHub Releases for the automatically maintained release stream.
+The in-product Patch Notes page keeps the historical release browser and now includes the individual v0.19.0–v0.19.7 Workspace Evolution stages. It also links to GitHub Releases for the automatically maintained release stream.
 
 Do not add another manually maintained current-release markdown file for routine patches. Historical release documents may still be added when a release needs long-form migration or incident documentation beyond the generated notes.

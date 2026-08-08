@@ -25,14 +25,13 @@ test("canary and rollback are explicit manual production actions", async () => {
   assert.match(rollback, /Rollback reason/);
 });
 
-test("final release identity is v0.17.5 Release Safety", async () => {
+test("v0.17.5 Release Safety remains archived after later releases", async () => {
   const release = await read("lib/release-version.ts");
-  const preview = await read("lib/prerelease.ts");
-  const worker = await read("public/sw.js");
+  const releaseDoc = await read("docs/releases/v0.17.5.md");
   const packageJson = JSON.parse(await read("package.json"));
-  assert.equal(packageJson.version, "0.17.5");
-  assert.match(release, /CURRENT_RELEASE_VERSION = "v0\.17\.5"/);
-  assert.match(release, /CURRENT_RELEASE_CODENAME = "Release Safety"/);
-  assert.match(preview, /RELEASE SAFETY/);
-  assert.match(worker, /CACHE_VERSION = "v0\.17\.5"/);
+  assert.equal(packageJson.version, "0.19.7");
+  assert.match(release, /CURRENT_RELEASE_VERSION = "v0\.19\.7"/);
+  assert.match(release, /CURRENT_RELEASE_CODENAME = "Workspace Evolution"/);
+  assert.match(releaseDoc, /v0\.17\.5 — Release Safety/);
+  assert.match(releaseDoc, /single deployment writer|migration/i);
 });

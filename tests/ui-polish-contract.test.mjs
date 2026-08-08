@@ -70,17 +70,25 @@ test("secondary surfaces keep branding restrained and the mobile footer is group
   assert.doesNotMatch(home, /FlaskConical/);
 });
 
-test("mobile shell provides dedicated navigation and safe-area behavior", async () => {
-  const header = await text("components/site/StitchHeader.tsx");
-  const navigation = await text("components/site/MobileNavigation.tsx");
+test("mobile shell uses AppDock, a direct workspace switcher, and safe-area behavior", async () => {
+  const [header, dock, switcher, mobileCss] = await Promise.all([
+    text("components/site/StitchHeader.tsx"),
+    text("components/site/AppDock.tsx"),
+    text("components/playground/MobileWorkspaceSwitcher.tsx"),
+    text("app/mobile-workspace.css"),
+  ]);
 
-  assert.match(header, /MobileNavigation/);
-  assert.match(navigation, /mobile-bottom-navigation/);
-  assert.match(navigation, /safe-area-inset-bottom/);
-  assert.match(navigation, /popstate/);
-  assert.match(navigation, /role="dialog"/);
-  assert.match(navigation, /focusable/);
-  assert.match(navigation, /document\.body\.style\.paddingBottom/);
+  assert.match(header, /hidden[^\n]+lg:block/);
+  assert.match(header, /<AppDock /);
+  assert.doesNotMatch(header, /MobileNavigation/);
+  assert.match(dock, /safe-area-inset-bottom/);
+  assert.match(dock, /popstate/);
+  assert.match(dock, /role="dialog"/);
+  assert.match(dock, /focusable/);
+  assert.match(switcher, /data-mobile-workspace-switcher/);
+  for (const id of ["chat", "flow", "artifacts", "runs"]) assert.match(switcher, new RegExp(`id: "${id}"`));
+  assert.match(mobileCss, /--chat-visual-height/);
+  assert.match(mobileCss, /safe-area-inset-bottom/);
 });
 
 test("mobile chat keeps drafts, offline state, and compact settings", async () => {

@@ -43,9 +43,9 @@ test("ambiguous tool planning uses the bounded Lite planner", async () => {
   assert.match(planner, /model\.tier === "light"/);
   assert.match(planner, /max_tokens: 256/);
   assert.match(planner, /input\.messages\.slice\(-4\)/);
-  assert.match(registry, /MAX_AI_TOOL_ROUNDS = 1/);
-  assert.match(registry, /DEFAULT_AI_TOOL_CALLS = 2/);
-  assert.match(registry, /MAX_AI_TOOL_CALLS = 4/);
+  assert.match(registry, /MAX_AI_TOOL_ROUNDS = 3/);
+  assert.match(registry, /DEFAULT_AI_TOOL_CALLS = 3/);
+  assert.match(registry, /MAX_AI_TOOL_CALLS = 6/);
 });
 
 test("local archive data is attached only to explicit history requests", async () => {
@@ -91,12 +91,11 @@ test("site structure is reduced without breaking old access links", async () => 
   assert.match(models, /id="access"/);
 });
 
-test("Patch Notes publish v0.15.0 as the current release", async () => {
+test("Patch Notes retain the v0.15.0 historical release", async () => {
   const releases = await text("lib/latest-release.ts");
   const document = await text("docs/releases/v0.15.0.md");
 
   assert.match(releases, /version: "v0\.15\.0"/);
-  assert.match(releases, /return getRelease\(locale, "v0\.15\.0"\)/);
   assert.match(document, /v0\.15\.0 — Calm Workspace and Practical Agent/);
   assert.match(document, /direct recipes/);
   assert.match(document, /Erma · Auto/);
