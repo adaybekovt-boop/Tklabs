@@ -13,6 +13,11 @@ function cleanText(value: unknown, limit: number) {
   return typeof value === "string" ? value.replace(/\u0000/g, "").slice(0, limit) : "";
 }
 
+function optionalText(value: unknown, limit: number) {
+  const text = cleanText(value, limit).trim();
+  return text || undefined;
+}
+
 function isKind(value: unknown): value is ArtifactKind {
   return value === "document" || value === "plan" || value === "table" || value === "code" || value === "json" || value === "csv";
 }
@@ -31,7 +36,7 @@ function sanitizeVersion(value: unknown): ArtifactVersion | null {
 
 function sanitizeArtifact(value: unknown): WorkspaceArtifact | null {
   if (!value || typeof value !== "object") return null;
-  const input = value as Partial<WorkspaceArtifact>;
+  const input = value as Partial<WorkspaceArtifact> & { schemaVersion?: unknown };
   if (typeof input.id !== "string" || !isKind(input.kind) || typeof input.createdAt !== "number" || typeof input.updatedAt !== "number") return null;
   return {
     schemaVersion: ARTIFACT_SCHEMA_VERSION,
@@ -44,6 +49,10 @@ function sanitizeArtifact(value: unknown): WorkspaceArtifact | null {
     versions: Array.isArray(input.versions)
       ? input.versions.map(sanitizeVersion).filter((entry): entry is ArtifactVersion => Boolean(entry)).slice(-MAX_VERSIONS)
       : [],
+    favorite: input.favorite === true,
+    ...(optionalText(input.sourceSessionId, 120) ? { sourceSessionId: optionalText(input.sourceSessionId, 120) } : {}),
+    ...(optionalText(input.sourceRunId, 120) ? { sourceRunId: optionalText(input.sourceRunId, 120) } : {}),
+    ...(optionalText(input.sourceDocumentName, 120) ? { sourceDocumentName: optionalText(input.sourceDocumentName, 120) } : {}),
   };
 }
 
@@ -68,7 +77,7 @@ export function saveArtifacts(artifacts: WorkspaceArtifact[]) {
   }
 }
 
-export function createArtifact(kind: ArtifactKind = "document", title = "Untitled artifact"): WorkspaceArtifact {
+export function createArtifact(kind: ArtifactKind = "document", title = "Untitled artifact", source?: { sessionId?: string; runId?: string; documentName?: string }): WorkspaceArtifact {
   const now = Date.now();
   return {
     schemaVersion: ARTIFACT_SCHEMA_VERSION,
@@ -79,10 +88,23 @@ export function createArtifact(kind: ArtifactKind = "document", title = "Untitle
     createdAt: now,
     updatedAt: now,
     versions: [],
+    favorite: false,
+    ...(optionalText(source?.sessionId, 120) ? { sourceSessionId: optionalText(source?.sessionId, 120) } : {}),
+    ...(optionalText(source?.runId, 120) ? { sourceRunId: optionalText(source?.runId, 120) } : {}),
+    ...(optionalText(source?.documentName, 120) ? { sourceDocumentName: optionalText(source?.documentName, 120) } : {}),
   };
 }
 
-export function updateArtifact(artifact: WorkspaceArtifact, update: { title?: string; kind?: ArtifactKind; content?: string; versionLabel?: string }): WorkspaceArtifact {
+export function updateArtifact(artifact: WorkspaceArtifact, update: {
+  title?: string;
+  kind?: ArtifactKind;
+  content?: string;
+  versionLabel?: string;
+  favorite?: boolean;
+  sourceSessionId?: string;
+  sourceRunId?: string;
+  sourceDocumentName?: string;
+}): WorkspaceArtifact {
   const nextContent = update.content === undefined ? artifact.content : cleanText(update.content, MAX_CONTENT_LENGTH);
   const changedContent = nextContent !== artifact.content;
   const versions = changedContent && artifact.content
@@ -94,6 +116,10 @@ export function updateArtifact(artifact: WorkspaceArtifact, update: { title?: st
     kind: update.kind ?? artifact.kind,
     content: nextContent,
     versions,
+    favorite: update.favorite ?? artifact.favorite,
+    ...(update.sourceSessionId === undefined ? {} : { sourceSessionId: optionalText(update.sourceSessionId, 120) }),
+    ...(update.sourceRunId === undefined ? {} : { sourceRunId: optionalText(update.sourceRunId, 120) }),
+    ...(update.sourceDocumentName === undefined ? {} : { sourceDocumentName: optionalText(update.sourceDocumentName, 120) }),
     updatedAt: Date.now(),
   };
 }
@@ -117,7 +143,12 @@ export function duplicateArtifact(artifact: WorkspaceArtifact): WorkspaceArtifac
     createdAt: now,
     updatedAt: now,
     versions: [],
+    favorite: false,
   };
+}
+
+export function toggleArtifactFavorite(artifact: WorkspaceArtifact): WorkspaceArtifact {
+  return { ...artifact, favorite: !artifact.favorite, updatedAt: Date.now() };
 }
 
 export function restoreArtifactVersion(artifact: WorkspaceArtifact, versionId: string): WorkspaceArtifact {

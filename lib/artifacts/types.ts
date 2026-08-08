@@ -1,4 +1,4 @@
-export const ARTIFACT_SCHEMA_VERSION = 1 as const;
+export const ARTIFACT_SCHEMA_VERSION = 2 as const;
 
 export type ArtifactKind = "document" | "plan" | "table" | "code" | "json" | "csv";
 
@@ -18,4 +18,8 @@ export interface WorkspaceArtifact {
   createdAt: number;
   updatedAt: number;
   versions: ArtifactVersion[];
+  favorite: boolean;
+  sourceSessionId?: string;
+  sourceRunId?: string;
+  sourceDocumentName?: string;
 }
