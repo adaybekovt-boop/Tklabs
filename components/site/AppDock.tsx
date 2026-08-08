@@ -68,9 +68,9 @@ export function AppDock({
 }) {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
-  const [portalReady, setPortalReady] = useState(false);
   const panelRef = useRef<HTMLDivElement>(null);
   const pushedHistoryRef = useRef(false);
+  const portalReady = typeof document !== "undefined";
 
   const profileHref = signedIn ? "/profile" : "/login";
   const primaryItems = useMemo(
@@ -133,7 +133,6 @@ export function AppDock({
   }, [open]);
 
   useEffect(() => {
-    setPortalReady(true);
     const previousPadding = document.body.style.paddingBottom;
     document.body.style.paddingBottom = "calc(6.2rem + env(safe-area-inset-bottom, 0px))";
     return () => {
@@ -189,11 +188,6 @@ export function AppDock({
       previousFocus?.focus();
     };
   }, [closeMenu, open]);
-
-  useEffect(() => {
-    setOpen(false);
-    pushedHistoryRef.current = false;
-  }, [pathname]);
 
   const sheet = portalReady && open
     ? createPortal(
