@@ -1,6 +1,6 @@
 "use client";
 
-import { Activity, BookOpenText, FileText, X } from "lucide-react";
+import { Activity, BookOpenText, FileText, ImageIcon, X } from "lucide-react";
 import { useMemo, useState } from "react";
 
 import { AgentActivity } from "@/components/playground/AgentActivity";
@@ -49,6 +49,7 @@ export function ChatContextDrawer({
         messages: "сообщений в контексте",
         files: "Файлы",
         emptyFiles: "Файлы не прикреплены.",
+        image: "Изображение",
         project: "Название проекта",
         saveProject: "Сохранить",
       }
@@ -62,6 +63,7 @@ export function ChatContextDrawer({
         messages: "messages in context",
         files: "Files",
         emptyFiles: "No files attached.",
+        image: "Image",
         project: "Project name",
         saveProject: "Save",
       };
@@ -96,7 +98,7 @@ export function ChatContextDrawer({
             <section className="rounded-2xl border border-outline-variant bg-surface p-4">
               <p className="label-caps mb-3 flex items-center gap-2 text-on-secondary-container"><FileText size={14} />{labels.files}</p>
               {attachments.length
-                ? <div className="space-y-2">{attachments.map((attachment) => <div key={attachment.id} className="rounded-xl bg-surface-container-low px-3 py-2"><p className="truncate text-xs font-medium text-primary">{attachment.name}</p><p className="mt-1 text-[10px] text-on-secondary-container">{attachment.content.length.toLocaleString()} chars</p></div>)}</div>
+                ? <div className="space-y-2">{attachments.map((attachment) => <div key={attachment.id} className="rounded-xl bg-surface-container-low px-3 py-2"><p className="flex min-w-0 items-center gap-2 truncate text-xs font-medium text-primary">{attachment.kind === "image" ? <ImageIcon size={13} className="shrink-0" /> : <FileText size={13} className="shrink-0" />}<span className="truncate">{attachment.name}</span></p><p className="mt-1 text-[10px] text-on-secondary-container">{attachment.kind === "image" ? labels.image : `${attachment.content.length.toLocaleString()} chars`}</p></div>)}</div>
                 : <p className="text-xs leading-5 text-on-secondary-container">{labels.emptyFiles}</p>}
             </section>
 
