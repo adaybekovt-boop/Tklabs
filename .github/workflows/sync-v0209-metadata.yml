@@ -1,0 +1,70 @@
+name: Sync v0.20.9 metadata
+
+on:
+  push:
+    branches:
+      - agent/v0.20-trust-architecture
+    paths:
+      - package.json
+      - .github/workflows/sync-v0209-metadata.yml
+
+permissions:
+  contents: write
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/v0.20-trust-architecture
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.13.0
+      - name: Synchronize lockfile and current README facts
+        shell: bash
+        run: |
+          node <<'NODE'
+          const fs = require('fs');
+          const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8'));
+          const lock = JSON.parse(fs.readFileSync('package-lock.json', 'utf8'));
+          lock.version = pkg.version;
+          if (!lock.packages || !lock.packages['']) throw new Error('package-lock root package is missing');
+          lock.packages[''].version = pkg.version;
+          fs.writeFileSync('package-lock.json', JSON.stringify(lock, null, 2) + '\n');
+
+          const path = 'README.md';
+          let readme = fs.readFileSync(path, 'utf8');
+          const replacements = [
+            [
+              '- Chat sessions are bounded browser-local archives. They are not a server-side conversation backup.',
+              '- Chat sessions are local-first browser archives. Optional manual Workspace Sync can store an encrypted-at-rest D1 snapshot; it is not end-to-end encryption or an automatic conversation backup.'
+            ],
+            [
+              '- Maximum three `.txt`/`.md` attachments.',
+              '- Maximum three TXT/Markdown/CSV/JSON/PDF attachments. PDF ingestion uses bounded best-effort local text extraction before selected context is submitted.'
+            ],
+            [
+              '- `GET|POST /api/account/terms` — D1-backed, versioned agreement status and acceptance.',
+              '- `GET|POST /api/account/terms` — D1-backed, versioned legal-bundle status and append-only acceptance evidence.\n- `GET|PUT|DELETE /api/account/workspace-sync` — optional manual encrypted-at-rest workspace snapshot sync.\n- `GET|DELETE /api/account/privacy` — authenticated server-data export and explicit TK LAB account-data deletion.'
+            ]
+          ];
+          for (const [before, after] of replacements) {
+            if (!readme.includes(before)) throw new Error(`README replacement source missing: ${before}`);
+            readme = readme.replace(before, after);
+          }
+          fs.writeFileSync(path, readme);
+          NODE
+      - name: Commit generated metadata
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add package-lock.json README.md
+          if git diff --cached --quiet; then
+            echo "Metadata is already synchronized."
+            exit 0
+          fi
+          git commit -m "chore: synchronize v0.20.9 metadata"
+          git push origin HEAD:agent/v0.20-trust-architecture
