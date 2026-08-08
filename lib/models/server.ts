@@ -19,13 +19,25 @@ export type ErmaModel = {
 
 export const AUTO_ERMA_MODEL_KEY = "erma-auto";
 
-/** Server-only catalog. Never import this module from a client component. */
+/** Server-only text execution catalog. Never import this module from a client component. */
 export const ERMA_MODELS: readonly ErmaModel[] = [
   { key: "erma-spark-lite", name: "Erma Lite", tier: "light", nvidiaModel: "nvidia/nemotron-3-nano-30b-a3b", status: "available", available: true, reasoning: false, vision: false, tools: true },
   { key: "erma-nutron", name: "Erma Core", tier: "medium", nvidiaModel: "nvidia/nemotron-3-super-120b-a12b", status: "available", available: true, reasoning: true, vision: false, tools: true },
   { key: "erma-apolon", name: "Erma Pro", tier: "heavy", nvidiaModel: "deepseek-ai/deepseek-v4-pro", status: "available", available: true, reasoning: true, vision: false, tools: true },
-  { key: "erma-vision", name: "Erma Vision", tier: "heavy", nvidiaModel: "qwen/qwen3.5-122b-a10b", status: "available", available: true, reasoning: true, vision: true, tools: true },
 ] as const;
+
+/** Hidden multimodal execution route. It is not a user-selectable product model. */
+export const ERMA_VISION_MODEL: ErmaModel = {
+  key: "erma-vision",
+  name: "Erma Vision",
+  tier: "heavy",
+  nvidiaModel: "qwen/qwen3.5-122b-a10b",
+  status: "available",
+  available: true,
+  reasoning: true,
+  vision: true,
+  tools: true,
+};
 
 export const DEFAULT_ERMA_MODEL_KEY = AUTO_ERMA_MODEL_KEY;
 
@@ -57,13 +69,9 @@ const TIER_GUIDANCE: Record<ErmaTier, string> = {
 const CHARACTER_EXTRA = `\n\nДопустим чуть более выразительный голос Erma, но без театральности, обязательных словечек, оскорблений или саморекламы.`;
 
 function availableModel(tier: ErmaTier) {
-  return ERMA_MODELS.find((model) => model.tier === tier && model.available && model.key !== "erma-vision")
-    ?? ERMA_MODELS.find((model) => model.available && model.key !== "erma-vision")
+  return ERMA_MODELS.find((model) => model.tier === tier && model.available)
+    ?? ERMA_MODELS.find((model) => model.available)
     ?? ERMA_MODELS[0];
-}
-
-function visionModel() {
-  return ERMA_MODELS.find((model) => model.vision && model.available) ?? availableModel("heavy");
 }
 
 /**
@@ -100,7 +108,7 @@ export function selectErmaModel(
   prompt: string,
   options: { requestedReasoning?: boolean; effort?: ReasoningEffort; hasImages?: boolean } = {},
 ): ErmaModel {
-  if (options.hasImages) return visionModel();
+  if (options.hasImages) return ERMA_VISION_MODEL;
   if (key && key !== AUTO_ERMA_MODEL_KEY) return getErmaModel(key);
   const score = complexityScore(prompt);
   if (score >= 6) return availableModel("heavy");
