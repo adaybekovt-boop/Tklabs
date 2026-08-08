@@ -3,6 +3,7 @@ import type { AiToolName } from "@/lib/ai/types";
 export const READ_ONLY_AI_TOOLS: readonly AiToolName[] = [
   "search_documentation",
   "search_patch_notes",
+  "search_tklab_knowledge",
   "get_service_status",
   "calculate",
   "search_local_archive",
