@@ -61,3 +61,30 @@ test("v0.23 composer keeps one plus button while camera, images and paste stay c
   assert.match(input, /compressImage/);
   assert.match(input, /MAX_IMAGE_DIMENSION/);
 });
+
+test("v0.23.4 release identity, patch history and service-worker namespace stay synchronized", async () => {
+  const [pkg, lock, release, preview, history, patchPage, sw] = await Promise.all([
+    source("package.json"),
+    source("package-lock.json"),
+    source("lib/release-version.ts"),
+    source("lib/prerelease.ts"),
+    source("lib/erma-alive-releases.ts"),
+    source("app/patch-notes/page.tsx"),
+    source("public/sw.js"),
+  ]);
+  assert.equal(JSON.parse(pkg).version, "0.23.4");
+  const parsedLock = JSON.parse(lock);
+  assert.equal(parsedLock.version, "0.23.4");
+  assert.equal(parsedLock.packages[""].version, "0.23.4");
+  assert.match(release, /CURRENT_RELEASE_VERSION = "v0\.23\.4"/);
+  assert.match(release, /Erma Alive & Vision/);
+  assert.match(preview, /ERMA ALIVE & VISION/);
+  for (const version of ["v0.23.0", "v0.23.1", "v0.23.2", "v0.23.3", "v0.23.4"]) assert.match(history, new RegExp(version.replaceAll(".", "\\.")));
+  assert.match(patchPage, /getErmaAliveReleases/);
+  assert.match(sw, /CACHE_VERSION = "v0\.23\.4"/);
+  assert.match(sw, /erma-alive-vision-r1/);
+});
+
+test("temporary release-writer workflow is absent from the final v0.23 tree", async () => {
+  await assert.rejects(source(".github/workflows/_sync-v023-lock.yml"));
+});
