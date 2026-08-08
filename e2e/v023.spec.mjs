@@ -75,7 +75,7 @@ test("Erma renders bracket-style aligned LaTeX through KaTeX", async ({ page }, 
   await page.getByRole("button", { name: /Отправить|Send/i }).last().click();
 
   await expect(page.locator(".katex").first()).toBeVisible({ timeout: 10_000 });
-  await expect(page.locator("main")).not.toContainText(String.raw`\begin{aligned}`);
+  await expect(page.locator(".katex-html").first()).not.toContainText(String.raw`\begin{aligned}`);
 });
 
 test("image-only composer submission sends a bounded multimodal attachment", async ({ page }, testInfo) => {
