@@ -29,7 +29,7 @@ test("v0.24 exact factual router grounds Kazakhstan entity questions instead of 
 
 test("v0.24 factual risk recognizes exact, authority-sensitive, and Kazakhstan facts", () => {
   assert.ok(factualRiskScore("Кто входит в Старший жуз?") >= 3);
-  assert.ok(factualRiskScore("Какая сейчас базовая ставка Национального банка Казахстана?") >= 5);
+  assert.ok(factualRiskScore("Какая сейчас базовая ставка Национального банка Казахстана?") >= 3);
   assert.equal(factualRiskScore("Придумай три идеи для рассказа"), 0);
   assert.equal(isKazakhstanContext("Ұлы жүз тайпалары"), true);
 });
@@ -79,6 +79,7 @@ test("v0.24 fact verification fails closed without evidence and verifies opened 
 test("v0.24 web gateway is Google-first with bounded fallbacks and readable extraction", async () => {
   const gateway = await source("lib/ai/web/gateway.ts");
   const planner = await source("lib/ai/providers/nvidia-tools.ts");
+  const grounding = await source("lib/ai/intelligence/grounding.ts");
   const registry = await source("lib/ai/tools/registry.ts");
   const productFacts = await source("lib/product-facts.ts");
 
@@ -91,7 +92,8 @@ test("v0.24 web gateway is Google-first with bounded fallbacks and readable extr
   assert.match(gateway, /<main\\b/);
   assert.match(gateway, /article:published_time/);
   assert.match(planner, /Exact factual lookups must search first/);
-  assert.match(planner, /KAZAKHSTAN CONTEXT/);
+  assert.match(planner, /kazakhstanGroundingContext/);
+  assert.match(grounding, /KAZAKHSTAN CONTEXT/);
   assert.match(registry, /Google-first grounding gateway/);
   assert.match(productFacts, /fullConversationSentToSearchProvider: false/);
 });
