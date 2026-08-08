@@ -50,7 +50,6 @@ export function ProfileLocalData({ locale }: { locale: "ru" | "en" }) {
         messages: "Сообщений",
         size: "Размер",
         vaultTitle: "Workspace Vault",
-        vaultDescription: "Полный проверяемый бэкап диалогов, черновиков, артефактов, Flow runs и настроек.",
         openVault: "Открыть полный бэкап",
         export: "Экспортировать диалоги",
         clear: "Очистить историю",
@@ -70,7 +69,6 @@ export function ProfileLocalData({ locale }: { locale: "ru" | "en" }) {
         messages: "Messages",
         size: "Size",
         vaultTitle: "Workspace Vault",
-        vaultDescription: "A complete verifiable backup of conversations, drafts, artifacts, Flow runs, and settings.",
         openVault: "Open full backup",
         export: "Export conversations",
         clear: "Clear history",
@@ -181,8 +179,7 @@ export function ProfileLocalData({ locale }: { locale: "ru" | "en" }) {
             </span>
             <span className="min-w-0 flex-1">
               <span className="block text-sm font-semibold text-primary">{labels.vaultTitle}</span>
-              <span className="mt-1 block text-xs leading-[1.55] text-on-surface-variant">{labels.vaultDescription}</span>
-              <span className="mt-3 inline-flex items-center gap-2 text-xs font-semibold text-primary">{labels.openVault} ↗</span>
+              <span className="mt-2 inline-flex items-center gap-2 text-xs font-semibold text-primary">{labels.openVault} ↗</span>
             </span>
           </Link>
 

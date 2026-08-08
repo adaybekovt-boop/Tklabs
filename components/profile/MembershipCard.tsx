@@ -208,7 +208,7 @@ export function MembershipCard({
 
               <span className="flex items-center justify-between gap-3 text-[9px] text-white/70 sm:text-[11px]">
                 <span className="truncate">{isAdmin ? labels.founderDuo : labels.memberEdition}</span>
-                <span className="inline-flex shrink-0 items-center gap-1.5"><Rotate3D size={13} /> {labels.flipHint}</span>
+                <Rotate3D size={13} aria-hidden="true" className="shrink-0" />
               </span>
             </span>
           </span>

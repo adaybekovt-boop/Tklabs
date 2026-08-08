@@ -12,13 +12,12 @@
 }
 
 html[data-motion="ready"] body {
-  animation: motion-page-enter var(--motion-page) var(--motion-ease-emphasized) both;
+  animation: motion-page-enter var(--motion-page) var(--motion-ease-emphasized) forwards;
 }
 
 html[data-route-transition="true"] body {
   opacity: .72;
-  transform: translateY(3px);
-  transition: opacity var(--motion-fast) linear, transform var(--motion-fast) var(--motion-ease-standard);
+  transition: opacity var(--motion-fast) linear;
 }
 
 [data-motion-reveal] {
@@ -339,8 +338,8 @@ a:active,
 }
 
 @keyframes motion-page-enter {
-  from { opacity: 0; transform: translateY(6px); }
-  to { opacity: 1; transform: translateY(0); }
+  from { opacity: 0; }
+  to { opacity: 1; }
 }
 
 @keyframes motion-workspace-enter {

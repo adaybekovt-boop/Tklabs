@@ -27,10 +27,6 @@ interface MobileProfileLabels {
   vault: string;
   currentRelease: string;
   profileStatus: string;
-  openChatHint: string;
-  releasesHint: string;
-  localDataHint: string;
-  vaultHint: string;
 }
 
 export function MobileProfileSummary({
@@ -65,10 +61,10 @@ export function MobileProfileSummary({
     { label: labels.profileStatus, value: role, icon: ShieldCheck },
   ];
   const actions = [
-    { href: "/playground", label: labels.openChat, hint: labels.openChatHint, icon: MessageSquareText },
-    { href: "/vault", label: labels.vault, hint: labels.vaultHint, icon: DatabaseBackup },
-    { href: "/patch-notes", label: labels.releases, hint: labels.releasesHint, icon: ScrollText },
-    { href: "#local-data", label: labels.localData, hint: labels.localDataHint, icon: HardDrive },
+    { href: "/playground", label: labels.openChat, icon: MessageSquareText },
+    { href: "/vault", label: labels.vault, icon: DatabaseBackup },
+    { href: "/patch-notes", label: labels.releases, icon: ScrollText },
+    { href: "#local-data", label: labels.localData, icon: HardDrive },
   ];
 
   return (
@@ -123,22 +119,19 @@ export function MobileProfileSummary({
       </article>
 
       <div className="mt-3 grid grid-cols-2 gap-2" data-profile-action-grid>
-        {actions.map(({ href, label, hint, icon: Icon }) => (
+        {actions.map(({ href, label, icon: Icon }) => (
           <Link
             key={href}
             href={href}
-            className="group flex min-h-[7.25rem] flex-col justify-between rounded-2xl border border-outline-variant bg-surface-container-lowest p-4 transition-[transform,border-color,box-shadow] duration-200 active:scale-[.98]"
+            className="group flex min-h-[5rem] items-center justify-between gap-3 rounded-2xl border border-outline-variant bg-surface-container-lowest p-4 transition-[transform,border-color,box-shadow] duration-200 active:scale-[.98]"
           >
-            <div className="flex items-start justify-between gap-3">
-              <span className="grid size-10 place-items-center rounded-2xl bg-surface-container-low text-primary">
+            <div className="flex min-w-0 items-center gap-3">
+              <span className="grid size-10 shrink-0 place-items-center rounded-2xl bg-surface-container-low text-primary">
                 <Icon size={18} aria-hidden="true" />
               </span>
-              <ArrowUpRight size={16} aria-hidden="true" className="text-secondary transition-transform group-hover:-translate-y-0.5 group-hover:translate-x-0.5" />
+              <p className="truncate text-sm font-semibold text-primary">{label}</p>
             </div>
-            <div>
-              <p className="text-sm font-semibold text-primary">{label}</p>
-              <p className="mt-1 text-[11px] leading-[1.45] text-on-surface-variant">{hint}</p>
-            </div>
+            <ArrowUpRight size={16} aria-hidden="true" className="shrink-0 text-secondary transition-transform group-hover:-translate-y-0.5 group-hover:translate-x-0.5" />
           </Link>
         ))}
       </div>

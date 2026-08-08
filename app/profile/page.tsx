@@ -57,22 +57,16 @@ export default async function ProfilePage() {
 
   const ui = locale === "ru"
     ? {
-        intro: "Профиль теперь работает как понятный центр аккаунта: статус доступа, карта участника, локальные данные и основные действия собраны в одной последовательной структуре.",
         openChat: "Открыть AI-чат",
         releases: "История обновлений",
         vault: "Workspace Vault",
         localData: "Данные на устройстве",
-        openChatHint: "Продолжить работу с Erma и диалогами",
-        releasesHint: "Посмотреть текущий релиз и историю изменений",
-        vaultHint: "Создать полный локальный бэкап рабочего пространства",
-        localDataHint: "Управлять историей, черновиками и настройками чата",
-        cardHelp: "Карта реагирует на указатель и переворачивается нажатием. На телефоне касание не блокирует вертикальную прокрутку.",
         foundersEdition: "Platinum Founders Edition",
         memberEdition: "Gold Member Edition",
         founderDuo: "Основатели · TK × Thomas",
         included: "Доступ и возможности",
         flipCard: "Перевернуть карту",
-        flipHint: "Нажмите, чтобы перевернуть",
+        flipHint: "Перевернуть",
         overview: "Состояние аккаунта",
         role: "Роль",
         details: "Подробные параметры",
@@ -82,31 +76,18 @@ export default async function ProfilePage() {
         currentRelease: "Релиз",
         profileStatus: "Статус",
         accessOverview: "Доступ и лимиты",
-        membershipNote: isAdmin
-          ? "Platinum выдаётся только сервером для администраторских аккаунтов. Оба основателя получают одинаковую Founders Edition."
-          : "Gold — стандартная карта участника. Цвет карты не изменяет права доступа.",
-        aiDetail: unlimited ? "Без дневного ограничения для разрешённого аккаунта" : "Стандартный дневной лимит запросов",
-        clodexDetail: "Состояние серверной интеграции Clodex",
-        roleDetail: "Назначается только серверной политикой доступа",
-        archiveDetail: "История хранится локально в текущем браузере",
       }
     : {
-        intro: "The profile now works as a clear account hub: access status, membership card, local data, and primary actions follow one consistent hierarchy.",
         openChat: "Open AI chat",
         releases: "Release history",
         vault: "Workspace Vault",
         localData: "On-device data",
-        openChatHint: "Continue working with Erma and conversations",
-        releasesHint: "Review the current release and change history",
-        vaultHint: "Create a complete local workspace backup",
-        localDataHint: "Manage chat history, drafts, and preferences",
-        cardHelp: "The card reacts to pointer movement and flips on press. Touch interaction does not block vertical scrolling.",
         foundersEdition: "Platinum Founders Edition",
         memberEdition: "Gold Member Edition",
         founderDuo: "Founders · TK × Thomas",
         included: "Access and capabilities",
         flipCard: "Flip membership card",
-        flipHint: "Press to flip",
+        flipHint: "Flip",
         overview: "Account overview",
         role: "Role",
         details: "Detailed parameters",
@@ -116,26 +97,19 @@ export default async function ProfilePage() {
         currentRelease: "Release",
         profileStatus: "Status",
         accessOverview: "Access and limits",
-        membershipNote: isAdmin
-          ? "Platinum is assigned server-side to administrator accounts. Both founders receive the same Founders Edition."
-          : "Gold is the standard member card. Card color never changes authorization.",
-        aiDetail: unlimited ? "No daily limit for the allowlisted account" : "Standard daily request allowance",
-        clodexDetail: "Current state of the server-side Clodex integration",
-        roleDetail: "Assigned only through the server access policy",
-        archiveDetail: "Conversation history remains in this browser",
       };
 
   const actions = [
-    { href: "/playground", label: ui.openChat, hint: ui.openChatHint, icon: Bot },
-    { href: "/vault", label: ui.vault, hint: ui.vaultHint, icon: DatabaseBackup },
-    { href: "/patch-notes", label: ui.releases, hint: ui.releasesHint, icon: ScrollText },
-    { href: "#local-data", label: ui.localData, hint: ui.localDataHint, icon: HardDrive },
+    { href: "/playground", label: ui.openChat, icon: Bot },
+    { href: "/vault", label: ui.vault, icon: DatabaseBackup },
+    { href: "/patch-notes", label: ui.releases, icon: ScrollText },
+    { href: "#local-data", label: ui.localData, icon: HardDrive },
   ];
   const overviewCards = [
-    { label: text.profile.membership.aiAccess, value: unlimited ? text.profile.membership.unlimited : text.profile.membership.standard, detail: ui.aiDetail, icon: Bot },
-    { label: text.profile.membership.clodex, value: clodexLabel, detail: ui.clodexDetail, icon: Cpu },
-    { label: ui.role, value: isAdmin ? text.profile.membership.administrator : text.profile.membership.member, detail: ui.roleDetail, icon: ShieldCheck },
-    { label: text.profile.archive, value: text.profile.archiveValue, detail: ui.archiveDetail, icon: Archive },
+    { label: text.profile.membership.aiAccess, value: unlimited ? text.profile.membership.unlimited : text.profile.membership.standard, icon: Bot },
+    { label: text.profile.membership.clodex, value: clodexLabel, icon: Cpu },
+    { label: ui.role, value: isAdmin ? text.profile.membership.administrator : text.profile.membership.member, icon: ShieldCheck },
+    { label: text.profile.archive, value: text.profile.archiveValue, icon: Archive },
   ];
 
   return (
@@ -168,10 +142,6 @@ export default async function ProfilePage() {
             vault: ui.vault,
             currentRelease: ui.currentRelease,
             profileStatus: ui.profileStatus,
-            openChatHint: ui.openChatHint,
-            releasesHint: ui.releasesHint,
-            localDataHint: ui.localDataHint,
-            vaultHint: ui.vaultHint,
           }}
         />
 
@@ -204,16 +174,15 @@ export default async function ProfilePage() {
                 <p className="label-caps mt-7 text-secondary">{text.profile.eyebrow}</p>
                 <h1 id="profile-membership-title" className="display-title mt-3">{displayName}</h1>
                 <p className="mt-3 break-all text-sm text-on-surface-variant">{session?.user?.email ?? text.profile.localEmail}</p>
-                <p className="mt-6 leading-[1.7] text-on-surface-variant">{ui.intro}</p>
                 <div className="mt-6 flex items-center justify-between gap-4 rounded-2xl border border-outline-variant bg-surface/75 px-4 py-3">
                   <span className="text-xs text-on-surface-variant">{ui.currentRelease}</span>
                   <span className="text-xs font-semibold text-primary">{CURRENT_RELEASE_VERSION}</span>
                 </div>
                 <div className="mt-4 grid gap-2" data-profile-desktop-actions>
-                  {actions.map(({ href, label, hint, icon: Icon }) => (
+                  {actions.map(({ href, label, icon: Icon }) => (
                     <Link key={href} href={href} className="group flex items-center gap-3 rounded-2xl border border-outline-variant bg-surface px-4 py-3 transition-[transform,border-color] hover:-translate-y-0.5 hover:border-primary focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-primary/20">
                       <span className="grid size-10 shrink-0 place-items-center rounded-2xl bg-surface-container-low text-primary"><Icon size={17} aria-hidden="true" /></span>
-                      <span className="min-w-0 flex-1"><span className="block truncate text-sm font-semibold text-primary">{label}</span><span className="mt-0.5 block text-[11px] leading-[1.4] text-on-surface-variant">{hint}</span></span>
+                      <span className="min-w-0 flex-1 truncate text-sm font-semibold text-primary">{label}</span>
                       <ArrowUpRight size={15} aria-hidden="true" className="shrink-0 text-secondary transition-transform group-hover:-translate-y-0.5 group-hover:translate-x-0.5" />
                     </Link>
                   ))}
@@ -237,25 +206,22 @@ export default async function ProfilePage() {
               clodexState={access.clodexState}
               labels={{ ...text.profile.membership, foundersEdition: ui.foundersEdition, memberEdition: ui.memberEdition, founderDuo: ui.founderDuo, included: ui.included, flipCard: ui.flipCard, flipHint: ui.flipHint }}
             />
-            <p className="mx-auto mt-4 max-w-[720px] text-center text-xs leading-[1.6] text-secondary">{ui.cardHelp}</p>
           </ScrollReveal>
         </section>
 
         <section id="overview" className="scroll-mt-32 py-10 md:py-16" aria-labelledby="profile-overview-title">
           <ScrollReveal>
-            <div className="mb-6 border-b border-outline-variant pb-5 sm:flex sm:items-end sm:justify-between sm:gap-5 sm:pb-6">
-              <div><p className="label-caps text-secondary">{ui.overview}</p><h2 id="profile-overview-title" className="headline-title mt-3">{text.profile.parameters}</h2></div>
-              <p className="mt-4 max-w-xl text-sm leading-[1.6] text-on-surface-variant sm:mt-0">{ui.membershipNote}</p>
+            <div className="mb-6 border-b border-outline-variant pb-5 sm:pb-6">
+              <p className="label-caps text-secondary">{ui.overview}</p><h2 id="profile-overview-title" className="headline-title mt-3">{text.profile.parameters}</h2>
             </div>
           </ScrollReveal>
           <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-            {overviewCards.map(({ label, value, detail, icon: Icon }, index) => (
+            {overviewCards.map(({ label, value, icon: Icon }, index) => (
               <ScrollReveal key={label} delay={index * 0.05}>
                 <article className="h-full rounded-2xl border border-outline-variant bg-surface-container-lowest p-5 transition-[transform,border-color,box-shadow] duration-200 hover:-translate-y-1 hover:border-primary/35 hover:shadow-[0_18px_45px_rgba(15,23,42,.08)]">
                   <span className="grid size-10 place-items-center rounded-2xl bg-surface-container-low text-primary"><Icon size={18} aria-hidden="true" /></span>
                   <p className="mt-5 text-[10px] font-semibold uppercase tracking-[0.1em] text-secondary">{label}</p>
                   <p className="mt-2 text-base font-semibold text-primary">{value}</p>
-                  <p className="mt-3 text-xs leading-[1.55] text-on-surface-variant">{detail}</p>
                 </article>
               </ScrollReveal>
             ))}
