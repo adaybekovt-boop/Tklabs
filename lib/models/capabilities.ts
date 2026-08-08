@@ -4,6 +4,7 @@ export const READ_ONLY_AI_TOOLS: readonly AiToolName[] = [
   "search_documentation",
   "search_patch_notes",
   "search_tklab_knowledge",
+  "search_documents",
   "get_service_status",
   "calculate",
   "solve_math",
