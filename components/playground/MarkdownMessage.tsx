@@ -1,7 +1,7 @@
 "use client";
 
 import { Maximize2, X } from "lucide-react";
-import { useState, type ReactNode } from "react";
+import { lazy, Suspense, useState, type ReactNode } from "react";
 import Markdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 
@@ -27,21 +27,46 @@ function FullscreenCodeBlock({ children }: { children: ReactNode }) {
   );
 }
 
+const markdownComponents = {
+  a: ({ href, children }: { href?: string; children?: ReactNode }) => href && href !== "#blocked-url" ? <a href={href} target="_blank" rel="noreferrer noopener" className="underline decoration-outline-variant underline-offset-4 hover:text-chat-accent">{children}</a> : <>{children}</>,
+  pre: ({ children }: { children?: ReactNode }) => <FullscreenCodeBlock>{children}</FullscreenCodeBlock>,
+  code: ({ className, children, ...props }: React.ComponentPropsWithoutRef<"code">) => <code className={cn("rounded bg-surface-container-low px-1.5 py-0.5 text-[0.9em]", className)} {...props}>{children}</code>,
+  table: ({ children }: { children?: ReactNode }) => <div className="my-3 max-w-full overflow-x-auto overscroll-x-contain"><table className="min-w-max border-collapse text-left text-[13px]">{children}</table></div>,
+  th: ({ children }: { children?: ReactNode }) => <th className="border-b border-outline-variant px-3 py-2 font-semibold">{children}</th>,
+  td: ({ children }: { children?: ReactNode }) => <td className="border-b border-outline-variant px-3 py-2 align-top">{children}</td>,
+};
+
+function BaseMarkdown({ content }: { content: string }) {
+  return <Markdown remarkPlugins={[remarkGfm]} urlTransform={safeMarkdownUrl} components={markdownComponents}>{content}</Markdown>;
+}
+
+const MathMarkdown = lazy(async () => {
+  const [{ default: rehypeKatex }, { default: remarkMath }] = await Promise.all([
+    import("rehype-katex"),
+    import("remark-math"),
+  ]);
+
+  function MathMarkdownRenderer({ content }: { content: string }) {
+    return (
+      <Markdown
+        remarkPlugins={[remarkGfm, remarkMath]}
+        rehypePlugins={[[rehypeKatex, { strict: false, throwOnError: false, output: "htmlAndMathml" }]]}
+        urlTransform={safeMarkdownUrl}
+        components={markdownComponents}
+      >
+        {content}
+      </Markdown>
+    );
+  }
+
+  return { default: MathMarkdownRenderer };
+});
+
+function containsMath(content: string) {
+  return /\$\$|\\\(|\\\[|(^|[^\\])\$[^$\n]+\$/m.test(content);
+}
+
 export function MarkdownMessage({ content }: { content: string }) {
-  return (
-    <Markdown
-      remarkPlugins={[remarkGfm]}
-      urlTransform={safeMarkdownUrl}
-      components={{
-        a: ({ href, children }) => href && href !== "#blocked-url" ? <a href={href} target="_blank" rel="noreferrer noopener" className="underline decoration-outline-variant underline-offset-4 hover:text-chat-accent">{children}</a> : <>{children}</>,
-        pre: ({ children }) => <FullscreenCodeBlock>{children}</FullscreenCodeBlock>,
-        code: ({ className, children, ...props }) => <code className={cn("rounded bg-surface-container-low px-1.5 py-0.5 text-[0.9em]", className)} {...props}>{children}</code>,
-        table: ({ children }) => <div className="my-3 max-w-full overflow-x-auto overscroll-x-contain"><table className="min-w-max border-collapse text-left text-[13px]">{children}</table></div>,
-        th: ({ children }) => <th className="border-b border-outline-variant px-3 py-2 font-semibold">{children}</th>,
-        td: ({ children }) => <td className="border-b border-outline-variant px-3 py-2 align-top">{children}</td>,
-      }}
-    >
-      {content}
-    </Markdown>
-  );
+  if (!containsMath(content)) return <BaseMarkdown content={content} />;
+  return <Suspense fallback={<BaseMarkdown content={content} />}><MathMarkdown content={content} /></Suspense>;
 }

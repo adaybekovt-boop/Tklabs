@@ -14,6 +14,7 @@ export const REQUIRED_RUNTIME_SECRETS = [
 
 export const CLODEX_RUNTIME_SECRETS = ["CLODEX_API_KEY", "CLODEX_ACCESS_CODE"];
 export const ELEVENLABS_RUNTIME_SECRETS = ["ELEVENLABS_API_KEY", "ELEVENLABS_VOICE_ID"];
+export const CODE_SANDBOX_RUNTIME_SECRETS = ["CODE_SANDBOX_URL", "CODE_SANDBOX_TOKEN"];
 
 export function buildSecretListArgs(config) {
   return ["wrangler", "secret", "list", "--config", config, "--format", "json"];
@@ -43,6 +44,8 @@ export function missingSecretNames(names, env = process.env) {
   const missing = required.filter((name) => !names.has(name));
   const elevenLabsConfigured = ELEVENLABS_RUNTIME_SECRETS.some((name) => names.has(name));
   if (elevenLabsConfigured) missing.push(...ELEVENLABS_RUNTIME_SECRETS.filter((name) => !names.has(name)));
+  const codeSandboxConfigured = CODE_SANDBOX_RUNTIME_SECRETS.some((name) => names.has(name));
+  if (codeSandboxConfigured) missing.push(...CODE_SANDBOX_RUNTIME_SECRETS.filter((name) => !names.has(name)));
   return [...new Set(missing)];
 }
 

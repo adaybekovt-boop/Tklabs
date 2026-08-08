@@ -6,11 +6,13 @@ const CLIENT_ROOT = resolve("dist/client");
 const ASSET_ROOT = join(CLIENT_ROOT, "assets");
 const IMAGE_ROOT = join(CLIENT_ROOT, "images");
 
+// v0.21 adds an optional lazy KaTeX/MathML renderer. These aggregate limits include
+// lazy client assets while preserving explicit caps for every production build.
 const BUDGETS = {
-  javascriptRaw: 1_150_000,
-  javascriptGzip: 400_000,
-  largestJavascript: 260_000,
-  cssRaw: 140_000,
+  javascriptRaw: 1_400_000,
+  javascriptGzip: 440_000,
+  largestJavascript: 450_000,
+  cssRaw: 155_000,
   imagesRaw: 700_000,
   largestImage: 300_000,
 };
@@ -35,34 +37,24 @@ async function filesUnder(root) {
   return output;
 }
 
-function formatBytes(bytes) {
-  return `${(bytes / 1024).toFixed(1)} KB`;
-}
+function formatBytes(bytes) { return `${(bytes / 1024).toFixed(1)} KB`; }
 
 const assetFiles = await filesUnder(ASSET_ROOT);
 const imageFiles = await filesUnder(IMAGE_ROOT);
-if (assetFiles.length === 0) {
-  throw new Error("Performance budget could not find dist/client/assets. Run the production build first.");
-}
+if (assetFiles.length === 0) throw new Error("Performance budget could not find dist/client/assets. Run the production build first.");
 
 const javascript = assetFiles.filter((path) => [".js", ".mjs"].includes(extname(path)));
 const styles = assetFiles.filter((path) => extname(path) === ".css");
 const imageExtensions = new Set([".png", ".jpg", ".jpeg", ".webp", ".avif", ".svg", ".ico"]);
 const images = imageFiles.filter((path) => imageExtensions.has(extname(path).toLowerCase()));
 
-async function measurements(paths) {
-  return Promise.all(paths.map(async (path) => {
-    const size = (await stat(path)).size;
-    return { path, size };
-  }));
-}
+async function measurements(paths) { return Promise.all(paths.map(async (path) => ({ path, size: (await stat(path)).size }))); }
 
 const jsMeasurements = await measurements(javascript);
 const cssMeasurements = await measurements(styles);
 const imageMeasurements = await measurements(images);
 const jsRaw = jsMeasurements.reduce((total, item) => total + item.size, 0);
-const jsGzip = (await Promise.all(javascript.map(async (path) => gzipSync(await readFile(path), { level: 9 }).byteLength)))
-  .reduce((total, size) => total + size, 0);
+const jsGzip = (await Promise.all(javascript.map(async (path) => gzipSync(await readFile(path), { level: 9 }).byteLength))).reduce((total, size) => total + size, 0);
 const cssRaw = cssMeasurements.reduce((total, item) => total + item.size, 0);
 const imagesRaw = imageMeasurements.reduce((total, item) => total + item.size, 0);
 const largestJs = jsMeasurements.toSorted((a, b) => b.size - a.size)[0] ?? { path: "none", size: 0 };
@@ -77,9 +69,7 @@ const report = [
   ["Largest image", largestImage.size, BUDGETS.largestImage],
 ];
 
-for (const [label, actual, budget] of report) {
-  console.log(`${actual <= budget ? "PASS" : "FAIL"} ${label}: ${formatBytes(actual)} / ${formatBytes(budget)}`);
-}
+for (const [label, actual, budget] of report) console.log(`${actual <= budget ? "PASS" : "FAIL"} ${label}: ${formatBytes(actual)} / ${formatBytes(budget)}`);
 console.log(`Largest JavaScript: ${relative(CLIENT_ROOT, largestJs.path)}`);
 console.log(`Largest image: ${relative(CLIENT_ROOT, largestImage.path)}`);
 

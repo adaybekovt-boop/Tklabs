@@ -3,10 +3,16 @@ import type { AiToolName } from "@/lib/ai/types";
 export const READ_ONLY_AI_TOOLS: readonly AiToolName[] = [
   "search_documentation",
   "search_patch_notes",
+  "search_tklab_knowledge",
+  "search_documents",
   "get_service_status",
   "calculate",
+  "solve_math",
   "search_local_archive",
   "get_model_capabilities",
+  "search_web",
+  "open_web_result",
+  "run_code_sandbox",
 ] as const;
 
 export type ErmaToolCapabilities = {
@@ -28,7 +34,7 @@ export type ErmaServerCapabilities = {
 const TOOL_CAPABILITIES: ErmaToolCapabilities = {
   enabled: true,
   mode: "read-only",
-  maxCalls: 4,
+  maxCalls: 8,
   maxRounds: 3,
   parallelCalls: false,
   requiresDetailedThinkingOff: true,

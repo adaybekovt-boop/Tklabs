@@ -1,25 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-
 import { AGENT_RUN_PROTOCOL_VERSION, applyAgentRunEvent, createEmptyAgentRun, isAgentRunEvent } from "../lib/ai/agent-run.ts";
 import { DEFAULT_AI_TOOL_CALLS, MAX_AI_TOOL_CALLS, MAX_AI_TOOL_ROUNDS } from "../lib/ai/tools/registry.ts";
-
-test("v0.19.4 enables bounded multi-round read-only planning", () => {
-  assert.equal(MAX_AI_TOOL_ROUNDS, 3);
-  assert.equal(MAX_AI_TOOL_CALLS, 6);
-  assert.equal(DEFAULT_AI_TOOL_CALLS, 3);
-});
-
-test("v0.19.4 agent runs preserve partial progress when one step fails", () => {
-  const runId = "run-1";
-  let state = createEmptyAgentRun(runId);
-  state = applyAgentRunEvent(state, { event: "run.started", runId, sequence: 0, timestamp: 1, payload: { title: "Verify release" } });
-  state = applyAgentRunEvent(state, { event: "plan.created", runId, sequence: 1, timestamp: 2, payload: { steps: [{ id: "inspect", title: "Inspect" }, { id: "verify", title: "Verify" }] } });
-  state = applyAgentRunEvent(state, { event: "step.started", runId, sequence: 2, timestamp: 3, payload: { stepId: "inspect" } });
-  state = applyAgentRunEvent(state, { event: "step.failed", runId, sequence: 3, timestamp: 4, payload: { stepId: "inspect", detail: "status unavailable" } });
-  assert.equal(AGENT_RUN_PROTOCOL_VERSION, "2.1");
-  assert.equal(state.status, "running");
-  assert.equal(state.steps[0]?.status, "failed");
-  assert.equal(state.steps[1]?.status, "pending");
-  assert.equal(isAgentRunEvent({ event: "step.failed", runId, sequence: 3, timestamp: 4, payload: {} }), true);
-});
+test("v0.19.4 bounded multi-round planning remains bounded after v0.21 expansion", () => { assert.equal(MAX_AI_TOOL_ROUNDS, 3); assert.equal(MAX_AI_TOOL_CALLS, 8); assert.equal(DEFAULT_AI_TOOL_CALLS, 3); assert.ok(MAX_AI_TOOL_CALLS <= 8); });
+test("v0.19.4 agent runs preserve partial progress when one step fails", () => { const runId = "run-1"; let state = createEmptyAgentRun(runId); state = applyAgentRunEvent(state, { event: "run.started", runId, sequence: 0, timestamp: 1, payload: { title: "Verify release" } }); state = applyAgentRunEvent(state, { event: "plan.created", runId, sequence: 1, timestamp: 2, payload: { steps: [{ id: "inspect", title: "Inspect" }, { id: "verify", title: "Verify" }] } }); state = applyAgentRunEvent(state, { event: "step.started", runId, sequence: 2, timestamp: 3, payload: { stepId: "inspect" } }); state = applyAgentRunEvent(state, { event: "step.failed", runId, sequence: 3, timestamp: 4, payload: { stepId: "inspect", detail: "status unavailable" } }); assert.equal(AGENT_RUN_PROTOCOL_VERSION, "2.1"); assert.equal(state.status, "running"); assert.equal(state.steps[0]?.status, "failed"); assert.equal(state.steps[1]?.status, "pending"); assert.equal(isAgentRunEvent({ event: "step.failed", runId, sequence: 3, timestamp: 4, payload: {} }), true); });

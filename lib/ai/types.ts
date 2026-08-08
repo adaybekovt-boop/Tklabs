@@ -1,6 +1,18 @@
 export type AiProvider = "nvidia" | "clodex" | "edge-fallback";
 
-export type AiToolName = "search_documentation" | "search_patch_notes" | "get_service_status" | "calculate" | "search_local_archive" | "get_model_capabilities";
+export type AiToolName =
+  | "search_documentation"
+  | "search_patch_notes"
+  | "search_tklab_knowledge"
+  | "search_documents"
+  | "get_service_status"
+  | "calculate"
+  | "solve_math"
+  | "search_local_archive"
+  | "get_model_capabilities"
+  | "search_web"
+  | "open_web_result"
+  | "run_code_sandbox";
 export type AiToolCallStatus = "success" | "error" | "timeout" | "blocked";
 export type AiToolCallLink = { label: string; href: string };
 export type AiToolCallTrace = { id: string; name: AiToolName; status: AiToolCallStatus; durationMs: number; summary: string; links?: AiToolCallLink[] };
