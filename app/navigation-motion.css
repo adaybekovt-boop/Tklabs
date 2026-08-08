@@ -10,14 +10,23 @@ html[data-route-transition="entering"] main {
   animation: route-content-enter 380ms var(--motion-ease-emphasized) both;
 }
 
+/*
+ * The fixed dock anchor itself must never be transformed. Mobile Chromium/WebKit
+ * can otherwise composite it against the document scroll layer, making `bottom`
+ * resolve at the end of a long page instead of the visual viewport. Motion lives
+ * on the dock's inner content so the viewport anchor stays geometrically stable.
+ */
 [data-app-dock] {
-  transform-origin: center bottom;
-  animation: app-dock-enter 460ms var(--motion-ease-emphasized) both;
+  animation: app-dock-opacity-enter 220ms linear both;
   transition:
     border-color var(--motion-base) linear,
     background-color var(--motion-base) linear,
-    box-shadow var(--motion-base) var(--motion-ease-standard),
-    transform var(--motion-base) var(--motion-ease-emphasized);
+    box-shadow var(--motion-base) var(--motion-ease-standard);
+}
+
+[data-app-dock] > div {
+  transform-origin: center bottom;
+  animation: app-dock-content-enter 460ms var(--motion-ease-emphasized) both;
 }
 
 [data-dock-link] {
@@ -73,13 +82,16 @@ html[data-route-transition="entering"] main {
   }
 }
 
-@keyframes app-dock-enter {
+@keyframes app-dock-opacity-enter {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes app-dock-content-enter {
   from {
-    opacity: 0;
     transform: translateY(20px) scale(.96);
   }
   to {
-    opacity: 1;
     transform: translateY(0) scale(1);
   }
 }
@@ -115,6 +127,7 @@ html[data-route-transition="entering"] main {
   html[data-route-transition="leaving"] main,
   html[data-route-transition="entering"] main,
   [data-app-dock],
+  [data-app-dock] > div,
   [data-app-dock-backdrop],
   [data-app-dock-panel],
   [data-dock-link][data-active="true"] [data-dock-icon],
