@@ -10,11 +10,9 @@ function sseBody(events) {
 }
 
 async function waitForClientShell(page) {
-  await expect(page.locator("[data-locale-toggle]").first()).toHaveAttribute(
-    "data-locale-ready",
-    "true",
-    { timeout: 15_000 },
-  );
+  await expect(
+    page.locator('[data-app-dock], [data-mobile-workspace-switcher], [data-testid="prompt-input"]').first(),
+  ).toBeAttached({ timeout: 15_000 });
   // Server rendering intentionally starts from the mobile-safe surface. On wide
   // viewports React then reconciles to the desktop composer. Do not type into the
   // transient textarea while that route/hydration transition is still entering.
@@ -159,7 +157,7 @@ test("mobile playground stays inside the viewport and exposes the mobile compose
   test.skip(!testInfo.project.name.includes("mobile"), "Mobile viewport contract");
   await page.goto(PLAYGROUND_HARNESS);
   await waitForClientShell(page);
-  await expect(page.getByTestId("mobile-prompt-input")).toBeVisible();
+  await expect(page.getByTestId("prompt-input")).toBeVisible();
   const overflow = await page.evaluate(() => ({
     viewport: window.innerWidth,
     documentWidth: document.documentElement.scrollWidth,

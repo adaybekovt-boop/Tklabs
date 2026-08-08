@@ -86,12 +86,14 @@ test("mobile shell uses AppDock, a direct workspace switcher, and safe-area beha
   assert.match(dock, /role="dialog"/);
   assert.match(dock, /focusable/);
   assert.match(switcher, /data-mobile-workspace-switcher/);
-  for (const id of ["chat", "flow", "artifacts", "runs"]) assert.match(switcher, new RegExp(`id: "${id}"`));
+  for (const id of ["chat", "flow", "artifacts"]) assert.match(switcher, new RegExp(`id: "${id}"`));
+  assert.doesNotMatch(switcher, /id: "runs"/);
+  assert.match(switcher, /ru: "Задачи", en: "Tasks"/);
   assert.match(mobileCss, /--chat-visual-height/);
   assert.match(mobileCss, /safe-area-inset-bottom/);
 });
 
-test("mobile chat keeps drafts, offline state, and compact settings", async () => {
+test("mobile chat keeps drafts, offline state, and the simplified One Erma composer", async () => {
   const chat = await text("components/playground/PlaygroundChat.tsx");
   const input = await text("components/ui/ai-chat-input.tsx");
   const composer = await text("components/playground/ResponsiveChatComposer.tsx");
@@ -103,8 +105,9 @@ test("mobile chat keeps drafts, offline state, and compact settings", async () =
   assert.match(chat, /archive\.sessionId/);
   assert.match(input, /navigator\.onLine/);
   assert.match(input, /WifiOff/);
-  assert.match(composer, /data-testid="mobile-prompt-input"/);
-  assert.match(composer, /SlidersHorizontal/);
+  assert.match(composer, /PromptInput/);
+  assert.match(input, /data-testid="prompt-input"/);
+  assert.doesNotMatch(input, /SlidersHorizontal|aria-haspopup="listbox"/);
   assert.match(drafts, /tklabs\.chat-draft\.v1/);
   assert.match(archiveHook, /useState\(uid\)/);
 });
