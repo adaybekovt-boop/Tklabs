@@ -1,8 +1,8 @@
 /* global self, caches, Request, Response, fetch, URL */
 
 const CACHE_PREFIX = "tklabs";
-const CACHE_VERSION = "v0.21.15";
-const CACHE_REVISION = "erma-intelligence-engine-r1";
+const CACHE_VERSION = "v0.23.4";
+const CACHE_REVISION = "erma-alive-vision-r1";
 const STATIC_CACHE = `${CACHE_PREFIX}-${CACHE_VERSION}-${CACHE_REVISION}-static`;
 const OFFLINE_URL = "/offline";
 const PRECACHE_URLS = [OFFLINE_URL, "/manifest.webmanifest", "/images/brand/tk-app-icon.svg", "/images/brand/tk-logo.png", "/images/home/hero-lab.svg", "/images/home/lab-cluster.svg"];
@@ -78,7 +78,7 @@ self.addEventListener("fetch", (event) => {
   const request = event.request;
   if (request.method !== "GET") return;
   const url = new URL(request.url);
-  if (url.origin !== self.location.origin) return;
+
   if (isProtectedOrDynamicPath(url)) {
     event.respondWith(fetch(request));
     return;
@@ -87,5 +87,7 @@ self.addEventListener("fetch", (event) => {
     event.respondWith(navigationNetworkOnly(request));
     return;
   }
-  if (isStaticAsset(request, url)) event.respondWith(staleWhileRevalidate(request));
+  if (isStaticAsset(request, url)) {
+    event.respondWith(staleWhileRevalidate(request));
+  }
 });

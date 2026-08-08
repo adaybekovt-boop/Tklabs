@@ -154,30 +154,27 @@ test("LaTeX rendering is wired through remark-math, rehype-katex, and bundled Ka
   assert.ok(packageJson.dependencies["rehype-katex"]);
 });
 
-test("all sixteen v0.21 release stages and final release identity stay synchronized", async () => {
+test("all sixteen v0.21 release stages remain synchronized as historical release data", async () => {
   const ru = getIntelligenceEngineReleases("ru");
   const en = getIntelligenceEngineReleases("en");
   const expected = Array.from({ length: 16 }, (_, index) => `v0.21.${index}`);
   assert.deepEqual(ru.map((entry) => entry.version), expected);
   assert.deepEqual(en.map((entry) => entry.version), expected);
+  assert.equal(ru.at(-1)?.title, "Erma Intelligence Engine — Quality Gate");
+  assert.equal(en.at(-1)?.title, "Erma Intelligence Engine — Quality Gate");
 
   const packageJson = JSON.parse(await source("package.json"));
   const packageLock = JSON.parse(await source("package-lock.json"));
-  const releaseVersion = await source("lib/release-version.ts");
-  const preview = await source("lib/prerelease.ts");
   const patchNotes = await source("app/patch-notes/page.tsx");
-  const sw = await source("public/sw.js");
-  assert.equal(packageJson.version, "0.21.15");
-  assert.equal(packageLock.version, "0.21.15");
-  assert.equal(packageLock.packages[""].version, "0.21.15");
+  const historicalRelease = await source("docs/releases/v0.21.15.md");
+  assert.equal(packageJson.version, packageLock.version);
+  assert.equal(packageJson.version, packageLock.packages[""].version);
   assert.ok(packageLock.packages["node_modules/katex"]);
-  assert.match(releaseVersion, /CURRENT_RELEASE_VERSION = "v0\.21\.15"/);
-  assert.match(releaseVersion, /CURRENT_RELEASE_CODENAME = "Erma Intelligence Engine"/);
-  assert.match(preview, /BRAVE_SEARCH_API_KEY/);
-  assert.match(preview, /CODE_SANDBOX_URL/);
   assert.match(patchNotes, /getIntelligenceEngineReleases/);
-  assert.match(sw, /CACHE_VERSION = "v0\.21\.15"/);
-  assert.match(sw, /CACHE_REVISION = "erma-intelligence-engine-r1"/);
+  assert.match(historicalRelease, /v0\.21\.15/);
+  assert.match(historicalRelease, /Erma Intelligence Engine/);
+  assert.match(historicalRelease, /BRAVE_SEARCH_API_KEY/);
+  assert.match(historicalRelease, /CODE_SANDBOX_URL/);
 });
 
 test("new layered memory explicitly remains request-context-only", async () => {

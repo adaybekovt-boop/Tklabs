@@ -36,6 +36,24 @@ const markdownComponents = {
   td: ({ children }: { children?: ReactNode }) => <td className="border-b border-outline-variant px-3 py-2 align-top">{children}</td>,
 };
 
+/** Convert common model LaTeX delimiters to the delimiters remark-math parses. */
+export function normalizeMathMarkdown(content: string) {
+  const lines = content.split("\n");
+  let fenced = false;
+  return lines.map((line) => {
+    if (/^\s*(```|~~~)/.test(line)) {
+      fenced = !fenced;
+      return line;
+    }
+    if (fenced) return line;
+    return line
+      .replace(/\\\[/g, "$$")
+      .replace(/\\\]/g, "$$")
+      .replace(/\\\(/g, "$")
+      .replace(/\\\)/g, "$");
+  }).join("\n");
+}
+
 function BaseMarkdown({ content }: { content: string }) {
   return <Markdown remarkPlugins={[remarkGfm]} urlTransform={safeMarkdownUrl} components={markdownComponents}>{content}</Markdown>;
 }
@@ -48,14 +66,16 @@ const MathMarkdown = lazy(async () => {
 
   function MathMarkdownRenderer({ content }: { content: string }) {
     return (
-      <Markdown
-        remarkPlugins={[remarkGfm, remarkMath]}
-        rehypePlugins={[[rehypeKatex, { strict: false, throwOnError: false, output: "htmlAndMathml" }]]}
-        urlTransform={safeMarkdownUrl}
-        components={markdownComponents}
-      >
-        {content}
-      </Markdown>
+      <div className="chat-math-markdown max-w-full overflow-hidden">
+        <Markdown
+          remarkPlugins={[remarkGfm, remarkMath]}
+          rehypePlugins={[[rehypeKatex, { strict: false, throwOnError: false, output: "htmlAndMathml" }]]}
+          urlTransform={safeMarkdownUrl}
+          components={markdownComponents}
+        >
+          {content}
+        </Markdown>
+      </div>
     );
   }
 
@@ -63,10 +83,11 @@ const MathMarkdown = lazy(async () => {
 });
 
 function containsMath(content: string) {
-  return /\$\$|\\\(|\\\[|(^|[^\\])\$[^$\n]+\$/m.test(content);
+  return /\$\$|(^|[^\\])\$[^$\n]+\$/m.test(content);
 }
 
 export function MarkdownMessage({ content }: { content: string }) {
-  if (!containsMath(content)) return <BaseMarkdown content={content} />;
-  return <Suspense fallback={<BaseMarkdown content={content} />}><MathMarkdown content={content} /></Suspense>;
+  const normalized = normalizeMathMarkdown(content);
+  if (!containsMath(normalized)) return <BaseMarkdown content={normalized} />;
+  return <Suspense fallback={<BaseMarkdown content={normalized} />}><MathMarkdown content={normalized} /></Suspense>;
 }

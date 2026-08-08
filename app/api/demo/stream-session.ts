@@ -6,7 +6,7 @@ import { aiStreamHeaders, encodeAiStreamEvent } from "@/lib/ai/sse";
 import { prepareReadOnlyToolAugmentation } from "@/lib/ai/tools/route-tools";
 import type { AiToolCallTrace } from "@/lib/ai/types";
 import { safetyRefusal } from "@/lib/ai-safety";
-import { contextualFallbackPrompt, providerFailureReason, resolveFallback, streamInterruptedText, withContextMetadata, withToolCalls } from "./fallback";
+import { contextualFallbackPrompt, providerFailureReason, resolveFallback, streamInterruptedText, visionUnavailableText, withContextMetadata, withToolCalls } from "./fallback";
 import type { PreparedDemoRequest } from "./request-context";
 
 type StreamEvent = Parameters<typeof encodeAiStreamEvent>[0];
@@ -41,7 +41,7 @@ export class DemoStreamSession {
   private startPayload() { const { context, requestId } = this.input; return { requestId, status: "connecting", context: { estimatedTokens: context.estimatedTokens, messages: context.includedMessageCount, attachments: context.attachmentCount, limit: context.contextLimit, compacted: context.compacted } }; }
 
   private async run() {
-    const { request, body, requestId, prompt, context, language, model, requestedReasoning, effort, tone, privilegedAccount, documents, quota, startedAt, requestedModel } = this.input;
+    const { request, body, requestId, prompt, context, language, model, requestedReasoning, effort, tone, privilegedAccount, documents, images, quota, startedAt, requestedModel } = this.input;
     this.send("start", this.startPayload());
     try {
       const toolAugmentation = await prepareReadOnlyToolAugmentation({ request, requestId, prompt, context, language, model, localArchive: body.localArchive, documents, allowCodeSandbox: privilegedAccount, signal: this.providerController.signal });
@@ -49,7 +49,7 @@ export class DemoStreamSession {
       this.augmentedSummary = toolAugmentation.summary;
       for (const trace of this.toolCalls) this.send("tool", trace);
 
-      const result = await streamWithNvidia({ messages: context.messages, summary: this.augmentedSummary, language, model, requestedReasoning, effort, allowCode: privilegedAccount, tone, signal: this.providerController.signal }, async (delta) => {
+      const result = await streamWithNvidia({ messages: context.messages, summary: this.augmentedSummary, language, model, requestedReasoning, effort, allowCode: privilegedAccount, tone, images, signal: this.providerController.signal }, async (delta) => {
         const delivered = this.send("delta", { text: delta });
         if (!delivered) { if (!this.providerController.signal.aborted) this.providerController.abort("response_closed"); return; }
         if (!this.firstTokenAt) this.firstTokenAt = Date.now();
@@ -64,7 +64,7 @@ export class DemoStreamSession {
   }
 
   private async handleFailure(error: unknown) {
-    const { requestId, language, model, privilegedAccount, context, quota, startedAt, requestedModel } = this.input;
+    const { requestId, language, model, privilegedAccount, context, images, quota, startedAt, requestedModel } = this.input;
     const aborted = this.providerController.signal.aborted || (error instanceof DOMException && error.name === "AbortError");
     if (aborted) {
       if (this.partialAnswer) await quota.commit(); else await quota.release();
@@ -89,6 +89,13 @@ export class DemoStreamSession {
       await quota.commit();
       const safetyResult = withContextMetadata(withToolCalls({ answer: safetyRefusal(language), provider: "edge-fallback", actualModel: "safety-policy", fallbackReason: reason }, this.toolCalls), context);
       const meta = createAiResponseMeta(safetyResult, requestedModel, requestId, startedAt); logAiRequest(meta); this.send("delta", { text: safetyResult.answer }); this.send("meta", meta); this.send("done", { requestId, stopped: false }); this.close(); return;
+    }
+
+    if (images.length) {
+      await quota.release();
+      const visionResult = withContextMetadata(withToolCalls({ answer: visionUnavailableText(language), provider: "edge-fallback", actualModel: "vision-unavailable", fallbackReason: reason }, this.toolCalls), context);
+      const meta = createAiResponseMeta(visionResult, requestedModel, requestId, startedAt, 503);
+      logAiRequest(meta); this.send("delta", { text: visionResult.answer }); this.send("meta", meta); this.send("done", { requestId, stopped: false }); this.close(); return;
     }
 
     const fallback = withContextMetadata(withToolCalls(await resolveFallback({ prompt: contextualFallbackPrompt(context, this.augmentedSummary), language, allowCode: privilegedAccount, requestId, requestedModel, primaryReason: reason, signal: this.providerController.signal }), this.toolCalls), context);
