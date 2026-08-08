@@ -27,6 +27,7 @@ export const workspaceSnapshots = sqliteTable("workspace_snapshots", {
   ciphertext: text("ciphertext").notNull(),
   iv: text("iv").notNull(),
   checksum: text("checksum").notNull(),
+  keyVersion: integer("key_version").notNull().default(1),
   revision: integer("revision").notNull().default(1),
   updatedAt: integer("updated_at", { mode: "timestamp_ms" }).notNull(),
 });
