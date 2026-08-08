@@ -1,6 +1,6 @@
 {
   "name": "tkai",
-  "version": "0.20.10",
+  "version": "0.21.15",
   "private": true,
   "engines": { "node": ">=22.13.0" },
   "scripts": {
