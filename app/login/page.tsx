@@ -14,17 +14,7 @@ export default async function LoginPage() {
 
   const locale = await getLocale();
   const text = getDictionary(locale);
-  const legalLinks = locale === "ru"
-    ? [
-        { href: "/legal/terms", label: "Пользовательское соглашение" },
-        { href: "/legal/privacy", label: "Конфиденциальность" },
-        { href: "/supported-countries", label: "Поддерживаемые страны" },
-      ]
-    : [
-        { href: "/legal/terms", label: "Terms of use" },
-        { href: "/legal/privacy", label: "Privacy" },
-        { href: "/supported-countries", label: "Supported countries" },
-      ];
+  const legalLabel = "text-[11px] font-semibold uppercase tracking-[0.11em] text-secondary hover:text-primary";
 
   return (
     <>
@@ -42,16 +32,10 @@ export default async function LoginPage() {
 
             <p className="mt-6 text-[12px] leading-[1.65] text-secondary">{text.login.note}</p>
 
-            <nav className="mt-8 flex flex-wrap gap-x-5 gap-y-3 border-t border-outline-variant/70 pt-6" aria-label={locale === "ru" ? "Правовая информация" : "Legal information"}>
-              {legalLinks.map((item) => (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  className="text-[11px] font-semibold uppercase tracking-[0.11em] text-secondary hover:text-primary"
-                >
-                  {item.label}
-                </Link>
-              ))}
+            <nav className="mt-8 grid grid-cols-1 gap-3 border-t border-outline-variant/70 pt-6 sm:grid-cols-2" aria-label={locale === "ru" ? "Правовая информация" : "Legal information"}>
+              <Link href="/legal/terms" className={legalLabel}>{locale === "ru" ? "Пользовательское соглашение" : "Terms of use"}</Link>
+              <Link href="/legal/privacy" className={legalLabel}>{locale === "ru" ? "Конфиденциальность" : "Privacy"}</Link>
+              <Link href="/supported-countries" className={legalLabel}>{locale === "ru" ? "Поддерживаемые страны" : "Supported countries"}</Link>
             </nav>
           </section>
         </ScrollReveal>
