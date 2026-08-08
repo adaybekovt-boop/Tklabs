@@ -23,6 +23,7 @@ export const DEFAULT_OUTPUT_RESERVE_TOKENS = 8_192;
 export const MAX_CONTEXT_MESSAGES = 80;
 export const MAX_CONTEXT_MESSAGE_CHARACTERS = 12_000;
 const RECENT_MESSAGES_TO_KEEP = 12;
+const MEMORY_HEADING = /^[A-Z][^:]{1,40}:$/;
 
 export class ChatContextValidationError extends Error {
   readonly status: 400 | 413;
@@ -94,6 +95,23 @@ function buildSummary(messages: ChatContextMessage[]) {
   return buildStructuredMemorySummary(messages);
 }
 
+function trimOldestMemory(summary: string) {
+  const lines = summary.split("\n");
+  if (!lines.length) return "";
+  const nextHeading = lines.findIndex((line, index) => index > 0 && MEMORY_HEADING.test(line));
+  if (nextHeading > 0) {
+    lines.splice(0, nextHeading);
+  } else if (MEMORY_HEADING.test(lines[0] ?? "") && lines.length > 1) {
+    // Keep the final section structurally valid while dropping its oldest item.
+    lines.splice(1, 1);
+  } else if (lines.length > 1) {
+    lines.shift();
+  } else {
+    lines.length = 0;
+  }
+  return lines.join("\n");
+}
+
 export function prepareChatContext(input: {
   history: unknown;
   currentUserContent: string;
@@ -129,12 +147,7 @@ export function prepareChatContext(input: {
     estimatedTokens = estimateMessagesTokens(messages, summary);
 
     while (estimatedTokens > inputBudget && summary) {
-      const lines = summary.split("\n");
-      const headingIndex = lines.findIndex((line, index) => index > 0 && /^[A-Z][^:]{1,40}:$/.test(line));
-      if (headingIndex > 0) lines.splice(0, headingIndex);
-      else if (lines.length > 1) lines.shift();
-      else lines.length = 0;
-      summary = lines.join("\n");
+      summary = trimOldestMemory(summary);
       estimatedTokens = estimateMessagesTokens(messages, summary);
     }
 
