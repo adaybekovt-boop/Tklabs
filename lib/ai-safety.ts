@@ -45,7 +45,9 @@ export function classifyPromptSafety(input: string, options: SafetyOptions = {})
     if (!matches(normalized, rule.patterns) && !matches(folded, rule.patterns)) continue;
     return decisionFor(rule.category, rule.code, rule.action === "refuse");
   }
-  return decisionFor("allowed", "allowed.general", false);
+  // Preserve the historical public contract for ordinary allowed requests.
+  // Policy metadata is attached only when an actual non-default category matched.
+  return { blocked: false };
 }
 
 const HARMFUL_OUTPUT_PATTERNS = [/\b(?:ransomware|keylogger|credential stealer|password dumper|backdoor|botnet|phishing kit)\b/i, /\b(?:disable|evade|bypass)\b.{0,100}\b(?:antivirus|edr|authentication|security controls?)\b/i];
