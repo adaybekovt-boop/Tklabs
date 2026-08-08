@@ -1,0 +1,37 @@
+name: Sync v0.21 lockfile
+
+on:
+  push:
+    branches:
+      - agent/v0.21-erma-intelligence-engine
+    paths:
+      - package.json
+      - .github/workflows/sync-v021-lock.yml
+
+permissions:
+  contents: write
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/v0.21-erma-intelligence-engine
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Synchronize package lock
+        run: npm install --package-lock-only --ignore-scripts
+      - name: Commit lockfile when changed
+        run: |
+          if git diff --quiet -- package-lock.json; then
+            echo "package-lock.json already synchronized"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add package-lock.json
+          git commit -m "chore: sync v0.21.15 package lock"
+          git push origin HEAD:agent/v0.21-erma-intelligence-engine
