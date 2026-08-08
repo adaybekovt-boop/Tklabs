@@ -59,6 +59,28 @@ export const NVIDIA_READ_ONLY_TOOLS: readonly NvidiaToolDefinition[] = [
   {
     type: "function",
     function: {
+      name: "search_tklab_knowledge",
+      description: "Search TK LAB source-of-truth knowledge: current Terms, Privacy/AUP/AI Transparency/Security/Subprocessors, Product Facts, data routes, and release history. Prefer this for questions about TK LAB policy, privacy, capabilities, data handling, or releases.",
+      parameters: {
+        type: "object",
+        additionalProperties: false,
+        properties: {
+          query: { type: "string", minLength: 1, maxLength: 300 },
+          kinds: {
+            type: "array",
+            maxItems: 4,
+            uniqueItems: true,
+            items: { type: "string", enum: ["terms", "legal", "product", "release"] },
+          },
+          limit: { type: "integer", minimum: 1, maximum: 8, default: 5 },
+        },
+        required: ["query"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
       name: "get_service_status",
       description: "Read the current TK LAB service-health snapshot from the fixed internal status endpoint.",
       parameters: { type: "object", additionalProperties: false, properties: {} },
