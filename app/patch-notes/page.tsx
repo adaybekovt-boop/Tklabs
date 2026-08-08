@@ -4,8 +4,6 @@ import { MobileReleaseBrowser } from "@/components/site/MobileReleaseBrowser";
 import { PatchNotesBrowser } from "@/components/site/PatchNotesBrowser";
 import { StitchFooter } from "@/components/site/StitchFooter";
 import { StitchHeader } from "@/components/site/StitchHeader";
-import { FlowButton } from "@/components/ui/flow-button";
-import { ScrollReveal } from "@/components/ui/scroll-reveal";
 import { getDictionary } from "@/lib/i18n";
 import { getReleaseHistory } from "@/lib/latest-release";
 import { getLocale } from "@/lib/locale";
@@ -26,23 +24,20 @@ export default async function PatchNotesPage() {
   const currentIndex = entries.findIndex((entry) => entry.version === detailedRelease.version);
   if (currentIndex >= 0) entries[currentIndex] = detailedRelease;
   else entries.push(detailedRelease);
-  const latestRelease = previewRelease;
   const ui = locale === "ru"
     ? {
-        latest: "Предварительная версия",
-        browse: "Ищите по словам, выбирайте версию и открывайте только нужный релиз.",
-        openChat: "Открыть Erma Nova",
         major: "КРУПНОЕ ОБНОВЛЕНИЕ · ПРЕДВАРИТЕЛЬНАЯ ВЕРСИЯ",
         knownIssues: "Известные ограничения preview",
         migration: "Совместимость и миграция",
+        automated: "Новые release notes формируются автоматически из pull request и хранятся в GitHub Releases.",
+        openAutomated: "Автоматические release notes",
       }
     : {
-        latest: "Preview release",
-        browse: "Search by keyword, choose a version, and open only the release you need.",
-        openChat: "Open Erma Nova",
         major: "MAJOR UPDATE · PRE-RELEASE",
         knownIssues: "Known preview limitations",
         migration: "Compatibility and migration",
+        automated: "New release notes are generated automatically from pull requests and stored in GitHub Releases.",
+        openAutomated: "Automated release notes",
       };
 
   return (
@@ -56,12 +51,9 @@ export default async function PatchNotesPage() {
             </span>
             <span className="text-xs font-semibold text-secondary">{previewRelease.version} · {previewRelease.codename}</span>
           </div>
-          <div className="mt-4 flex flex-col items-start justify-between gap-6 md:flex-row md:items-center">
-            <div className="min-w-0 flex-1">
-              <h1 className="font-serif text-[28px] leading-[1.12] text-on-surface sm:text-[38px]">{previewRelease.title}</h1>
-              <p className="mt-2 max-w-2xl text-[14px] leading-relaxed text-on-surface-variant sm:text-[15px]">{previewRelease.summary}</p>
-            </div>
-            <FlowButton href="/playground" text={ui.openChat} dark className="shrink-0" />
+          <div className="mt-4">
+            <h1 className="font-serif text-[28px] leading-[1.12] text-on-surface sm:text-[38px]">{previewRelease.title}</h1>
+            <p className="mt-2 max-w-2xl text-[14px] leading-relaxed text-on-surface-variant sm:text-[15px]">{previewRelease.summary}</p>
           </div>
           <div className="mt-6 grid gap-3 border-t border-outline-variant/50 pt-5 md:grid-cols-2" data-preview-release-notices>
             <section className="rounded-2xl border border-outline-variant/70 bg-surface-container-low p-4" aria-labelledby="preview-known-issues-title">
@@ -76,6 +68,17 @@ export default async function PatchNotesPage() {
                 {previewRelease.migrationNotes.map((item) => <li key={item}>— {item}</li>)}
               </ul>
             </section>
+          </div>
+          <div className="mt-5 flex flex-col gap-2 rounded-2xl border border-outline-variant bg-surface px-4 py-4 sm:flex-row sm:items-center sm:justify-between">
+            <p className="max-w-2xl text-xs leading-5 text-on-surface-variant sm:text-[13px]">{ui.automated}</p>
+            <a
+              href="https://github.com/adaybekovt-boop/Tklabs/releases"
+              target="_blank"
+              rel="noreferrer"
+              className="shrink-0 text-xs font-semibold text-primary underline decoration-outline-variant underline-offset-4 hover:decoration-primary"
+            >
+              {ui.openAutomated}
+            </a>
           </div>
         </section>
 
@@ -93,16 +96,6 @@ export default async function PatchNotesPage() {
             <PatchNotesBrowser entries={entries} locale={locale} />
           </div>
         </section>
-
-        <ScrollReveal>
-          <section className="mt-10 flex flex-col items-start justify-between gap-4 overflow-hidden rounded-3xl border border-outline-variant bg-surface-container-low p-6 sm:flex-row sm:items-center sm:p-8">
-            <div className="min-w-0">
-              <p className="label-caps text-secondary">{latestRelease.version}</p>
-              <p className="mt-1 font-serif text-xl text-primary sm:text-2xl">{text.patchNotes.workspaceTitle}</p>
-            </div>
-            <FlowButton href="/playground" text={ui.openChat} dark />
-          </section>
-        </ScrollReveal>
       </main>
       <StitchFooter />
     </>
