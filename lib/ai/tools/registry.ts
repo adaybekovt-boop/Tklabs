@@ -102,6 +102,27 @@ export const NVIDIA_READ_ONLY_TOOLS: readonly NvidiaToolDefinition[] = [
   {
     type: "function",
     function: {
+      name: "solve_math",
+      description: "Deterministically verify common math work. Supports arithmetic evaluation, quadratic equations, descriptive statistics, square matrix determinants up to 4x4, and derivatives/integrals of numeric polynomials. Returns a LaTeX representation for the final answer.",
+      parameters: {
+        type: "object",
+        additionalProperties: false,
+        properties: {
+          operation: { type: "string", enum: ["evaluate", "quadratic", "statistics", "determinant", "derivative", "integral"] },
+          expression: { type: "string", maxLength: 300 },
+          a: { type: "number" },
+          b: { type: "number" },
+          c: { type: "number" },
+          values: { type: "array", maxItems: 200, items: { type: "number" } },
+          matrix: { type: "array", maxItems: 4, items: { type: "array", maxItems: 4, items: { type: "number" } } },
+        },
+        required: ["operation"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
       name: "search_local_archive",
       description: "Search the limited on-device conversation results supplied with this request. It never reads server storage.",
       parameters: limitedSearchSchema,
