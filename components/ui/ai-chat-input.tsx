@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { ArrowUp, FileText, Mic, Plus, Square, WifiOff, X } from "lucide-react";
+import { ArrowUp, Camera, FileText, ImageIcon, Mic, Plus, Square, Upload, WifiOff, X } from "lucide-react";
 
 import { ChatOverlay } from "@/components/playground/ChatOverlay";
 import { DOCUMENT_ACCEPT, extractDocumentFile } from "@/lib/documents/extract";
@@ -25,12 +25,21 @@ export type ChatInputAttachment = {
   name: string;
   content: string;
   url: string;
+  kind: "document" | "image";
+  mimeType?: string;
+};
+
+export type ChatInputSubmitAttachment = {
+  name: string;
+  content: string;
+  type?: "document" | "image";
+  mimeType?: string;
 };
 
 export type ChatInputSubmitMeta = {
   model: string;
   effort: ChatEffort;
-  attachments: Array<{ name: string; content: string }>;
+  attachments: ChatInputSubmitAttachment[];
 };
 
 export type PromptInputLabels = {
@@ -66,6 +75,64 @@ type SpeechRecognitionLike = {
   stop(): void;
 };
 type SpeechRecognitionConstructor = new () => SpeechRecognitionLike;
+
+const IMAGE_ACCEPT = "image/jpeg,image/png,image/webp";
+const MAX_IMAGE_SOURCE_BYTES = 12 * 1024 * 1024;
+const MAX_IMAGE_DATA_BYTES = 900 * 1024;
+const MAX_IMAGE_TOTAL_BYTES = 1_700 * 1024;
+const MAX_IMAGE_COUNT = 2;
+const MAX_IMAGE_DIMENSION = 1536;
+
+function normalizeSpeechSegment(value: string) {
+  return value.trim().replace(/\s+/g, " ");
+}
+
+function dedupeAdjacentSpeechSegments(segments: string[]) {
+  const result: string[] = [];
+  for (const segment of segments.map(normalizeSpeechSegment).filter(Boolean)) {
+    const previous = result.at(-1)?.toLocaleLowerCase();
+    if (previous === segment.toLocaleLowerCase()) continue;
+    result.push(segment);
+  }
+  return result;
+}
+
+function blobToDataUrl(blob: Blob) {
+  return new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => typeof reader.result === "string" ? resolve(reader.result) : reject(new Error("image_read_failed"));
+    reader.onerror = () => reject(new Error("image_read_failed"));
+    reader.readAsDataURL(blob);
+  });
+}
+
+async function compressImage(file: File) {
+  if (!IMAGE_ACCEPT.split(",").includes(file.type) || file.size > MAX_IMAGE_SOURCE_BYTES) throw new Error("unsupported_image");
+  const sourceUrl = URL.createObjectURL(file);
+  try {
+    const image = await new Promise<HTMLImageElement>((resolve, reject) => {
+      const node = new Image();
+      node.onload = () => resolve(node);
+      node.onerror = () => reject(new Error("image_decode_failed"));
+      node.src = sourceUrl;
+    });
+    const scale = Math.min(1, MAX_IMAGE_DIMENSION / Math.max(image.naturalWidth, image.naturalHeight));
+    const width = Math.max(1, Math.round(image.naturalWidth * scale));
+    const height = Math.max(1, Math.round(image.naturalHeight * scale));
+    const canvas = document.createElement("canvas");
+    canvas.width = width;
+    canvas.height = height;
+    const context = canvas.getContext("2d", { alpha: false });
+    if (!context) throw new Error("image_canvas_failed");
+    context.drawImage(image, 0, 0, width, height);
+    const blob = await new Promise<Blob>((resolve, reject) => canvas.toBlob((value) => value ? resolve(value) : reject(new Error("image_encode_failed")), "image/jpeg", 0.84));
+    const dataUrl = await blobToDataUrl(blob);
+    if (new TextEncoder().encode(dataUrl).byteLength > MAX_IMAGE_DATA_BYTES) throw new Error("image_too_large");
+    return { dataUrl, mimeType: "image/jpeg" };
+  } finally {
+    URL.revokeObjectURL(sourceUrl);
+  }
+}
 
 export interface PromptInputProps {
   value: string;
@@ -117,16 +184,20 @@ export const PromptInput = React.forwardRef<HTMLDivElement, PromptInputProps>(fu
   const locale = voiceLanguage.toLowerCase().startsWith("ru") ? "ru" : "en";
   const [attachments, setAttachments] = React.useState<ChatInputAttachment[]>([]);
   const [activeAttachment, setActiveAttachment] = React.useState<ChatInputAttachment | null>(null);
+  const [attachmentMenuOpen, setAttachmentMenuOpen] = React.useState(false);
   const [recording, setRecording] = React.useState(false);
   const [online, setOnline] = React.useState(true);
   const [voiceError, setVoiceError] = React.useState("");
   const [attachmentError, setAttachmentError] = React.useState("");
   const textareaRef = React.useRef<HTMLTextAreaElement>(null);
   const fileInputRef = React.useRef<HTMLInputElement>(null);
+  const cameraInputRef = React.useRef<HTMLInputElement>(null);
   const recognitionRef = React.useRef<SpeechRecognitionLike | null>(null);
   const attachmentsRef = React.useRef<ChatInputAttachment[]>([]);
   const transcriptBaseRef = React.useRef("");
-  const canSubmit = Boolean(value.trim()) && value.length <= maxLength && !disabled && !busy && !recording && online;
+  const speechFinalByIndexRef = React.useRef(new Map<number, string>());
+  const hasAttachment = attachments.length > 0;
+  const canSubmit = Boolean(value.trim() || hasAttachment) && value.length <= maxLength && !disabled && !busy && !recording && online;
 
   React.useEffect(() => {
     attachmentsRef.current = attachments;
@@ -159,47 +230,56 @@ export const PromptInput = React.forwardRef<HTMLDivElement, PromptInputProps>(fu
 
   function submit() {
     if (!canSubmit) return;
-    const accepted = onSubmit(value.trim(), {
+    const fallbackPrompt = attachments.some((attachment) => attachment.kind === "image")
+      ? locale === "ru" ? "Проанализируй прикреплённое изображение." : "Analyze the attached image."
+      : locale === "ru" ? "Проанализируй прикреплённый файл." : "Analyze the attached file.";
+    const prompt = value.trim() || fallbackPrompt;
+    const accepted = onSubmit(prompt, {
       model: selectedModelId || AUTO_ERMA_MODEL_KEY,
       effort: "medium",
-      attachments: attachments.map(({ name, content }) => ({ name, content })),
+      attachments: attachments.map(({ name, content, kind, mimeType }) => ({ name, content, type: kind, ...(mimeType ? { mimeType } : {}) })),
     });
     if (accepted === false) return;
     onChange("");
     attachments.forEach((attachment) => URL.revokeObjectURL(attachment.url));
     setAttachments([]);
+    setAttachmentMenuOpen(false);
     setVoiceError("");
     setAttachmentError("");
   }
 
-  async function addFiles(files: FileList | null) {
+  async function addFiles(files: FileList | File[] | null) {
     if (!files || !attachmentsEnabled) return;
     setAttachmentError("");
     const room = Math.max(0, 3 - attachments.length);
     const candidates = Array.from(files);
     let rejected = candidates.length > room;
-    let contextLength = attachments.reduce((total, attachment) => total + Array.from(`[${attachment.name}]\n${attachment.content}`).length + 2, 0);
+    let contextLength = attachments.filter((attachment) => attachment.kind === "document").reduce((total, attachment) => total + Array.from(`[${attachment.name}]\n${attachment.content}`).length + 2, 0);
+    let imageBytes = attachments.filter((attachment) => attachment.kind === "image").reduce((total, attachment) => total + new TextEncoder().encode(attachment.content).byteLength, 0);
+    let imageCount = attachments.filter((attachment) => attachment.kind === "image").length;
     const next: ChatInputAttachment[] = [];
 
     for (const file of candidates.slice(0, room)) {
       try {
+        if (IMAGE_ACCEPT.split(",").includes(file.type)) {
+          if (imageCount >= MAX_IMAGE_COUNT) throw new Error("too_many_images");
+          const image = await compressImage(file);
+          const additionBytes = new TextEncoder().encode(image.dataUrl).byteLength;
+          if (imageBytes + additionBytes > MAX_IMAGE_TOTAL_BYTES) throw new Error("images_too_large");
+          next.push({ id: `${file.name}-${file.lastModified}-${crypto.randomUUID()}`, file, name: file.name || "image.jpg", content: image.dataUrl, url: URL.createObjectURL(file), kind: "image", mimeType: image.mimeType });
+          imageBytes += additionBytes;
+          imageCount += 1;
+          continue;
+        }
+
         const extracted = await extractDocumentFile(file, {
           maxSourceBytes: 2 * 1024 * 1024,
           maxOutputBytes: maxAttachmentBytes,
           maxCharacters: maxAttachmentContextLength,
         });
         const additionLength = Array.from(`[${extracted.name}]\n${extracted.content}`).length + 2;
-        if (contextLength + additionLength > maxAttachmentContextLength) {
-          rejected = true;
-          continue;
-        }
-        next.push({
-          id: `${extracted.name}-${file.lastModified}-${crypto.randomUUID()}`,
-          file,
-          name: extracted.name,
-          content: extracted.content,
-          url: URL.createObjectURL(file),
-        });
+        if (contextLength + additionLength > maxAttachmentContextLength) throw new Error("document_context_too_large");
+        next.push({ id: `${extracted.name}-${file.lastModified}-${crypto.randomUUID()}`, file, name: extracted.name, content: extracted.content, url: URL.createObjectURL(file), kind: "document" });
         contextLength += additionLength;
       } catch {
         rejected = true;
@@ -208,6 +288,7 @@ export const PromptInput = React.forwardRef<HTMLDivElement, PromptInputProps>(fu
 
     if (rejected) setAttachmentError(labels.attachmentTooLarge);
     setAttachments((current) => [...current, ...next]);
+    setAttachmentMenuOpen(false);
   }
 
   function removeAttachment(id: string) {
@@ -242,18 +323,21 @@ export const PromptInput = React.forwardRef<HTMLDivElement, PromptInputProps>(fu
     recognition.interimResults = true;
     recognition.lang = voiceLanguage;
     transcriptBaseRef.current = value.trim();
+    speechFinalByIndexRef.current.clear();
     recognition.onresult = (event) => {
-      let finalText = "";
-      let interimText = "";
       for (let index = event.resultIndex; index < event.results.length; index += 1) {
         const result = event.results[index];
-        if (result.isFinal) finalText += result[0].transcript;
-        else interimText += result[0].transcript;
+        if (result.isFinal) speechFinalByIndexRef.current.set(index, normalizeSpeechSegment(result[0].transcript));
       }
-      const spoken = `${finalText}${interimText}`.trim();
+      const finalSegments = dedupeAdjacentSpeechSegments([...speechFinalByIndexRef.current.entries()].sort(([a], [b]) => a - b).map(([, transcript]) => transcript));
+      const interimSegments: string[] = [];
+      for (let index = 0; index < event.results.length; index += 1) {
+        const result = event.results[index];
+        if (!result.isFinal) interimSegments.push(result[0].transcript);
+      }
+      const spoken = [...finalSegments, ...dedupeAdjacentSpeechSegments(interimSegments)].join(" ").trim();
       const prefix = transcriptBaseRef.current;
       onChange(`${prefix}${prefix && spoken ? " " : ""}${spoken}`.slice(0, maxLength));
-      if (finalText.trim()) transcriptBaseRef.current = `${prefix}${prefix ? " " : ""}${finalText.trim()}`;
     };
     recognition.onerror = () => {
       setVoiceError(labels.voiceDenied);
@@ -283,7 +367,7 @@ export const PromptInput = React.forwardRef<HTMLDivElement, PromptInputProps>(fu
       stopRecording();
       return;
     }
-    if (value.trim()) {
+    if (value.trim() || hasAttachment) {
       submit();
       return;
     }
@@ -294,26 +378,25 @@ export const PromptInput = React.forwardRef<HTMLDivElement, PromptInputProps>(fu
     ? labels.stopGeneration
     : recording
       ? labels.stopRecording
-      : value.trim()
+      : value.trim() || hasAttachment
         ? labels.send
         : labels.voiceInput;
-  const primaryDisabled = disabled || (busy ? !onStop : recording ? false : value.trim() ? !canSubmit : !online);
+  const primaryDisabled = disabled || (busy ? !onStop : recording ? false : value.trim() || hasAttachment ? !canSubmit : !online);
 
   return (
     <div ref={forwardedRef} data-testid="prompt-input" className={cn("relative mx-auto w-full max-w-[780px]", className)}>
       {attachmentsEnabled && (
-        <input
-          ref={fileInputRef}
-          className="sr-only"
-          type="file"
-          accept={DOCUMENT_ACCEPT}
-          multiple
-          aria-label={labels.addAttachment}
-          onChange={(event) => {
-            void addFiles(event.target.files);
-            event.target.value = "";
-          }}
-        />
+        <>
+          <input ref={fileInputRef} className="sr-only" type="file" accept={`${DOCUMENT_ACCEPT},${IMAGE_ACCEPT}`} multiple aria-label={labels.addAttachment} onChange={(event) => { void addFiles(event.target.files); event.target.value = ""; }} />
+          <input ref={cameraInputRef} className="sr-only" type="file" accept={IMAGE_ACCEPT} capture="environment" aria-label={locale === "ru" ? "Сфотографировать" : "Take a photo"} onChange={(event) => { void addFiles(event.target.files); event.target.value = ""; }} />
+        </>
+      )}
+
+      {attachmentMenuOpen && (
+        <div className="absolute bottom-[calc(100%+8px)] left-0 z-40 w-52 overflow-hidden rounded-2xl border border-outline-variant bg-surface-container-lowest p-1.5 shadow-xl" role="menu">
+          <button type="button" role="menuitem" onClick={() => cameraInputRef.current?.click()} className="flex min-h-11 w-full items-center gap-3 rounded-xl px-3 text-left text-sm text-primary hover:bg-surface-container-low"><Camera size={17} />{locale === "ru" ? "Камера" : "Camera"}</button>
+          <button type="button" role="menuitem" onClick={() => fileInputRef.current?.click()} className="flex min-h-11 w-full items-center gap-3 rounded-xl px-3 text-left text-sm text-primary hover:bg-surface-container-low"><Upload size={17} />{locale === "ru" ? "Фото или файл" : "Photo or file"}</button>
+        </div>
       )}
 
       <div className="overflow-hidden rounded-[1.55rem] border border-outline-variant bg-surface-container-lowest shadow-[0_10px_30px_color-mix(in_srgb,var(--color-primary)_7%,transparent)] focus-within:border-primary">
@@ -322,25 +405,17 @@ export const PromptInput = React.forwardRef<HTMLDivElement, PromptInputProps>(fu
             {attachments.map((attachment) => (
               <div key={attachment.id} className="relative flex h-11 max-w-[210px] shrink-0 items-center gap-2 rounded-xl border border-outline-variant bg-surface px-3 pr-9">
                 <button type="button" onClick={() => setActiveAttachment(attachment)} className="flex min-w-0 items-center gap-2 text-left text-[11px] text-on-surface-variant" aria-label={`${labels.openAttachment} ${attachment.name}`}>
-                  <FileText size={15} className="shrink-0" />
+                  {attachment.kind === "image" ? <ImageIcon size={15} className="shrink-0" /> : <FileText size={15} className="shrink-0" />}
                   <span className="truncate">{attachment.name}</span>
                 </button>
-                <button type="button" onClick={() => removeAttachment(attachment.id)} className="absolute right-1 top-1/2 grid size-8 -translate-y-1/2 place-items-center rounded-full text-on-secondary-container hover:bg-surface-container" aria-label={`${labels.close} ${attachment.name}`}>
-                  <X size={13} />
-                </button>
+                <button type="button" onClick={() => removeAttachment(attachment.id)} className="absolute right-1 top-1/2 grid size-8 -translate-y-1/2 place-items-center rounded-full text-on-secondary-container hover:bg-surface-container" aria-label={`${labels.close} ${attachment.name}`}><X size={13} /></button>
               </div>
             ))}
           </div>
         )}
 
         <div className="flex items-end gap-1 px-2 pb-2 pt-2 sm:px-3">
-          <button
-            type="button"
-            onClick={() => fileInputRef.current?.click()}
-            disabled={!attachmentsEnabled || disabled || attachments.length >= 3}
-            className="relative grid size-11 shrink-0 place-items-center rounded-full text-on-surface-variant hover:bg-surface-container hover:text-primary disabled:opacity-30"
-            aria-label={labels.addAttachment}
-          >
+          <button type="button" onClick={() => setAttachmentMenuOpen((open) => !open)} disabled={!attachmentsEnabled || disabled || attachments.length >= 3} className="relative grid size-11 shrink-0 place-items-center rounded-full text-on-surface-variant hover:bg-surface-container hover:text-primary disabled:opacity-30" aria-label={labels.addAttachment} aria-expanded={attachmentMenuOpen}>
             <Plus size={19} />
             {attachments.length > 0 && <span className="absolute right-0 top-0 grid size-4 place-items-center rounded-full bg-primary text-[9px] text-on-primary">{attachments.length}</span>}
           </button>
@@ -349,6 +424,12 @@ export const PromptInput = React.forwardRef<HTMLDivElement, PromptInputProps>(fu
             ref={textareaRef}
             value={value}
             onChange={(event) => onChange(event.target.value.slice(0, maxLength))}
+            onPaste={(event) => {
+              const imageFiles = Array.from(event.clipboardData.files).filter((file) => IMAGE_ACCEPT.split(",").includes(file.type));
+              if (!imageFiles.length) return;
+              event.preventDefault();
+              void addFiles(imageFiles);
+            }}
             onKeyDown={(event) => {
               const isComposing = event.nativeEvent.isComposing || event.keyCode === 229;
               const desktopEnter = window.matchMedia("(pointer: fine) and (min-width: 768px)").matches;
@@ -365,14 +446,8 @@ export const PromptInput = React.forwardRef<HTMLDivElement, PromptInputProps>(fu
             className="block min-h-11 max-h-44 min-w-0 flex-1 resize-none overflow-y-auto bg-transparent px-2 py-2.5 text-[16px] leading-6 text-primary outline-none placeholder:text-on-secondary-container disabled:opacity-60"
           />
 
-          <button
-            type="button"
-            onClick={handlePrimaryAction}
-            disabled={primaryDisabled}
-            className={cn("grid size-11 shrink-0 place-items-center rounded-full shadow-sm disabled:opacity-25", busy || value.trim() ? "bg-primary text-on-primary" : "bg-surface-container-low text-primary")}
-            aria-label={primaryLabel}
-          >
-            {busy || recording ? <Square size={14} fill="currentColor" /> : value.trim() ? <ArrowUp size={18} /> : <Mic size={18} />}
+          <button type="button" onClick={handlePrimaryAction} disabled={primaryDisabled} className={cn("grid size-11 shrink-0 place-items-center rounded-full shadow-sm disabled:opacity-25", busy || value.trim() || hasAttachment ? "bg-primary text-on-primary" : "bg-surface-container-low text-primary")} aria-label={primaryLabel}>
+            {busy || recording ? <Square size={14} fill="currentColor" /> : value.trim() || hasAttachment ? <ArrowUp size={18} /> : <Mic size={18} />}
           </button>
         </div>
 
@@ -387,10 +462,15 @@ export const PromptInput = React.forwardRef<HTMLDivElement, PromptInputProps>(fu
         {activeAttachment && (
           <>
             <div className="flex items-center justify-between gap-4 border-b border-outline-variant px-5 py-4">
-              <p id="attachment-preview-title" className="flex min-w-0 items-center gap-2 text-sm font-medium text-primary"><FileText size={16} /><span className="truncate">{activeAttachment.name}</span></p>
+              <p id="attachment-preview-title" className="flex min-w-0 items-center gap-2 text-sm font-medium text-primary">{activeAttachment.kind === "image" ? <ImageIcon size={16} /> : <FileText size={16} />}<span className="truncate">{activeAttachment.name}</span></p>
               <button type="button" className="grid size-11 shrink-0 place-items-center rounded-full text-primary hover:bg-surface-container-low" onClick={() => setActiveAttachment(null)} aria-label={labels.close}><X size={17} /></button>
             </div>
-            <pre className="max-h-[68dvh] overflow-auto whitespace-pre-wrap px-5 py-5 text-left text-[13px] leading-[1.7] text-primary">{activeAttachment.content}</pre>
+            {activeAttachment.kind === "image" ? (
+              <div className="flex max-h-[72dvh] items-center justify-center overflow-auto bg-black/5 p-4">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={activeAttachment.url} alt={activeAttachment.name} className="max-h-[68dvh] max-w-full rounded-xl object-contain" />
+              </div>
+            ) : <pre className="max-h-[68dvh] overflow-auto whitespace-pre-wrap px-5 py-5 text-left text-[13px] leading-[1.7] text-primary">{activeAttachment.content}</pre>}
           </>
         )}
       </ChatOverlay>
