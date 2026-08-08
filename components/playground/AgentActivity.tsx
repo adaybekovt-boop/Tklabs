@@ -1,4 +1,4 @@
-import { AlertTriangle, Calculator, CheckCircle2, ChevronDown, ExternalLink, FileSearch, Gauge, Globe2, LibraryBig, Search, ShieldCheck, Sigma, Wrench } from "lucide-react";
+import { AlertTriangle, Calculator, CheckCircle2, ChevronDown, ExternalLink, FileCode2, FileSearch, Gauge, Globe2, LibraryBig, Search, ShieldCheck, Sigma, Wrench } from "lucide-react";
 
 import type { AiToolCallTrace, AiToolName } from "@/lib/ai/types";
 import type { Locale } from "@/lib/i18n";
@@ -8,7 +8,8 @@ function ToolIcon({ name }: { name: AiToolName }) {
   if (name === "search_patch_notes") return <LibraryBig size={14} />;
   if (name === "search_tklab_knowledge") return <ShieldCheck size={14} />;
   if (name === "search_web" || name === "open_web_result") return <Globe2 size={14} />;
-  if (name === "search_documentation") return <FileSearch size={14} />;
+  if (name === "search_documentation" || name === "search_documents") return <FileSearch size={14} />;
+  if (name === "run_code_sandbox") return <FileCode2 size={14} />;
   if (name === "search_local_archive") return <Search size={14} />;
   if (name === "get_service_status") return <Gauge size={14} />;
   return <Wrench size={14} />;
@@ -19,6 +20,7 @@ function toolLabel(name: AiToolName, locale: Locale) {
     search_documentation: { ru: "Документация", en: "Documentation" },
     search_patch_notes: { ru: "Обновления", en: "Release notes" },
     search_tklab_knowledge: { ru: "Знания TK LAB", en: "TK LAB knowledge" },
+    search_documents: { ru: "Поиск по файлам", en: "Document search" },
     get_service_status: { ru: "Статус сервисов", en: "Service status" },
     calculate: { ru: "Вычисление", en: "Calculation" },
     solve_math: { ru: "Проверка математики", en: "Math verification" },
@@ -26,6 +28,7 @@ function toolLabel(name: AiToolName, locale: Locale) {
     get_model_capabilities: { ru: "Возможности модели", en: "Model capabilities" },
     search_web: { ru: "Поиск в интернете", en: "Web search" },
     open_web_result: { ru: "Чтение веб-источника", en: "Read web source" },
+    run_code_sandbox: { ru: "Проверка кода", en: "Code sandbox" },
   };
   return labels[name][locale];
 }
@@ -55,15 +58,7 @@ export function AgentActivity({ calls, locale, open = false }: { calls?: AiToolC
                   {call.status !== "success" && <span className="text-[10px] font-medium text-error">{locale === "ru" ? "Не удалось" : "Unavailable"}</span>}
                 </div>
                 <p className="mt-1 text-[11px] leading-5 text-on-surface-variant">{call.summary}</p>
-                {call.links?.length ? (
-                  <div className="mt-2 flex flex-wrap gap-1.5">
-                    {call.links.map((link) => (
-                      <a key={`${call.id}-${link.href}`} href={link.href} className="inline-flex min-h-8 items-center gap-1 rounded-full border border-outline-variant px-2.5 text-[10px] text-primary hover:bg-surface-container-low">
-                        <ExternalLink size={11} />{link.label}
-                      </a>
-                    ))}
-                  </div>
-                ) : null}
+                {call.links?.length ? <div className="mt-2 flex flex-wrap gap-1.5">{call.links.map((link) => <a key={`${call.id}-${link.href}`} href={link.href} className="inline-flex min-h-8 items-center gap-1 rounded-full border border-outline-variant px-2.5 text-[10px] text-primary hover:bg-surface-container-low"><ExternalLink size={11} />{link.label}</a>)}</div> : null}
               </div>
             </div>
           </article>
