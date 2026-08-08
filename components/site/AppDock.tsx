@@ -17,10 +17,11 @@ import {
   X,
 } from "lucide-react";
 import { createPortal } from "react-dom";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 
 import { LanguageToggle } from "@/components/site/LanguageToggle";
 import { ThemeToggle } from "@/components/site/ThemeToggle";
+import { lockDocumentScroll } from "@/lib/document-scroll-lock";
 import type { Locale } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 
@@ -52,6 +53,10 @@ export type AppDockLabels = {
   language: string;
 };
 
+const subscribeClientReady = () => () => undefined;
+const clientReadySnapshot = () => true;
+const serverReadySnapshot = () => false;
+
 function routeIsActive(pathname: string, href: string) {
   if (href === "/") return pathname === "/";
   return pathname === href || pathname.startsWith(`${href}/`);
@@ -70,7 +75,7 @@ export function AppDock({
   const [open, setOpen] = useState(false);
   const panelRef = useRef<HTMLDivElement>(null);
   const pushedHistoryRef = useRef(false);
-  const portalReady = typeof document !== "undefined";
+  const portalReady = useSyncExternalStore(subscribeClientReady, clientReadySnapshot, serverReadySnapshot);
 
   const profileHref = signedIn ? "/profile" : "/login";
   const primaryItems = useMemo(
@@ -143,9 +148,8 @@ export function AppDock({
   useEffect(() => {
     if (!open) return;
 
-    const previousOverflow = document.body.style.overflow;
     const previousFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
-    document.body.style.overflow = "hidden";
+    const releaseScrollLock = lockDocumentScroll();
 
     const frame = requestAnimationFrame(() => {
       panelRef.current?.querySelector<HTMLElement>("a, button")?.focus();
@@ -184,7 +188,7 @@ export function AppDock({
       cancelAnimationFrame(frame);
       document.removeEventListener("keydown", handleKeyDown);
       window.removeEventListener("popstate", handlePopState);
-      document.body.style.overflow = previousOverflow;
+      releaseScrollLock();
       previousFocus?.focus();
     };
   }, [closeMenu, open]);
@@ -194,7 +198,7 @@ export function AppDock({
         <div className="fixed inset-0 z-[160]" role="presentation" data-app-dock-sheet>
           <button
             type="button"
-            className="absolute inset-0 bg-black/45 backdrop-blur-[3px]"
+            className="absolute inset-0 rounded-none bg-black/45 backdrop-blur-[3px]"
             onClick={() => closeMenu()}
             aria-label={labels.close}
             data-app-dock-backdrop
@@ -206,7 +210,7 @@ export function AppDock({
               role="dialog"
               aria-modal="true"
               aria-labelledby="app-dock-menu-title"
-              className="max-h-[min(86dvh,760px)] w-full max-w-3xl overflow-y-auto rounded-t-[2rem] border border-outline-variant bg-surface-container-lowest px-4 pb-[max(1rem,env(safe-area-inset-bottom,0px))] pt-4 shadow-[0_-24px_80px_rgba(0,0,0,.24)] sm:rounded-[2rem] sm:p-5"
+              className="max-h-[min(86dvh,760px)] w-full max-w-3xl overflow-y-auto overscroll-contain rounded-t-[2rem] border border-outline-variant bg-surface-container-lowest px-4 pb-[max(1rem,env(safe-area-inset-bottom,0px))] pt-4 shadow-[0_-24px_80px_rgba(0,0,0,.24)] sm:rounded-[2rem] sm:p-5"
               data-app-dock-panel
             >
               <div className="sticky top-0 z-10 flex items-center justify-between gap-4 bg-surface-container-lowest pb-4">
@@ -275,72 +279,74 @@ export function AppDock({
       )
     : null;
 
-  return (
-    <>
-      <nav
-        className="fixed inset-x-2 bottom-2 z-[120] mx-auto max-w-[34rem] rounded-[1.4rem] border border-outline-variant bg-surface/94 px-2 py-1.5 shadow-[0_18px_60px_rgba(0,0,0,.15)] backdrop-blur-xl sm:bottom-4 sm:px-3"
-        style={{ marginBottom: "env(safe-area-inset-bottom, 0px)" }}
-        aria-label={labels.menuTitle}
-        data-testid="app-bottom-navigation"
-        data-app-dock
-      >
-        <div className="grid grid-cols-5 gap-1">
-          {primaryItems.map(({ href, label, icon: Icon, prominent }) => {
-            const active = routeIsActive(pathname, href);
-            return (
-              <Link
-                key={href}
-                href={href}
-                aria-current={active ? "page" : undefined}
-                data-dock-link
-                data-active={active ? "true" : "false"}
-                className={cn(
-                  "group relative flex min-h-[58px] flex-col items-center justify-center gap-1 rounded-2xl px-1 text-[10px] font-semibold leading-none focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-primary/20 sm:text-[11px]",
-                  prominent && "-mt-3",
-                  active ? "text-primary" : "text-on-secondary-container",
-                )}
-              >
-                <span
+  const dock = portalReady
+    ? createPortal(
+        <nav
+          className="fixed inset-x-2 bottom-2 z-[120] mx-auto max-w-[34rem] rounded-[1.4rem] border border-outline-variant bg-surface/94 px-2 py-1.5 shadow-[0_18px_60px_rgba(0,0,0,.15)] backdrop-blur-xl sm:bottom-4 sm:px-3"
+          style={{ marginBottom: "env(safe-area-inset-bottom, 0px)" }}
+          aria-label={labels.menuTitle}
+          data-testid="app-bottom-navigation"
+          data-app-dock
+        >
+          <div className="grid grid-cols-5 gap-1">
+            {primaryItems.map(({ href, label, icon: Icon, prominent }) => {
+              const active = routeIsActive(pathname, href);
+              return (
+                <Link
+                  key={href}
+                  href={href}
+                  aria-current={active ? "page" : undefined}
+                  data-dock-link
+                  data-active={active ? "true" : "false"}
                   className={cn(
-                    "grid place-items-center",
-                    prominent ? "size-12 rounded-full border border-primary/20 shadow-[0_10px_28px_rgba(15,23,42,.16)]" : "size-8 rounded-xl",
-                    active
-                      ? "bg-primary text-on-primary"
-                      : prominent
-                        ? "bg-surface-container-lowest text-primary"
-                        : "bg-transparent",
+                    "group relative flex min-h-[58px] flex-col items-center justify-center gap-1 rounded-2xl px-1 text-[10px] font-semibold leading-none focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-primary/20 sm:text-[11px]",
+                    prominent && "-mt-3",
+                    active ? "text-primary" : "text-on-secondary-container",
                   )}
-                  data-dock-icon
                 >
-                  <Icon size={prominent ? 21 : 19} aria-hidden="true" />
-                </span>
-                <span className="max-w-full truncate">{label}</span>
-                {active ? <span className="absolute bottom-0.5 size-1 rounded-full bg-primary" aria-hidden="true" data-dock-indicator /> : null}
-              </Link>
-            );
-          })}
-          <button
-            type="button"
-            onClick={openMenu}
-            aria-expanded={open}
-            aria-haspopup="dialog"
-            aria-controls="app-dock-menu"
-            data-dock-link
-            data-active={open || moreActive ? "true" : "false"}
-            className={cn(
-              "relative flex min-h-[58px] flex-col items-center justify-center gap-1 rounded-2xl px-1 text-[10px] font-semibold leading-none focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-primary/20 sm:text-[11px]",
-              open || moreActive ? "text-primary" : "text-on-secondary-container",
-            )}
-          >
-            <span className={cn("grid size-8 place-items-center rounded-xl", open || moreActive ? "bg-primary text-on-primary" : "bg-transparent")} data-dock-icon>
-              <Menu size={19} aria-hidden="true" />
-            </span>
-            <span>{labels.more}</span>
-            {moreActive ? <span className="absolute bottom-0.5 size-1 rounded-full bg-primary" aria-hidden="true" data-dock-indicator /> : null}
-          </button>
-        </div>
-      </nav>
-      {sheet}
-    </>
-  );
+                  <span
+                    className={cn(
+                      "grid place-items-center",
+                      prominent ? "size-12 rounded-full border border-primary/20 shadow-[0_10px_28px_rgba(15,23,42,.16)]" : "size-8 rounded-xl",
+                      active
+                        ? "bg-primary text-on-primary"
+                        : prominent
+                          ? "bg-surface-container-lowest text-primary"
+                          : "bg-transparent",
+                    )}
+                    data-dock-icon
+                  >
+                    <Icon size={prominent ? 21 : 19} aria-hidden="true" />
+                  </span>
+                  <span className="max-w-full truncate">{label}</span>
+                  {active ? <span className="absolute bottom-0.5 size-1 rounded-full bg-primary" aria-hidden="true" data-dock-indicator /> : null}
+                </Link>
+              );
+            })}
+            <button
+              type="button"
+              onClick={openMenu}
+              aria-expanded={open}
+              aria-haspopup="dialog"
+              aria-controls="app-dock-menu"
+              data-dock-link
+              data-active={open || moreActive ? "true" : "false"}
+              className={cn(
+                "relative flex min-h-[58px] flex-col items-center justify-center gap-1 rounded-2xl px-1 text-[10px] font-semibold leading-none focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-primary/20 sm:text-[11px]",
+                open || moreActive ? "text-primary" : "text-on-secondary-container",
+              )}
+            >
+              <span className={cn("grid size-8 place-items-center rounded-xl", open || moreActive ? "bg-primary text-on-primary" : "bg-transparent")} data-dock-icon>
+                <Menu size={19} aria-hidden="true" />
+              </span>
+              <span>{labels.more}</span>
+              {moreActive ? <span className="absolute bottom-0.5 size-1 rounded-full bg-primary" aria-hidden="true" data-dock-indicator /> : null}
+            </button>
+          </div>
+        </nav>,
+        document.body,
+      )
+    : null;
+
+  return <>{dock}{sheet}</>;
 }

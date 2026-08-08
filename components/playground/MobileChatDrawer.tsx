@@ -9,6 +9,7 @@ import { ConversationArchive } from "@/components/playground/ConversationArchive
 import { LanguageToggle } from "@/components/site/LanguageToggle";
 import { SiteLogo } from "@/components/site/SiteLogo";
 import { ThemeToggle } from "@/components/site/ThemeToggle";
+import { lockDocumentScroll } from "@/lib/document-scroll-lock";
 import { getDictionary, type Locale } from "@/lib/i18n";
 import { requestWorkspaceSection } from "@/lib/workspace-events";
 
@@ -41,8 +42,7 @@ export function MobileChatDrawer({
   useEffect(() => {
     if (!open) return;
     previousFocusRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
-    const previousOverflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
+    const releaseScrollLock = lockDocumentScroll();
     const frame = requestAnimationFrame(() => drawerRef.current?.focus());
 
     function handleKeyDown(event: KeyboardEvent) {
@@ -71,7 +71,7 @@ export function MobileChatDrawer({
     return () => {
       cancelAnimationFrame(frame);
       document.removeEventListener("keydown", handleKeyDown);
-      document.body.style.overflow = previousOverflow;
+      releaseScrollLock();
       previousFocusRef.current?.focus();
     };
   }, [open]);
@@ -99,7 +99,7 @@ export function MobileChatDrawer({
   if (!open || typeof document === "undefined") return null;
 
   return createPortal(
-    <div className="fixed inset-0 z-[120] md:hidden" role="presentation" data-mobile-chat-drawer>
+    <div className="fixed inset-0 z-[190] h-[100dvh] overflow-hidden md:hidden" role="presentation" data-mobile-chat-drawer>
       <button type="button" tabIndex={-1} className="absolute inset-0 rounded-none bg-black/45" aria-label={text.chat.close} onClick={onClose} />
       <div
         ref={drawerRef}
@@ -111,7 +111,7 @@ export function MobileChatDrawer({
         onTouchEnd={handleTouchEnd}
         className="absolute inset-y-0 left-0 flex w-[min(92vw,420px)] touch-pan-y flex-col overflow-hidden rounded-none border-r border-outline-variant bg-surface-container-lowest shadow-2xl outline-none"
       >
-        <header className="flex min-h-14 shrink-0 items-center justify-between gap-3 border-b border-outline-variant px-4">
+        <header className="flex min-h-14 shrink-0 items-center justify-between gap-3 border-b border-outline-variant px-4 pt-[env(safe-area-inset-top,0px)]">
           <Link href="/" onClick={onClose} aria-label="TK LAB" className="group inline-flex items-center gap-2 rounded-xl p-1 transition hover:opacity-80">
             <SiteLogo showWordmark={true} className="origin-left scale-90" />
           </Link>

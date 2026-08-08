@@ -1,6 +1,7 @@
 import { expect, test } from "@playwright/test";
 
 const PLAYGROUND_HARNESS = "/browser-assurance/playground";
+const TERMS_HARNESS = "/browser-assurance/terms";
 
 function sseBody(events) {
   return events.map(({ event, data }) => (
@@ -12,6 +13,14 @@ async function waitForClientShell(page) {
   await expect(page.locator("[data-locale-toggle]").first()).toHaveAttribute(
     "data-locale-ready",
     "true",
+    { timeout: 15_000 },
+  );
+  // Server rendering intentionally starts from the mobile-safe surface. On wide
+  // viewports React then reconciles to the desktop composer. Do not type into the
+  // transient textarea while that route/hydration transition is still entering.
+  await expect(page.locator("html")).not.toHaveAttribute(
+    "data-route-transition",
+    "entering",
     { timeout: 15_000 },
   );
 }
@@ -37,6 +46,28 @@ async function expectPersistedLocale(page, locale) {
   await page.reload();
   await expect(page.locator("html")).toHaveAttribute("lang", locale);
   await waitForClientShell(page);
+}
+
+async function expectViewportPinned(locator) {
+  await expect(locator).toBeVisible();
+  const geometry = await locator.evaluate((element) => {
+    const rect = element.getBoundingClientRect();
+    const visualViewport = window.visualViewport;
+    return {
+      position: getComputedStyle(element).position,
+      top: rect.top,
+      bottom: rect.bottom,
+      viewportTop: visualViewport?.offsetTop ?? 0,
+      viewportBottom: (visualViewport?.offsetTop ?? 0) + (visualViewport?.height ?? window.innerHeight),
+      parentIsBody: element.parentElement === document.body,
+      bodyTransform: getComputedStyle(document.body).transform,
+    };
+  });
+  expect(geometry.position).toBe("fixed");
+  expect(geometry.parentIsBody).toBeTruthy();
+  expect(geometry.bodyTransform).toBe("none");
+  expect(geometry.top).toBeGreaterThanOrEqual(geometry.viewportTop - 2);
+  expect(geometry.bottom).toBeLessThanOrEqual(geometry.viewportBottom + 2);
 }
 
 test("public shell, auth gate, and browser harness remain usable", async ({ page }) => {
@@ -136,6 +167,60 @@ test("mobile playground stays inside the viewport and exposes the mobile compose
   }));
   expect(overflow.documentWidth).toBeLessThanOrEqual(overflow.viewport + 1);
   expect(overflow.bodyWidth).toBeLessThanOrEqual(overflow.viewport + 1);
+});
+
+test("public app dock remains pinned after long-page scrolling", async ({ page }, testInfo) => {
+  test.skip(!testInfo.project.name.includes("mobile"), "Mobile fixed-layer contract");
+  await page.goto("/");
+  await waitForClientShell(page);
+  const dock = page.locator("[data-app-dock]");
+  await expectViewportPinned(dock);
+  const firstTop = await dock.evaluate((element) => element.getBoundingClientRect().top);
+  await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
+  await page.waitForTimeout(100);
+  await expectViewportPinned(dock);
+  const secondTop = await dock.evaluate((element) => element.getBoundingClientRect().top);
+  expect(Math.abs(firstTop - secondTop)).toBeLessThanOrEqual(2);
+});
+
+test("mobile workspace dock is a persistent body-level viewport layer", async ({ page }, testInfo) => {
+  test.skip(!testInfo.project.name.includes("mobile"), "Mobile workspace dock contract");
+  await page.goto(PLAYGROUND_HARNESS);
+  await waitForClientShell(page);
+  const dock = page.locator("[data-mobile-workspace-switcher]");
+  await expectViewportPinned(dock);
+  const reservedSpace = await page.locator("[data-erma-nova-workspace]").evaluate((element) => parseFloat(getComputedStyle(element).paddingBottom));
+  const dockHeight = await dock.evaluate((element) => element.getBoundingClientRect().height);
+  expect(reservedSpace).toBeGreaterThanOrEqual(Math.min(dockHeight - 2, 1));
+});
+
+test("terms gate stays in the visual viewport on a tall mobile page", async ({ page }, testInfo) => {
+  test.skip(!testInfo.project.name.includes("mobile"), "Mobile legal viewport contract");
+  await page.route("**/api/account/terms", async (route) => {
+    if (route.request().method() !== "GET") return route.continue();
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ required: true, currentVersion: "2026-08-08", language: null }),
+    });
+  });
+
+  await page.goto(TERMS_HARNESS);
+  const gate = page.locator("[data-terms-gate]");
+  await expect(gate).toBeVisible();
+  await expectViewportPinned(gate);
+  await expect.poll(() => page.evaluate(() => document.body.style.position)).toBe("fixed");
+
+  await page.getByRole("button", { name: /Русский|English/i }).first().click();
+  const actions = page.locator("[data-terms-gate-actions]");
+  await expect(actions).toBeVisible();
+  const actionGeometry = await actions.evaluate((element) => {
+    const rect = element.getBoundingClientRect();
+    return { top: rect.top, bottom: rect.bottom, viewport: window.visualViewport?.height ?? window.innerHeight };
+  });
+  expect(actionGeometry.top).toBeGreaterThanOrEqual(-2);
+  expect(actionGeometry.bottom).toBeLessThanOrEqual(actionGeometry.viewport + 2);
+  await expect(page.locator("[data-terms-gate-scroll]")).toHaveCSS("overflow-y", "auto");
 });
 
 test("offline shell and manifest remain installable browser surfaces", async ({ page, request }) => {

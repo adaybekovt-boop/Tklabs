@@ -5,8 +5,64 @@ import type { PublicReleaseNote } from "@/lib/releases/types";
 export interface PreviewReleaseNote extends PublicReleaseNote { channel: "preview"; majorUpdate: true; codename: typeof CURRENT_RELEASE_CODENAME; stability: "beta"; knownIssues: string[]; migrationNotes: string[]; }
 
 const PREVIEW_RELEASE: Record<Locale, PreviewReleaseNote> = {
-  ru: { date: "08 авг. 2026", version: CURRENT_RELEASE_VERSION, title: "TRUST ARCHITECTURE — Privacy, Policy, Provenance & Governance", summary: "КРУПНОЕ ОБНОВЛЕНИЕ · ПРЕДВАРИТЕЛЬНАЯ ВЕРСИЯ. Серия v0.20 превращает trust-слой TK LAB в проверяемую архитектуру: единый product truth, legal bundle, data controls, privacy modes, crypto v2, unified policy engine, provenance, Trust UX и governance.", changes: ["Product Truth Registry фиксирует реальные storage/provider boundaries.", "Legal Center 2.0 добавляет versioned bundle и append-only acceptance evidence.", "Privacy Control Center разделяет local/server export и deletion.", "Local / Synced / Ephemeral становятся явными режимами хранения без ложного on-device inference claim.", "Workspace Sync crypto v2 использует HKDF, AES-GCM AAD, HMAC integrity и versioned migration.", "Runtime safety и Acceptable Use используют одну policy taxonomy.", "AI responses получают safe provenance, а Erma — model cards и data-route transparency.", "Incident registry, bounded audit events и recovery drills формируют governance layer.", "Launch Quality Gate синхронизирует legal/privacy/policy/release contracts."], channel: CURRENT_RELEASE_CHANNEL, majorUpdate: true, codename: CURRENT_RELEASE_CODENAME, stability: "beta", knownIssues: ["Operator/contact/jurisdiction остаются preview placeholders, пока владелец не задаст реальные юридические реквизиты; commercial launch gate обязан fail closed.", "Nonce-only CSP пока report-only: enforced script policy всё ещё содержит unsafe-inline для текущей Next/Vinext hydration совместимости.", "Workspace Sync является server-side encryption at rest, не end-to-end encryption.", "Ephemeral в этой версии гарантированно отключает новые chat archive writes и Sync uploads; другие local workspace surfaces управляются отдельно."], migrationNotes: ["Примените D1 migrations 0002_legal_acceptances.sql, 0003_workspace_crypto_v2.sql и 0004_audit_events.sql в штатном порядке.", "Сохраните legacy WORKSPACE_SYNC_SECRET, пока существуют v1 snapshots; WORKSPACE_SYNC_SECRET_V2 можно использовать для нового v2 root.", "Для commercial launch задайте NEXT_PUBLIC_TKLAB_OPERATOR_NAME, NEXT_PUBLIC_TKLAB_LEGAL_CONTACT и NEXT_PUBLIC_TKLAB_JURISDICTION и включайте TKLABS_COMMERCIAL_LAUNCH только после юридической проверки.", "Service Worker cache namespace меняется на v0.20.9-trust-architecture-r1." ] },
-  en: { date: "08 Aug 2026", version: CURRENT_RELEASE_VERSION, title: "TRUST ARCHITECTURE — Privacy, Policy, Provenance & Governance", summary: "MAJOR UPDATE · PRE-RELEASE. The v0.20 series turns TK LAB trust controls into verifiable architecture: unified product truth, a legal bundle, data controls, privacy modes, crypto v2, a unified policy engine, provenance, Trust UX, and governance.", changes: ["Product Truth Registry records real storage/provider boundaries.", "Legal Center 2.0 adds a versioned bundle and append-only acceptance evidence.", "Privacy Control Center separates local/server export and deletion.", "Local / Synced / Ephemeral become explicit storage modes without false on-device inference claims.", "Workspace Sync crypto v2 uses HKDF, AES-GCM AAD, HMAC integrity, and versioned migration.", "Runtime safety and Acceptable Use share one policy taxonomy.", "AI responses gain safe provenance while Erma gains model cards and data-route transparency.", "Incident registry, bounded audit events, and recovery drills form a governance layer.", "Launch Quality Gate synchronizes legal/privacy/policy/release contracts."], channel: CURRENT_RELEASE_CHANNEL, majorUpdate: true, codename: CURRENT_RELEASE_CODENAME, stability: "beta", knownIssues: ["Operator/contact/jurisdiction remain explicit preview placeholders until the owner configures real legal identity; the commercial launch gate must fail closed.", "Nonce-only CSP remains report-only: the enforced script policy still contains unsafe-inline for current Next/Vinext hydration compatibility.", "Workspace Sync is server-side encryption at rest, not end-to-end encryption.", "Ephemeral currently guarantees no new chat archive writes and no Sync uploads; other local workspace surfaces are controlled separately."], migrationNotes: ["Apply D1 migrations 0002_legal_acceptances.sql, 0003_workspace_crypto_v2.sql, and 0004_audit_events.sql in normal ordered migration flow.", "Keep legacy WORKSPACE_SYNC_SECRET while v1 snapshots can exist; WORKSPACE_SYNC_SECRET_V2 may be used as the new v2 root.", "For commercial launch set NEXT_PUBLIC_TKLAB_OPERATOR_NAME, NEXT_PUBLIC_TKLAB_LEGAL_CONTACT, and NEXT_PUBLIC_TKLAB_JURISDICTION, and enable TKLABS_COMMERCIAL_LAUNCH only after legal review.", "The Service Worker cache namespace changes to v0.20.9-trust-architecture-r1." ] },
+  ru: {
+    date: "08 авг. 2026",
+    version: CURRENT_RELEASE_VERSION,
+    title: "MOBILE FIXED LAYERS — Legal, Navigation & Viewport Reliability",
+    summary: "ПАТЧ TRUST ARCHITECTURE · ПРЕДВАРИТЕЛЬНАЯ ВЕРСИЯ. v0.20.10 исправляет класс мобильных ошибок, при которых соглашение, навигация или drawers зависели от длины документа: критичные панели теперь живут как независимые viewport layers.",
+    changes: [
+      "Пользовательское соглашение рендерится через document.body portal и сразу занимает текущий mobile viewport, независимо от позиции страницы.",
+      "В TermsGate прокручивается только текст договора; header и accept/decline actions остаются внутри видимого экрана и учитывают safe-area.",
+      "Public AppDock закреплён как body-level fixed layer и остаётся видимым при прокрутке длинных страниц.",
+      "Mobile Workspace Switcher закреплён над visual viewport и резервирует место в chat workspace, поэтому больше не появляется только в конце чата.",
+      "Chat/Trust sheets и mobile drawer используют единый reference-counted scroll lock, чтобы фон не прокручивался и не сдвигал fixed UI.",
+      "Добавлены Browser Assurance сценарии для tall-page TermsGate, persistent AppDock и workspace dock на mobile Chromium/WebKit.",
+    ],
+    channel: CURRENT_RELEASE_CHANNEL,
+    majorUpdate: true,
+    codename: CURRENT_RELEASE_CODENAME,
+    stability: "beta",
+    knownIssues: [
+      "Текст соглашения остаётся прокручиваемым внутри legal panel — это намеренно, но действия принятия и отказа всегда остаются в viewport.",
+      "При открытой экранной клавиатуре Trust disclosure скрывается, а workspace dock следует visual viewport; composer остаётся приоритетным интерактивным слоем.",
+      "Workspace Sync по-прежнему является server-side encryption at rest, не end-to-end encryption.",
+      "Nonce-only CSP остаётся report-only для текущего Next/Vinext hydration path.",
+    ],
+    migrationNotes: [
+      "Новых D1 migration для v0.20.10 нет.",
+      "После деплоя браузер обновит Service Worker cache namespace до v0.20.10-mobile-fixed-layers-r1.",
+      "Проверки mobile viewport выполняются в Browser Assurance на Chromium и WebKit.",
+    ],
+  },
+  en: {
+    date: "08 Aug 2026",
+    version: CURRENT_RELEASE_VERSION,
+    title: "MOBILE FIXED LAYERS — Legal, Navigation & Viewport Reliability",
+    summary: "TRUST ARCHITECTURE PATCH · PRE-RELEASE. v0.20.10 fixes the mobile failure class where consent, navigation, or drawers depended on document length: critical controls now live as independent viewport layers.",
+    changes: [
+      "The user agreement renders through a document.body portal and immediately occupies the current mobile viewport regardless of page scroll position.",
+      "Only legal document content scrolls inside TermsGate; the header and accept/decline actions stay visible and respect safe-area insets.",
+      "Public AppDock is a body-level fixed layer that remains visible across long-page scrolling.",
+      "Mobile Workspace Switcher is pinned to the visual viewport and reserves chat workspace space instead of appearing only at the end of a conversation.",
+      "Chat/Trust sheets and the mobile drawer share a reference-counted scroll lock so background scrolling cannot move fixed UI.",
+      "Browser Assurance now covers tall-page TermsGate, persistent AppDock, and the workspace dock on mobile Chromium/WebKit.",
+    ],
+    channel: CURRENT_RELEASE_CHANNEL,
+    majorUpdate: true,
+    codename: CURRENT_RELEASE_CODENAME,
+    stability: "beta",
+    knownIssues: [
+      "Agreement text still scrolls inside the legal panel by design, while accept and decline actions remain in the viewport.",
+      "When the software keyboard is open, Trust disclosure is hidden and the workspace dock follows the visual viewport so the composer remains the primary interaction layer.",
+      "Workspace Sync remains server-side encryption at rest, not end-to-end encryption.",
+      "Nonce-only CSP remains report-only for the current Next/Vinext hydration path.",
+    ],
+    migrationNotes: [
+      "v0.20.10 introduces no new D1 migrations.",
+      "After deployment the browser refreshes the Service Worker cache namespace to v0.20.10-mobile-fixed-layers-r1.",
+      "Mobile viewport contracts run in Browser Assurance on Chromium and WebKit.",
+    ],
+  },
 };
 
 export function getPreviewRelease(locale: Locale): PreviewReleaseNote { const release = PREVIEW_RELEASE[locale]; return { ...release, changes: [...release.changes], knownIssues: [...release.knownIssues], migrationNotes: [...release.migrationNotes] }; }
