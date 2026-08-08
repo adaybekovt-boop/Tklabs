@@ -6,7 +6,7 @@ import {
 } from "@/lib/ai/context";
 import { newRequestId } from "@/lib/ai/provider-http";
 import { classifyPromptSafety, safetyRefusal } from "@/lib/ai-safety";
-import { PromptValidationError, validateAndBuildProviderPrompt } from "@/lib/chat-prompt";
+import { PromptValidationError, validateAndBuildProviderPrompt, type ChatAttachment } from "@/lib/chat-prompt";
 import { getErmaModel, type ErmaModel, type ErmaTone } from "@/lib/models/server";
 import { isPrivilegedAiEmail } from "@/lib/privileged-access";
 import { parseJsonBody, RequestBodyTooLargeError } from "@/lib/request-body";
@@ -34,6 +34,7 @@ export type PreparedDemoRequest = {
   tone: ErmaTone;
   privilegedAccount: boolean;
   context: PreparedChatContext;
+  documents: ChatAttachment[];
   quota: DemoQuota;
   rateLimitCookie: string | null;
   startedAt: number;
@@ -140,6 +141,7 @@ export async function prepareDemoRequest(request: Request): Promise<DemoRequestP
       tone,
       privilegedAccount,
       context,
+      documents: validatedPrompt.attachments,
       quota: quotaResult.quota,
       rateLimitCookie: quotaResult.quota.cookie,
       startedAt: Date.now(),
