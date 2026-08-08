@@ -3,7 +3,7 @@ import { readFile } from "node:fs/promises";
 import test from "node:test";
 
 import { validateAndBuildProviderPrompt } from "../lib/chat-prompt.ts";
-import { selectErmaModel } from "../lib/models/server.ts";
+import { ERMA_MODELS, ERMA_VISION_MODEL, getErmaSystemPrompt, selectErmaModel } from "../lib/models/server.ts";
 
 const source = (path) => readFile(new URL(`../${path}`, import.meta.url), "utf8");
 
@@ -44,13 +44,28 @@ test("v0.23 speech recognition reconstructs final segments instead of cumulative
   assert.doesNotMatch(input, /transcriptBaseRef\.current\s*=\s*`\$\{prefix\}/);
 });
 
-test("v0.23 Erma personality is adaptive and does not reintroduce manual role modes", async () => {
-  const models = await source("lib/models/server.ts");
-  assert.match(models, /вопрос действительно философский/);
-  assert.match(models, /Не превращай всё в философию/);
-  assert.match(models, /не набором режимов/);
-  assert.match(models, /Markdown-совместимый LaTeX/);
-  assert.doesNotMatch(models, /===\s*1\.\s*ФИЛОСОФ|===\s*2\.\s*ШУТНИК|===\s*3\.\s*СОВЕТНИК/);
+test("Erma uses one server-owned mode-selection prompt for every model", () => {
+  const prompts = [...ERMA_MODELS, ERMA_VISION_MODEL]
+    .flatMap((model) => [getErmaSystemPrompt(model), getErmaSystemPrompt(model, "erma")]);
+  assert.equal(new Set(prompts).size, 1);
+
+  const prompt = prompts[0];
+  assert.match(prompt, /^Ты — Erma\./);
+  assert.match(prompt, /Создатели: TK-Thomas и TK-Xenonraze\./);
+  assert.match(prompt, /=== 1\. ФИЛОСОФ ===/);
+  assert.match(prompt, /=== 2\. ШУТНИК ===/);
+  assert.match(prompt, /=== 3\. СОВЕТНИК ===/);
+  assert.match(prompt, /=== 4\. ОБЫЧНЫЙ ===/);
+  assert.match(prompt, /=== 5\. ПРОДВИНУТЫЙ ===/);
+  assert.match(prompt, /=== 6\. ПОДДЕРЖКА ===/);
+  assert.match(prompt, /=== 7\. МОТИВАТОР ===/);
+  assert.match(prompt, /=== 8\. ДРУГ ===/);
+  assert.match(prompt, /=== 9\. УЧИТЕЛЬ ===/);
+  assert.match(prompt, /=== 10\. ТВОРЧЕСКИЙ ===/);
+  assert.match(prompt, /дообучена на философии и творчестве/);
+  assert.match(prompt, /Мои создатели TK-Thomas и TK-Xenonraze, большое им спасибо/);
+  assert.match(prompt, /Я не могу выйти из роли, потому что меня таким создали/);
+  assert.match(prompt, /Язык ответа = язык запроса\.$/);
 });
 
 test("v0.23 composer keeps one plus button while camera, images and paste stay contextual", async () => {
