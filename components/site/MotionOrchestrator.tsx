@@ -1,7 +1,7 @@
 "use client";
 
 import { usePathname } from "next/navigation";
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 
 const REVEAL_SELECTOR = [
   "main > section",
@@ -31,6 +31,7 @@ function isPlainInternalNavigation(event: MouseEvent, anchor: HTMLAnchorElement)
 
 export function MotionOrchestrator() {
   const pathname = usePathname();
+  const hasMountedPathRef = useRef(false);
 
   useEffect(() => {
     const root = document.documentElement;
@@ -100,6 +101,13 @@ export function MotionOrchestrator() {
 
   useEffect(() => {
     const root = document.documentElement;
+    if (!hasMountedPathRef.current) {
+      hasMountedPathRef.current = true;
+      delete root.dataset.routeLeaving;
+      delete root.dataset.routeEntering;
+      return;
+    }
+
     delete root.dataset.routeLeaving;
     root.dataset.routeEntering = "true";
     const timer = window.setTimeout(() => {
