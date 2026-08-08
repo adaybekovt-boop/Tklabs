@@ -9,13 +9,13 @@ import { jsonResponse } from "./http";
 import type { PreparedDemoRequest } from "./request-context";
 
 export async function respondWithDemoJson(input: PreparedDemoRequest) {
-  const { request, body, requestId, prompt, context, language, model, requestedReasoning, effort, tone, privilegedAccount, documents, quota, rateLimitCookie, startedAt, requestedModel } = input;
+  const { request, body, requestId, prompt, context, language, model, requestedReasoning, effort, tone, privilegedAccount, documents, images, quota, rateLimitCookie, startedAt, requestedModel } = input;
 
   const toolAugmentation = await prepareReadOnlyToolAugmentation({ request, requestId, prompt, context, language, model, localArchive: body.localArchive, documents, allowCodeSandbox: privilegedAccount, signal: request.signal });
   const fallbackPrompt = contextualFallbackPrompt(context, toolAugmentation.summary);
 
   try {
-    const result = await generateWithNvidia({ messages: context.messages, summary: toolAugmentation.summary, language, model, requestedReasoning, effort, allowCode: privilegedAccount, tone, signal: request.signal });
+    const result = await generateWithNvidia({ messages: context.messages, summary: toolAugmentation.summary, language, model, requestedReasoning, effort, allowCode: privilegedAccount, tone, images, signal: request.signal });
     const generationResult = withContextMetadata(withToolCalls({ answer: result.answer, reasoningUsed: result.reasoningUsed, provider: "nvidia", actualModel: result.actualModel, inputTokens: result.inputTokens, outputTokens: result.outputTokens }, toolAugmentation.traces), context);
     await quota.commit();
     const meta = createAiResponseMeta(generationResult, requestedModel, requestId, startedAt);
