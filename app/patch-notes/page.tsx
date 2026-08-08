@@ -10,6 +10,7 @@ import { getLocale } from "@/lib/locale";
 import { getPreviewRelease } from "@/lib/prerelease";
 import { getReleaseV0131 } from "@/lib/release-v0131";
 import { getWorkspaceEvolutionReleases } from "@/lib/release-roadmap";
+import type { PublicReleaseNote } from "@/lib/releases/types";
 import { getTrustArchitectureReleases } from "@/lib/trust-architecture-releases";
 
 export const metadata: Metadata = { title: "TK LAB — Patch Notes", description: "Release history, major previews, and product updates for TK LAB." };
@@ -22,7 +23,7 @@ export default async function PatchNotesPage() {
   const evolution = getWorkspaceEvolutionReleases(locale);
   const history = getReleaseHistory(locale);
   const claimed = new Set([previewRelease.version]);
-  const entries = [previewRelease];
+  const entries: PublicReleaseNote[] = [previewRelease];
   for (const collection of [trust, evolution, history]) {
     for (const entry of collection) {
       if (claimed.has(entry.version)) continue;
