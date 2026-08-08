@@ -1,0 +1,86 @@
+html[data-route-leaving="true"] main {
+  opacity: .68;
+  transform: translateY(-3px) scale(.998);
+  transition:
+    opacity 120ms linear,
+    transform 160ms cubic-bezier(.4, 0, 1, 1);
+}
+
+html[data-route-entering="true"] main {
+  animation: navigation-content-enter 380ms cubic-bezier(.16, 1, .3, 1) both;
+}
+
+[data-testid="mobile-bottom-navigation"] {
+  box-shadow: 0 -14px 42px color-mix(in srgb, var(--color-primary) 7%, transparent);
+  animation: navigation-dock-enter 420ms cubic-bezier(.16, 1, .3, 1) both;
+  transform-origin: center bottom;
+}
+
+[data-mobile-nav-primary] a,
+[data-mobile-nav-primary] button {
+  isolation: isolate;
+}
+
+[data-mobile-nav-primary] a[aria-current="page"] > span:first-child,
+[data-mobile-nav-primary] button[aria-expanded="true"] > span:first-child {
+  animation: navigation-active-pop 300ms cubic-bezier(.16, 1, .3, 1) both;
+}
+
+[data-mobile-nav-primary] a[aria-current="page"] > span:last-child,
+[data-mobile-nav-primary] button[aria-expanded="true"] > span:nth-last-child(2) {
+  animation: navigation-label-enter 280ms cubic-bezier(.16, 1, .3, 1) both;
+}
+
+@supports (view-transition-name: root) {
+  ::view-transition-old(root) {
+    animation: navigation-view-old 180ms ease-out both;
+  }
+
+  ::view-transition-new(root) {
+    animation: navigation-view-new 320ms cubic-bezier(.16, 1, .3, 1) both;
+  }
+}
+
+@keyframes navigation-content-enter {
+  from { opacity: .72; transform: translateY(7px) scale(.997); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@keyframes navigation-dock-enter {
+  from { opacity: 0; transform: translateY(18px) scale(.985); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@keyframes navigation-active-pop {
+  0% { transform: translateY(2px) scale(.88); }
+  70% { transform: translateY(-1px) scale(1.06); }
+  100% { transform: translateY(0) scale(1); }
+}
+
+@keyframes navigation-label-enter {
+  from { opacity: .5; transform: translateY(2px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes navigation-view-old {
+  to { opacity: 0; transform: translateY(-4px) scale(.998); }
+}
+
+@keyframes navigation-view-new {
+  from { opacity: 0; transform: translateY(8px) scale(.996); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html[data-route-leaving="true"] main,
+  html[data-route-entering="true"] main,
+  [data-testid="mobile-bottom-navigation"],
+  [data-mobile-nav-primary] a[aria-current="page"] > span:first-child,
+  [data-mobile-nav-primary] button[aria-expanded="true"] > span:first-child,
+  [data-mobile-nav-primary] a[aria-current="page"] > span:last-child,
+  [data-mobile-nav-primary] button[aria-expanded="true"] > span:nth-last-child(2) {
+    animation: none !important;
+    transform: none !important;
+    transition-duration: 0ms !important;
+  }
+}
