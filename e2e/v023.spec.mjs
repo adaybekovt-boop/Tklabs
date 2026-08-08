@@ -56,7 +56,8 @@ test("image-only composer submission sends a bounded multimodal attachment", asy
   await page.goto(PLAYGROUND_HARNESS);
   await waitForClientShell(page);
   const composer = page.getByTestId("prompt-input");
-  const fileInput = composer.locator('input[type="file"]:not([capture])');
+  const fileInput = page.locator('input[type="file"][multiple]').first();
+  await expect(fileInput).toHaveCount(1);
   await fileInput.setInputFiles({ name: "pixel.png", mimeType: "image/png", buffer: Buffer.from(ONE_PIXEL_PNG, "base64") });
   await expect(composer.getByText("pixel.png")).toBeVisible();
 
