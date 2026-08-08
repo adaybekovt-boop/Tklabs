@@ -1,34 +1,11 @@
 import { StatusBoard } from "@/components/status/StatusBoard";
 import { StitchFooter } from "@/components/site/StitchFooter";
 import { StitchHeader } from "@/components/site/StitchHeader";
-import { ScrollReveal } from "@/components/ui/scroll-reveal";
 import { getDictionary } from "@/lib/i18n";
+import { getPublishedIncidents } from "@/lib/incidents";
 import { getLocale } from "@/lib/locale";
 
 export default async function StatusPage() {
-  const locale = await getLocale();
-  const text = getDictionary(locale);
-
-  return (
-    <>
-      <StitchHeader active="status" />
-      <main className="stitch-container py-section-gap">
-        <section className="mb-section-gap grid gap-12 border-b border-outline-variant/30 pb-16 md:grid-cols-12">
-          <ScrollReveal className="md:col-span-8">
-            <p className="label-caps mb-6 text-secondary">{text.status.eyebrow}</p>
-            <h1 className="display-title">{text.status.title}</h1>
-            <p className="mt-6 max-w-xl text-[18px] leading-[1.6] text-on-surface-variant">{text.status.intro}</p>
-          </ScrollReveal>
-        </section>
-        <StatusBoard locale={locale} />
-        <section className="border-t border-outline-variant/30 pt-10">
-          <ScrollReveal>
-            <h2 className="headline-title">{text.status.incidents}</h2>
-            <p className="mt-5 max-w-2xl leading-[1.7] text-on-surface-variant">{text.status.historyNote}</p>
-          </ScrollReveal>
-        </section>
-      </main>
-      <StitchFooter />
-    </>
-  );
+  const locale = await getLocale(); const text = getDictionary(locale); const incidents = getPublishedIncidents(locale); const ru = locale === "ru";
+  return <><StitchHeader active="status" /><main className="stitch-container py-section-gap"><section className="mb-section-gap grid gap-12 border-b border-outline-variant/30 pb-16 md:grid-cols-12"><div className="md:col-span-8"><p className="label-caps mb-6 text-secondary">{text.status.eyebrow}</p><h1 className="display-title">{text.status.title}</h1><p className="mt-6 max-w-xl text-[18px] leading-[1.6] text-on-surface-variant">{text.status.intro}</p></div></section><StatusBoard locale={locale} /><section className="border-t border-outline-variant/30 pt-10"><h2 className="headline-title">{text.status.incidents}</h2>{incidents.length ? <div className="mt-6 space-y-4">{incidents.map((incident) => <article key={incident.id} className="border border-outline-variant p-5"><div className="flex flex-wrap justify-between gap-3"><h3 className="font-medium">{incident.title}</h3><span className="label-caps text-secondary">{incident.severity}</span></div><p className="mt-3 text-sm leading-6 text-on-surface-variant">{incident.summary}</p><p className="mt-3 text-xs text-secondary">{incident.startedAt} → {incident.resolvedAt}</p></article>)}</div> : <div className="mt-5 max-w-2xl border border-outline-variant p-5 text-sm leading-6 text-on-surface-variant"><p>{ru ? "В опубликованном incident registry пока нет записей." : "There are no entries in the published incident registry yet."}</p><p className="mt-2">{ru ? "Это не заявление о 100% uptime и не реконструкция событий без доказательств. Новые подтверждённые incidents добавляются append-only с временем, воздействием и итогом." : "This is not a 100% uptime claim and does not reconstruct events without evidence. Confirmed incidents are added append-only with timing, impact, and resolution."}</p></div>}</section></main><StitchFooter /></>;
 }

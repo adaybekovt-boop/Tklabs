@@ -31,3 +31,10 @@ export const workspaceSnapshots = sqliteTable("workspace_snapshots", {
   revision: integer("revision").notNull().default(1),
   updatedAt: integer("updated_at", { mode: "timestamp_ms" }).notNull(),
 });
+
+export const auditEvents = sqliteTable("audit_events", {
+  id: text("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  eventCode: text("event_code").notNull(),
+  createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
+});
