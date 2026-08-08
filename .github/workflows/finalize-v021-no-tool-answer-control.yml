@@ -1,0 +1,55 @@
+name: Finalize v0.21 no-tool answer control
+
+on:
+  push:
+    branches:
+      - agent/v0.21-erma-intelligence-engine
+    paths:
+      - .github/workflows/finalize-v021-no-tool-answer-control.yml
+
+permissions:
+  contents: write
+
+jobs:
+  finalize:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/v0.21-erma-intelligence-engine
+      - name: Keep route and answer control on no-tool paths
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path('lib/ai/providers/nvidia-tools.ts')
+          source = path.read_text()
+          replacements = [
+            (
+              '  if (!route.shouldPlanTools && !shouldOfferReadOnlyTools(prompt)) return { traces: [], route };',
+              '  if (!route.shouldPlanTools && !shouldOfferReadOnlyTools(prompt)) { const evidence: ErmaEvidence[] = []; const verification = verifyErmaEvidence(route, [], evidence); return { controlBlock: controlFor(route, verification, input.language), untrustedContextBlock: dynamicContext || undefined, traces: [], route, evidence, verification }; }'
+            ),
+            (
+              '  if (!tools.length) return { traces: [], route };',
+              '  if (!tools.length) { const evidence: ErmaEvidence[] = []; const verification = verifyErmaEvidence(route, [], evidence); return { controlBlock: controlFor(route, verification, input.language), untrustedContextBlock: dynamicContext || undefined, traces: [], route, evidence, verification }; }'
+            ),
+            (
+              '  if (!toolData.length) return { traces, route, evidence, verification };',
+              '  if (!toolData.length) return { controlBlock: controlFor(route, verification, input.language), untrustedContextBlock: dynamicContext || undefined, traces, route, evidence, verification };'
+            ),
+          ]
+          for old, new in replacements:
+              if old not in source:
+                  if new in source:
+                      continue
+                  raise SystemExit(f'expected block missing: {old}')
+              source = source.replace(old, new, 1)
+          path.write_text(source)
+          PY
+      - name: Remove one-shot workflow and commit
+        run: |
+          git rm .github/workflows/finalize-v021-no-tool-answer-control.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add lib/ai/providers/nvidia-tools.ts
+          git commit -m "v0.21.15: preserve answer control on no-tool routes"
+          git push origin HEAD:agent/v0.21-erma-intelligence-engine
