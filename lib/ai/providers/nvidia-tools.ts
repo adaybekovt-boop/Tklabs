@@ -73,7 +73,7 @@ export async function runNvidiaToolLoop(input: NvidiaToolLoopInput): Promise<Nvi
     const boundedCalls = requestedCalls.slice(0, remaining);
     messages.push({ role: "assistant", content: planned.content ?? null, tool_calls: boundedCalls });
     for (const call of boundedCalls) {
-      const executed = await executeIntelligenceTool(call, { language: input.language, requestId: input.requestId, localArchive: input.localArchive, documents: input.documents, allowCodeSandbox: input.allowCodeSandbox, getServiceStatus: input.getServiceStatus }, webSession);
+      const executed = await executeIntelligenceTool(call, { language: input.language, requestId: input.requestId, localArchive: input.localArchive, documents: input.documents, allowCodeSandbox: input.allowCodeSandbox, signal: input.signal, getServiceStatus: input.getServiceStatus }, webSession);
       calls += 1; traces.push(executed.trace); toolData.push({ name: executed.name, content: executed.content }); messages.push({ role: "tool", content: executed.content, tool_call_id: executed.toolCallId });
     }
     const interimEvidence = collectErmaEvidence(toolData);
