@@ -31,9 +31,17 @@ function normalize(text: string) { return text.normalize("NFKC").replace(/[\u000
 function homoglyphFold(text: string) { return Array.from(text, (character) => HOMOGLYPHS[character] ?? character).join(""); }
 function matches(text: string, patterns: readonly RegExp[] | undefined) { return Boolean(patterns?.some((pattern) => pattern.test(text))); }
 
+function withPolicyMetadata<T extends SafetyDecision>(decision: T, category: PolicyCategory, policyCode: string): T {
+  Object.defineProperties(decision, {
+    category: { value: category, enumerable: false, configurable: false, writable: false },
+    policyCode: { value: policyCode, enumerable: false, configurable: false, writable: false },
+  });
+  return decision;
+}
+
 function decisionFor(category: PolicyCategory, code: string, blocked: boolean): SafetyDecision {
-  if (category === "harmful") return { blocked, reason: "code_generation", category, policyCode: code };
-  if (category === "prompt-injection" || category === "secret-extraction") return { blocked, reason: "instruction_override", category, policyCode: code };
+  if (category === "harmful") return withPolicyMetadata({ blocked, reason: "code_generation" }, category, code);
+  if (category === "prompt-injection" || category === "secret-extraction") return withPolicyMetadata({ blocked, reason: "instruction_override" }, category, code);
   return { blocked, category, policyCode: code };
 }
 
