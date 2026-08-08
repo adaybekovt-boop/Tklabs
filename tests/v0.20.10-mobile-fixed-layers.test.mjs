@@ -15,10 +15,11 @@ test("TermsGate is a body-level viewport layer with independently scrolling lega
   assert.match(terms, /lockDocumentScroll\(\)/);
 });
 
-test("public and workspace navigation are body-level fixed layers", async () => {
+test("public and workspace navigation are body-level fixed layers with stable viewport anchors", async () => {
   const appDock = await source("components/site/AppDock.tsx");
   const workspaceDock = await source("components/playground/MobileWorkspaceSwitcher.tsx");
   const mobileCss = await source("app/mobile-workspace.css");
+  const navigationMotion = await source("app/navigation-motion.css");
 
   assert.match(appDock, /data-app-dock/);
   assert.match(appDock, /createPortal\(/);
@@ -28,6 +29,11 @@ test("public and workspace navigation are body-level fixed layers", async () => 
   assert.match(workspaceDock, /document\.body/);
   assert.match(mobileCss, /\.mobile-workspace-switcher\s*\{[\s\S]*?position:\s*fixed/);
   assert.match(mobileCss, /padding-bottom:\s*var\(--mobile-workspace-dock-height\)/);
+
+  const anchorRule = navigationMotion.match(/\[data-app-dock\]\s*\{([\s\S]*?)\}/)?.[1] ?? "";
+  assert.ok(anchorRule, "AppDock anchor rule must exist");
+  assert.doesNotMatch(anchorRule, /transform\s*:/, "the fixed AppDock anchor must never be transformed");
+  assert.match(navigationMotion, /\[data-app-dock\] > div\s*\{[\s\S]*?app-dock-content-enter/);
 });
 
 test("blocking mobile sheets share document scroll locking and explicit layer order", async () => {
