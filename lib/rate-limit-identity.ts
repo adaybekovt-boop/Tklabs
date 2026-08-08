@@ -47,11 +47,14 @@ function newCookieId() {
 
 export async function getRateLimitIdentity(request: Request, sessionEmail?: string | null) {
   const secret = getRateLimitSecret();
+  const normalizedEmail = sessionEmail?.trim().toLowerCase();
+  if (normalizedEmail) return { identifier: `account:${normalizedEmail}`, setCookie: null as string | null };
+
   const cloudflareRequest = request as Request & { cf?: unknown };
   const connectingIp = request.headers.get("cf-connecting-ip")?.trim();
 
-  // CF-Connecting-IP is trusted only on a request that carries Cloudflare's
-  // request metadata. X-Forwarded-For is intentionally never consulted.
+  // Signed-in users are isolated by account. Anonymous traffic uses the real
+  // Cloudflare client IP when available; X-Forwarded-For is never trusted.
   if (connectingIp && cloudflareRequest.cf !== undefined) {
     return { identifier: `ip:${connectingIp}`, setCookie: null as string | null };
   }
@@ -65,10 +68,7 @@ export async function getRateLimitIdentity(request: Request, sessionEmail?: stri
     }
   }
 
-  const normalizedEmail = sessionEmail?.trim().toLowerCase();
-  const identifier = normalizedEmail ? `account:${normalizedEmail}` : `cookie:${newCookieId()}`;
-  if (normalizedEmail) return { identifier, setCookie: null as string | null };
-
+  const identifier = `cookie:${newCookieId()}`;
   const id = identifier.slice("cookie:".length);
   const signatureValue = await hmacSha256Hex(identifier, secret);
   const setCookie = `${RATE_LIMIT_COOKIE_NAME}=${id}.${signatureValue}; Path=/; Max-Age=31536000; HttpOnly; SameSite=Lax; Secure`;

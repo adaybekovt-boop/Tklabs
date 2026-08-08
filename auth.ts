@@ -1,11 +1,14 @@
 import NextAuth from "next-auth";
 import Google from "next-auth/providers/google";
 
-const localPreviewEnabled = process.env.TKLABS_LOCAL_PREVIEW === "true"
-  || process.env.NEXT_PUBLIC_TKLABS_LOCAL_PREVIEW === "true";
-const localPreviewSecret = localPreviewEnabled
-  ? "tklabs-browser-assurance-local-secret-2026"
+import { isLocalPreviewEnabled } from "@/lib/local-preview";
+
+const localPreviewSecret = isLocalPreviewEnabled()
+  ? `tklabs-local-preview-${crypto.randomUUID()}-${crypto.randomUUID()}`
   : undefined;
+const trustHost = process.env.NODE_ENV === "development"
+  ? process.env.AUTH_TRUST_HOST !== "false"
+  : process.env.AUTH_TRUST_HOST === "true";
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
   secret: process.env.AUTH_SECRET?.trim() || localPreviewSecret,
@@ -21,5 +24,5 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
   ],
   session: { strategy: "jwt" },
   pages: { signIn: "/login" },
-  trustHost: process.env.AUTH_TRUST_HOST !== "false",
+  trustHost,
 });

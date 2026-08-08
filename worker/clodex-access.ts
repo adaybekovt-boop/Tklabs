@@ -350,6 +350,7 @@ export class ClodexAccess extends DurableObject<ClodexAccessEnv> {
 
   async consume(): Promise<ClodexConsumeResult> {
     const now = Date.now();
+    this.cleanupReservations(now);
     if (!this.isActive(now)) return { ...this.status(now), allowed: false, error: "access_required" };
 
     const existing = this.currentUsage(now, "clodex_request_windows", CLODEX_REQUEST_WINDOW_MS);
@@ -429,6 +430,7 @@ export class ClodexAccess extends DurableObject<ClodexAccessEnv> {
     }
 
     const cutoff = now - RESERVATION_RETENTION_MS;
+    this.ctx.storage.sql.exec("DELETE FROM clodex_reservations WHERE window_start < ? LIMIT ?", now - CLODEX_REQUEST_WINDOW_MS, CLEANUP_BATCH_SIZE);
     this.ctx.storage.sql.exec("DELETE FROM demo_reservations WHERE state != 'reserved' AND COALESCE(created_at, window_start) < ? LIMIT ?", cutoff, CLEANUP_BATCH_SIZE);
     this.ctx.storage.sql.exec("DELETE FROM tts_reservations WHERE state != 'reserved' AND COALESCE(created_at, day_start) < ? LIMIT ?", cutoff, CLEANUP_BATCH_SIZE);
   }
@@ -565,6 +567,7 @@ export class ClodexAccess extends DurableObject<ClodexAccessEnv> {
 
   async release(reservationId: string): Promise<ClodexReleaseResult> {
     const now = Date.now();
+    this.cleanupReservations(now);
     const reservation = this.ctx.storage.sql.exec<ReservationRow>(
       "SELECT reservation_id, window_start, released FROM clodex_reservations WHERE reservation_id = ?",
       reservationId,

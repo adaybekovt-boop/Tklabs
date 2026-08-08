@@ -43,7 +43,10 @@ export class DemoStreamSession {
       cancel: async () => {
         this.detach();
         this.providerController.abort("response_cancelled");
-        await this.input.quota.release();
+        // Once any model output has been delivered, the provider work is
+        // billable and the reservation must never be refunded by cancellation.
+        if (this.partialAnswer) await this.input.quota.commit();
+        else await this.input.quota.release();
       },
     });
 
@@ -143,10 +146,17 @@ export class DemoStreamSession {
         allowCode: privilegedAccount,
         tone,
         signal: this.providerController.signal,
-      }, (delta) => {
+      }, async (delta) => {
+        const delivered = this.send("delta", { text: delta });
+        if (!delivered) {
+          if (!this.providerController.signal.aborted) this.providerController.abort("response_closed");
+          return;
+        }
         if (!this.firstTokenAt) this.firstTokenAt = Date.now();
         this.partialAnswer += delta;
-        this.send("delta", { text: delta });
+        // Commit on the first successfully delivered model byte. commit() is
+        // idempotent, so subsequent deltas add no extra storage round-trips.
+        await quota.commit();
       });
 
       const generationResult = withContextMetadata(withToolCalls({
