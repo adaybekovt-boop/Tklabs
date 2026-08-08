@@ -1,74 +1,12 @@
-import Image from "next/image";
+import Link from "next/link";
 
 import { StitchFooter } from "@/components/site/StitchFooter";
 import { StitchHeader } from "@/components/site/StitchHeader";
-import { FlowButton } from "@/components/ui/flow-button";
-import { ScrollReveal, StaggerContainer, StaggerItem } from "@/components/ui/scroll-reveal";
-import { getDictionary } from "@/lib/i18n";
 import { getLocale } from "@/lib/locale";
-
-const STRUCTURE_IMAGE = "https://lh3.googleusercontent.com/aida-public/AB6AXuCBxAq9hmy9JyW-l1ulR0TchevhjfsPGm8sXdbyz6gSH55NgWXtSIho64_rFz0Hn1Yb4Na9b_soaP4Nm2MyBfZMBgsMWBKtiEWEWOnaHnZDS3U405VzA-N3weTtwdAI1UTvAGMH9wTW-LYD4vfwbhiaOWeTuDcyk4KMyWH2JkbaLcrazgGCcnyEcaqAYdzInHre8T_fhY8idFddMcjrxjOZ2jqKIEuFwpRlF9ygohWpRlF9ygohWpBQclUvTbFoaH";
-const PAPER_IMAGE = "https://lh3.googleusercontent.com/aida-public/AB6AXuCLV1LWdczkuAT2b41I9oewlV6Hp__lg2SW9yxNTLEgh2u_Y_-7beANHLUwxpagBLAgBxlk9jzEBYDser4f19yAfZrQu5oFW0ktO8IiKsiTbm_qYKAko_0LbBaX8T1O747hCeDd1kgj8KJbQLR6qXVAAAMlZM6ubd4pDm_FRQRJ8xwM4S69T2EwVrPMW6gBP3DDdf-9D1I5pp7jiqE_Pb0oRWGhd6ZQn_WGUXMuAqa9qn2_Tr-Mul2M";
+import { getModelCards } from "@/lib/model-cards";
+import { getProductDataRoutes, getProductPositioning, PRODUCT_FACTS_VERSION } from "@/lib/product-facts";
 
 export default async function TruthPage() {
-  const text = getDictionary(await getLocale());
-
-  return (
-    <>
-      <StitchHeader active="truth" />
-      <main className="stitch-container pb-section-gap pt-16">
-        <section className="mb-section-gap grid items-end gap-12 md:grid-cols-12">
-          <ScrollReveal className="md:col-span-7">
-            <p className="label-caps mb-8 text-secondary">{text.truth.eyebrow}</p>
-            <h1 className="display-title">{text.truth.title}</h1>
-          </ScrollReveal>
-          <ScrollReveal delay={0.15} className="border-l border-primary pl-7 text-[18px] leading-[1.7] text-on-surface-variant md:col-span-4 md:col-start-9">
-            {text.truth.intro}
-          </ScrollReveal>
-        </section>
-        <section className="mb-section-gap grid gap-6 md:grid-cols-12">
-          <ScrollReveal className="relative aspect-[4/3] overflow-hidden rounded-3xl md:aspect-auto md:min-h-[560px] md:col-span-8">
-            <Image src={STRUCTURE_IMAGE} alt={text.truth.structureAlt} fill sizes="(min-width: 768px) 67vw, 100vw" unoptimized className="object-cover grayscale" />
-          </ScrollReveal>
-          <ScrollReveal delay={0.2} className="flex flex-col justify-between overflow-hidden rounded-3xl border border-primary bg-white p-10 md:col-span-4">
-            <span className="label-caps text-secondary">{text.truth.principle}</span>
-            <div>
-              <h2 className="headline-title mb-6">{text.truth.principleTitle}</h2>
-              <p className="leading-[1.8] text-on-surface-variant">{text.truth.principleText}</p>
-            </div>
-          </ScrollReveal>
-        </section>
-        <section className="mb-section-gap">
-          <ScrollReveal>
-            <div className="mb-10 grid gap-6 border-b border-outline-variant/30 pb-8 md:grid-cols-12">
-              <h2 className="headline-title md:col-span-4">{text.truth.registry}</h2>
-              <p className="text-on-surface-variant md:col-span-6 md:col-start-7">{text.truth.registryIntro}</p>
-            </div>
-          </ScrollReveal>
-          <StaggerContainer className="border-t border-outline-variant/30">
-            {text.truth.registryRows.map(([name, description, kind]) => (
-              <StaggerItem key={name}>
-                <div className="grid gap-4 border-b border-outline-variant/30 py-7 md:grid-cols-12">
-                  <span className="md:col-span-4">{name}</span>
-                  <span className="text-on-surface-variant md:col-span-5">{description}</span>
-                  <span className="label-caps text-right md:col-span-3">{kind}</span>
-                </div>
-              </StaggerItem>
-            ))}
-          </StaggerContainer>
-        </section>
-        <ScrollReveal>
-          <section className="relative min-h-[280px] overflow-hidden rounded-3xl md:min-h-[360px]">
-            <Image src={PAPER_IMAGE} alt={text.truth.paperAlt} fill sizes="100vw" unoptimized className="object-cover grayscale opacity-80" />
-            <div className="absolute inset-0 bg-surface/55" />
-            <div className="relative z-10 flex min-h-[280px] flex-col items-center justify-center px-8 text-center md:min-h-[360px]">
-              <h2 className="headline-title max-w-xl">{text.truth.docsTitle}</h2>
-              <FlowButton href="/legal/api" text={text.truth.openApi} dark className="mt-8" />
-            </div>
-          </section>
-        </ScrollReveal>
-      </main>
-      <StitchFooter />
-    </>
-  );
+  const locale = await getLocale(); const ru = locale === "ru"; const routes = getProductDataRoutes(locale); const cards = getModelCards(locale);
+  return <><StitchHeader active="truth" /><main className="stitch-container pb-section-gap pt-16"><section className="mb-16 grid gap-8 border-b border-primary pb-12 md:grid-cols-12"><div className="md:col-span-8"><p className="label-caps mb-6 text-secondary">TK LAB · PRODUCT TRUTH · {PRODUCT_FACTS_VERSION}</p><h1 className="display-title">{getProductPositioning(locale)}</h1></div><p className="text-[17px] leading-7 text-on-surface-variant md:col-span-4">{ru ? "Privacy и AI transparency считаются частью архитектуры: что хранится, куда уходит запрос и какой класс провайдера использован, должно быть проверяемо из продукта." : "Privacy and AI transparency are product architecture: what is stored, where a request travels, and which provider class is used should be verifiable from the product."}</p></section><section className="mb-16"><h2 className="headline-title">{ru ? "Маршруты данных" : "Data routes"}</h2><div className="mt-6 grid gap-4 lg:grid-cols-3">{routes.map((entry) => <article key={entry.id} className="border border-outline-variant p-5"><p className="label-caps text-secondary">{entry.storageMode}</p><p className="mt-3 font-medium">{entry.route.join(" → ")}</p><p className="mt-3 text-sm leading-6 text-on-surface-variant">{entry.note}</p></article>)}</div></section><section className="mb-16"><div className="flex flex-wrap items-end justify-between gap-4"><div><p className="label-caps text-secondary">AI MODEL CARDS</p><h2 className="headline-title mt-3">Erma</h2></div><Link className="underline underline-offset-4" href="/legal/ai-transparency">AI Transparency Notice</Link></div><div className="mt-6 grid gap-4 lg:grid-cols-3">{cards.map((card) => <article key={card.id} className="border border-outline-variant p-5"><h3 className="text-xl font-medium">{card.name}</h3><dl className="mt-5 space-y-4 text-sm leading-6"><div><dt className="label-caps text-secondary">Purpose</dt><dd>{card.purpose}</dd></div><div><dt className="label-caps text-secondary">Limitations</dt><dd>{card.limitations}</dd></div><div><dt className="label-caps text-secondary">Tools</dt><dd>{card.tools}</dd></div><div><dt className="label-caps text-secondary">Provider</dt><dd>{card.providerClass}</dd></div><div><dt className="label-caps text-secondary">Data</dt><dd>{card.dataHandling}</dd></div></dl></article>)}</div></section><section className="border-t border-outline-variant pt-8"><p className="max-w-3xl leading-7 text-on-surface-variant">{ru ? "Каждый новый AI response получает provenance metadata: версия TK LAB, policy version, время, product model и provider class. В provenance никогда не включаются hidden prompts, credentials или chain-of-thought." : "Each new AI response receives provenance metadata: TK LAB version, policy version, time, product model, and provider class. Hidden prompts, credentials, and chain-of-thought are never included."}</p><div className="mt-5 flex flex-wrap gap-5 text-sm underline underline-offset-4"><Link href="/legal/privacy">Privacy</Link><Link href="/legal/acceptable-use">Acceptable Use</Link><Link href="/legal/subprocessors">Subprocessors</Link><Link href="/legal/security">Security</Link></div></section></main><StitchFooter /></>;
 }

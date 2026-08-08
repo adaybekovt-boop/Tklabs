@@ -47,6 +47,12 @@ jobs:
           path: sbom.cdx.json
           if-no-files-found: error
           retention-days: 5
+      - name: Legal consistency
+        run: npm run trust:legal
+      - name: Policy consistency
+        run: npm run trust:policy
+      - name: Product trust consistency
+        run: npm run trust:check
       - name: Typecheck
         run: npm run typecheck
       - name: Lint

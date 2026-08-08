@@ -8,7 +8,7 @@ TK LAB is a bilingual AI workspace built around a small, explicit Cloudflare Wor
 - AI routes return one JSON contract: `{ answer, meta }`. The metadata identifies the requested model, actual provider/model, request ID, latency, status, and any fallback reason.
 - Provider reasoning is evaluated transiently on the server and is never returned, rendered, archived, logged, or sent to analytics. The client may receive only the generic `meta.reasoningUsed` boolean.
 - Fallbacks are visible. A local fallback is labeled `local-fallback`; it is never presented as NVIDIA, Clodex, or the selected Erma model.
-- Chat sessions are bounded browser-local archives. They are not a server-side conversation backup.
+- Chat sessions are local-first browser archives. Optional manual Workspace Sync can store an encrypted-at-rest D1 snapshot; it is not end-to-end encryption or an automatic conversation backup.
 - Voice input uses the browser Web Speech API when available. Authenticated ElevenLabs speech is optional; its key and voice configuration never reach the client.
 - `/status` reads a shared Durable Object snapshot with a 60-second live TTL and a five-minute stale window. It does not claim a historical uptime percentage or fabricate incident history.
 
@@ -59,7 +59,9 @@ The Playground page requires a signed-in account. The `/api/demo` endpoint has a
 - `POST /api/admin/clodex/revoke` — privileged admin revoke for a normalized target email; it remains available while Clodex is disabled so emergency revocation cannot be blocked by the feature flag.
 - `POST /api/clodex/revoke` — retired legacy URL; returns 410 and never revokes access.
 - `POST /api/tts` — authenticated ElevenLabs speech proxy; the browser speech API is the fallback.
-- `GET|POST /api/account/terms` — D1-backed, versioned agreement status and acceptance.
+- `GET|POST /api/account/terms` — D1-backed, versioned legal-bundle status and append-only acceptance evidence.
+- `GET|PUT|DELETE /api/account/workspace-sync` — optional manual encrypted-at-rest workspace snapshot sync.
+- `GET|DELETE /api/account/privacy` — authenticated server-data export and explicit TK LAB account-data deletion.
 - `GET /api/status` — safe, no-store shared health snapshot; it never calls an AI generation endpoint and probes Clodex only when enabled.
 - `/api/auth/*` — Auth.js Google OAuth endpoints.
 - `/playground` — authenticated AI workspace with browser-local session archive.
@@ -86,7 +88,7 @@ On provider failure, `meta.fallbackReason` is present and the UI tells the user 
 ## Limits and security boundaries
 
 - Public prompt: 2,000 Unicode characters; privileged prompt: 16,000 Unicode characters.
-- Maximum three `.txt`/`.md` attachments.
+- Maximum three TXT/Markdown/CSV/JSON/PDF attachments. PDF ingestion uses bounded best-effort local text extraction before selected context is submitted.
 - Public attachment: 16 KiB per file and 8,000 Unicode characters of combined context.
 - Privileged attachment: 64 KiB per file and 32,000 Unicode characters of combined context.
 - The final provider prompt is validated before any external provider call. Oversize input returns 400 or 413; it is not silently truncated.

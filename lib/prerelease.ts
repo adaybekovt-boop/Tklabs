@@ -1,89 +1,12 @@
 import type { Locale } from "@/lib/i18n";
-import {
-  CURRENT_RELEASE_CHANNEL,
-  CURRENT_RELEASE_CODENAME,
-  CURRENT_RELEASE_VERSION,
-} from "@/lib/release-version";
+import { CURRENT_RELEASE_CHANNEL, CURRENT_RELEASE_CODENAME, CURRENT_RELEASE_VERSION } from "@/lib/release-version";
 import type { PublicReleaseNote } from "@/lib/releases/types";
 
-export interface PreviewReleaseNote extends PublicReleaseNote {
-  channel: "preview";
-  majorUpdate: true;
-  codename: typeof CURRENT_RELEASE_CODENAME;
-  stability: "beta";
-  knownIssues: string[];
-  migrationNotes: string[];
-}
+export interface PreviewReleaseNote extends PublicReleaseNote { channel: "preview"; majorUpdate: true; codename: typeof CURRENT_RELEASE_CODENAME; stability: "beta"; knownIssues: string[]; migrationNotes: string[]; }
 
 const PREVIEW_RELEASE: Record<Locale, PreviewReleaseNote> = {
-  ru: {
-    date: "08 авг. 2026",
-    version: CURRENT_RELEASE_VERSION,
-    title: "WORKSPACE EVOLUTION — Mobile, Memory, Flow, Files & Sync",
-    summary: "КРУПНОЕ ОБНОВЛЕНИЕ · ПРЕДВАРИТЕЛЬНАЯ ВЕРСИЯ. Серия v0.19 превращает TK Lab в цельную рабочую среду: единый мобильный shell, структурированная память длинных диалогов, multi-round Erma Flow, документы и артефакты, опциональный зашифрованный sync и управляемые PWA-обновления.",
-    changes: [
-      "Mobile Shell 2.0 убирает двойную глобальную навигацию и добавляет прямой switcher Chat / Flow / Artifacts / Runs.",
-      "Mobile Chat Pro стабилизирует VisualViewport, экранную клавиатуру, safe-area, landscape и swipe-dismiss history drawer.",
-      "Chat Runtime 3.0 компактизирует старые turns в bounded structured memory: goals, decisions, constraints, facts и open tasks.",
-      "Erma Flow 2.0 разрешает до трёх последовательных read-only tool rounds и сохраняет частичный run при step failure.",
-      "Files & Artifact Workspace добавляет bounded TXT/MD/CSV/JSON/PDF ingestion и artifact schema v2 со связями source session/run/document.",
-      "Optional Workspace Sync хранит только AES-GCM ciphertext snapshot с revision/checksum; local-first и Workspace Vault остаются стандартом.",
-      "PWA & Reliability добавляет явный update prompt и cache namespace v0.19.7 вместо принудительной смены Worker во время активной сессии.",
-    ],
-    channel: CURRENT_RELEASE_CHANNEL,
-    majorUpdate: true,
-    codename: CURRENT_RELEASE_CODENAME,
-    stability: "beta",
-    knownIssues: [
-      "PDF ingestion является bounded best-effort extraction: сложные или полностью сжатые PDF без доступного plain text могут быть отклонены.",
-      "Workspace Sync выключен, пока на сервере не задан WORKSPACE_SYNC_SECRET и не применена D1 migration 0001_workspace_sync.sql.",
-      "Синхронизация snapshot выполняется вручную и не является realtime multi-device collaboration.",
-    ],
-    migrationNotes: [
-      "Перед включением sync примените D1 migration 0001_workspace_sync.sql; существующая таблица users не изменяется деструктивно.",
-      "WORKSPACE_SYNC_SECRET должен быть отдельным server-only secret длиной не менее 32 символов; не переиспользуйте Auth/Rate Limit ключи.",
-      "Artifact local storage автоматически нормализует старые schema v1 записи в schema v2.",
-      "Service Worker cache namespace изменён на tklabs-v0.19.7-workspace-evolution-r1-static.",
-    ],
-  },
-  en: {
-    date: "08 Aug 2026",
-    version: CURRENT_RELEASE_VERSION,
-    title: "WORKSPACE EVOLUTION — Mobile, Memory, Flow, Files & Sync",
-    summary: "MAJOR UPDATE · PRE-RELEASE. The v0.19 series turns TK Lab into one coherent workspace with a unified mobile shell, structured long-chat memory, multi-round Erma Flow, documents and artifacts, optional encrypted sync, and controlled PWA updates.",
-    changes: [
-      "Mobile Shell 2.0 removes duplicated global navigation and adds a direct Chat / Flow / Artifacts / Runs switcher.",
-      "Mobile Chat Pro stabilizes VisualViewport, software-keyboard geometry, safe areas, landscape behavior, and swipe-to-dismiss history.",
-      "Chat Runtime 3.0 compacts older turns into bounded structured memory: goals, decisions, constraints, facts, and open tasks.",
-      "Erma Flow 2.0 allows up to three sequential read-only tool rounds and preserves partial run state on step failure.",
-      "Files & Artifact Workspace adds bounded TXT/MD/CSV/JSON/PDF ingestion and artifact schema v2 with source session/run/document links.",
-      "Optional Workspace Sync stores only an AES-GCM ciphertext snapshot with revision/checksum while local-first and Workspace Vault remain the default.",
-      "PWA & Reliability adds an explicit update prompt and the v0.19.7 cache namespace instead of forcing a new Worker into an active session.",
-    ],
-    channel: CURRENT_RELEASE_CHANNEL,
-    majorUpdate: true,
-    codename: CURRENT_RELEASE_CODENAME,
-    stability: "beta",
-    knownIssues: [
-      "PDF ingestion uses bounded best-effort extraction; complex or fully compressed PDFs without exposed plain text can be rejected.",
-      "Workspace Sync stays disabled until WORKSPACE_SYNC_SECRET is configured and D1 migration 0001_workspace_sync.sql is applied.",
-      "Snapshot sync is manual and is not realtime multi-device collaboration.",
-    ],
-    migrationNotes: [
-      "Apply D1 migration 0001_workspace_sync.sql before enabling sync; the existing users table is not changed destructively.",
-      "WORKSPACE_SYNC_SECRET must be a separate server-only secret of at least 32 characters; do not reuse Auth or rate-limit keys.",
-      "Artifact local storage automatically normalizes legacy schema v1 records into schema v2.",
-      "The Service Worker cache namespace changes to tklabs-v0.19.7-workspace-evolution-r1-static.",
-    ],
-  },
+  ru: { date: "08 авг. 2026", version: CURRENT_RELEASE_VERSION, title: "TRUST ARCHITECTURE — Privacy, Policy, Provenance & Governance", summary: "КРУПНОЕ ОБНОВЛЕНИЕ · ПРЕДВАРИТЕЛЬНАЯ ВЕРСИЯ. Серия v0.20 превращает trust-слой TK LAB в проверяемую архитектуру: единый product truth, legal bundle, data controls, privacy modes, crypto v2, unified policy engine, provenance, Trust UX и governance.", changes: ["Product Truth Registry фиксирует реальные storage/provider boundaries.", "Legal Center 2.0 добавляет versioned bundle и append-only acceptance evidence.", "Privacy Control Center разделяет local/server export и deletion.", "Local / Synced / Ephemeral становятся явными режимами хранения без ложного on-device inference claim.", "Workspace Sync crypto v2 использует HKDF, AES-GCM AAD, HMAC integrity и versioned migration.", "Runtime safety и Acceptable Use используют одну policy taxonomy.", "AI responses получают safe provenance, а Erma — model cards и data-route transparency.", "Incident registry, bounded audit events и recovery drills формируют governance layer.", "Launch Quality Gate синхронизирует legal/privacy/policy/release contracts."], channel: CURRENT_RELEASE_CHANNEL, majorUpdate: true, codename: CURRENT_RELEASE_CODENAME, stability: "beta", knownIssues: ["Operator/contact/jurisdiction остаются preview placeholders, пока владелец не задаст реальные юридические реквизиты; commercial launch gate обязан fail closed.", "Nonce-only CSP пока report-only: enforced script policy всё ещё содержит unsafe-inline для текущей Next/Vinext hydration совместимости.", "Workspace Sync является server-side encryption at rest, не end-to-end encryption.", "Ephemeral в этой версии гарантированно отключает новые chat archive writes и Sync uploads; другие local workspace surfaces управляются отдельно."], migrationNotes: ["Примените D1 migrations 0002_legal_acceptances.sql, 0003_workspace_crypto_v2.sql и 0004_audit_events.sql в штатном порядке.", "Сохраните legacy WORKSPACE_SYNC_SECRET, пока существуют v1 snapshots; WORKSPACE_SYNC_SECRET_V2 можно использовать для нового v2 root.", "Для commercial launch задайте NEXT_PUBLIC_TKLAB_OPERATOR_NAME, NEXT_PUBLIC_TKLAB_LEGAL_CONTACT и NEXT_PUBLIC_TKLAB_JURISDICTION и включайте TKLABS_COMMERCIAL_LAUNCH только после юридической проверки.", "Service Worker cache namespace меняется на v0.20.9-trust-architecture-r1." ] },
+  en: { date: "08 Aug 2026", version: CURRENT_RELEASE_VERSION, title: "TRUST ARCHITECTURE — Privacy, Policy, Provenance & Governance", summary: "MAJOR UPDATE · PRE-RELEASE. The v0.20 series turns TK LAB trust controls into verifiable architecture: unified product truth, a legal bundle, data controls, privacy modes, crypto v2, a unified policy engine, provenance, Trust UX, and governance.", changes: ["Product Truth Registry records real storage/provider boundaries.", "Legal Center 2.0 adds a versioned bundle and append-only acceptance evidence.", "Privacy Control Center separates local/server export and deletion.", "Local / Synced / Ephemeral become explicit storage modes without false on-device inference claims.", "Workspace Sync crypto v2 uses HKDF, AES-GCM AAD, HMAC integrity, and versioned migration.", "Runtime safety and Acceptable Use share one policy taxonomy.", "AI responses gain safe provenance while Erma gains model cards and data-route transparency.", "Incident registry, bounded audit events, and recovery drills form a governance layer.", "Launch Quality Gate synchronizes legal/privacy/policy/release contracts."], channel: CURRENT_RELEASE_CHANNEL, majorUpdate: true, codename: CURRENT_RELEASE_CODENAME, stability: "beta", knownIssues: ["Operator/contact/jurisdiction remain explicit preview placeholders until the owner configures real legal identity; the commercial launch gate must fail closed.", "Nonce-only CSP remains report-only: the enforced script policy still contains unsafe-inline for current Next/Vinext hydration compatibility.", "Workspace Sync is server-side encryption at rest, not end-to-end encryption.", "Ephemeral currently guarantees no new chat archive writes and no Sync uploads; other local workspace surfaces are controlled separately."], migrationNotes: ["Apply D1 migrations 0002_legal_acceptances.sql, 0003_workspace_crypto_v2.sql, and 0004_audit_events.sql in normal ordered migration flow.", "Keep legacy WORKSPACE_SYNC_SECRET while v1 snapshots can exist; WORKSPACE_SYNC_SECRET_V2 may be used as the new v2 root.", "For commercial launch set NEXT_PUBLIC_TKLAB_OPERATOR_NAME, NEXT_PUBLIC_TKLAB_LEGAL_CONTACT, and NEXT_PUBLIC_TKLAB_JURISDICTION, and enable TKLABS_COMMERCIAL_LAUNCH only after legal review.", "The Service Worker cache namespace changes to v0.20.9-trust-architecture-r1." ] },
 };
 
-export function getPreviewRelease(locale: Locale): PreviewReleaseNote {
-  const release = PREVIEW_RELEASE[locale];
-  return {
-    ...release,
-    changes: [...release.changes],
-    knownIssues: [...release.knownIssues],
-    migrationNotes: [...release.migrationNotes],
-  };
-}
+export function getPreviewRelease(locale: Locale): PreviewReleaseNote { const release = PREVIEW_RELEASE[locale]; return { ...release, changes: [...release.changes], knownIssues: [...release.knownIssues], migrationNotes: [...release.migrationNotes] }; }

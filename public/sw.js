@@ -1,18 +1,11 @@
 /* global self, caches, Request, Response, fetch, URL */
 
 const CACHE_PREFIX = "tklabs";
-const CACHE_VERSION = "v0.19.7";
-const CACHE_REVISION = "workspace-evolution-r1";
+const CACHE_VERSION = "v0.20.9";
+const CACHE_REVISION = "trust-architecture-r1";
 const STATIC_CACHE = `${CACHE_PREFIX}-${CACHE_VERSION}-${CACHE_REVISION}-static`;
 const OFFLINE_URL = "/offline";
-const PRECACHE_URLS = [
-  OFFLINE_URL,
-  "/manifest.webmanifest",
-  "/images/brand/tk-app-icon.svg",
-  "/images/brand/tk-logo.png",
-  "/images/home/hero-lab.svg",
-  "/images/home/lab-cluster.svg",
-];
+const PRECACHE_URLS = [OFFLINE_URL, "/manifest.webmanifest", "/images/brand/tk-app-icon.svg", "/images/brand/tk-logo.png", "/images/home/hero-lab.svg", "/images/home/lab-cluster.svg"];
 
 function canStore(response) {
   if (!response || !response.ok) return false;
@@ -35,73 +28,64 @@ self.addEventListener("install", (event) => {
       const response = await fetch(request);
       await putSafe(cache, request, response);
     }));
-    // Do not call skipWaiting automatically. Existing clients keep the active
-    // Worker until the user explicitly applies the update from PwaRuntime.
   })());
 });
 
 self.addEventListener("activate", (event) => {
   event.waitUntil((async () => {
     const keys = await caches.keys();
-    await Promise.all(keys
-      .filter((key) => key.startsWith(`${CACHE_PREFIX}-`) && key !== STATIC_CACHE)
-      .map((key) => caches.delete(key)));
+    await Promise.all(keys.filter((key) => key.startsWith(`${CACHE_PREFIX}-`) && key !== STATIC_CACHE).map((key) => caches.delete(key)));
     await self.clients.claim();
   })());
 });
 
 self.addEventListener("message", (event) => {
   if (event.data?.type === "SKIP_WAITING") void self.skipWaiting();
-  if (event.data?.type === "GET_VERSION") event.source?.postMessage?.({ type: "TKLABS_SW_VERSION", version: CACHE_VERSION, revision: CACHE_REVISION });
 });
 
-self.addEventListener("fetch", (event) => {
-  const { request } = event;
-  if (request.method !== "GET") return;
+function isNavigation(request) {
+  return request.mode === "navigate" || request.destination === "document";
+}
 
+function isProtectedOrDynamicPath(url) {
+  return url.pathname.startsWith("/api/") || url.pathname.startsWith("/auth/") || url.pathname.startsWith("/admin/");
+}
+
+function isStaticAsset(request, url) {
+  return request.method === "GET" && url.origin === self.location.origin && ["style", "script", "image", "font", "manifest"].includes(request.destination);
+}
+
+async function navigationNetworkOnly(request) {
+  try {
+    return await fetch(request);
+  } catch {
+    const offline = await caches.match(OFFLINE_URL);
+    return offline ?? new Response("Offline", { status: 503, headers: { "content-type": "text/plain; charset=utf-8" } });
+  }
+}
+
+async function staleWhileRevalidate(request) {
+  const cache = await caches.open(STATIC_CACHE);
+  const cached = await cache.match(request);
+  const refresh = fetch(request).then(async (response) => {
+    await putSafe(cache, request, response);
+    return response;
+  }).catch(() => null);
+  return cached ?? (await refresh) ?? new Response("Unavailable", { status: 503 });
+}
+
+self.addEventListener("fetch", (event) => {
+  const request = event.request;
+  if (request.method !== "GET") return;
   const url = new URL(request.url);
   if (url.origin !== self.location.origin) return;
-  if (url.pathname === "/sw.js") return;
-
-  if (request.mode === "navigate") {
-    event.respondWith((async () => {
-      try {
-        return await fetch(request);
-      } catch {
-        return (await caches.match(OFFLINE_URL)) ?? Response.error();
-      }
-    })());
+  if (isProtectedOrDynamicPath(url)) {
+    event.respondWith(fetch(request));
     return;
   }
-
-  const isPrivateOrDynamic =
-    url.pathname.startsWith("/api/") ||
-    url.pathname.startsWith("/auth/") ||
-    url.pathname.startsWith("/admin/");
-  if (isPrivateOrDynamic) return;
-
-  const isStaticAsset =
-    url.pathname.startsWith("/_next/static/") ||
-    url.pathname.startsWith("/assets/") ||
-    url.pathname.startsWith("/images/") ||
-    url.pathname === "/manifest.webmanifest" ||
-    /\.(?:css|js|mjs|png|jpe?g|webp|avif|svg|ico|woff2?)$/i.test(url.pathname);
-
-  if (!isStaticAsset) return;
-
-  event.respondWith((async () => {
-    const cache = await caches.open(STATIC_CACHE);
-    const cached = await cache.match(request);
-    const network = fetch(request).then(async (response) => {
-      await putSafe(cache, request, response);
-      return response;
-    }).catch(() => null);
-
-    if (cached) {
-      event.waitUntil(network.then(() => undefined));
-      return cached;
-    }
-
-    return (await network) ?? Response.error();
-  })());
+  if (isNavigation(request)) {
+    event.respondWith(navigationNetworkOnly(request));
+    return;
+  }
+  if (isStaticAsset(request, url)) event.respondWith(staleWhileRevalidate(request));
 });
