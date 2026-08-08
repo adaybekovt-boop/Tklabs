@@ -63,7 +63,7 @@ function complexityScore(prompt: string) {
   else if (route.intent === "math" || route.intent === "comparison" || route.intent === "fresh_information") score += 2;
   else if (route.intent === "tklab_policy" || route.intent === "tklab_release") score += 1;
 
-  if (route.verification === "required") score += 1;
+  if (route.verification !== "normal") score += 1;
   return score;
 }
 
