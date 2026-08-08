@@ -2,10 +2,11 @@ export type GroundingLanguage = "ru" | "en";
 
 const KAZAKHSTAN_CONTEXT = /(?:казахстан|қазақстан|kazakhstan|kazakh|қазақ|казах|жуз|жүз|zhuz|ұлы\s+жүз|орта\s+жүз|кіші\s+жүз|улы\s+жуз|старш(?:ий|его)\s+жуз|средн(?:ий|его)\s+жуз|младш(?:ий|его)\s+жуз|аким|әкім|тенге|теңге|ұбт|ент(?=\s|[?!.:,;]|$)|абылай|т[өо]ле\s+би|tole\s+bi|қазыбек|әйтеке|абай|құнанбай|кунанбай|шоқан|шокан|уәлиханов|валиханов|ыбырай|алтынсарин|әл[-\s]?фараби|аль[-\s]?фараби|бауыржан|момышұлы|момышулы|қонаев|конаев|алаш|бөкейхан|бокейхан|жеті\s+жарғы|жеты\s+жаргы|ясауи|яcауи|туркестан|байконур|чарын|медеу|хан[-\s]?тенгри|айтыс|алматы|астан[аы]|шымкент)/iu;
 const EXACT_FACT_FORM = /^(?:кто|что|где|когда|как|какой|какая|какое|какие|какого|каков|какова|каковы|почему|сколько|назови|перечисли|кім|не|қайда|қашан|қалай|қандай|қанша|неге|who|what|where|when|how|which|why|list|name)(?=\s|[?!.:,;]|$)/iu;
+const KAZAKH_QUESTION_WORD = /(?:^|\s)(?:кім|не|қайда|қашан|қалай|қандай|қанша|неге)(?=\s|[?!.:,;]|$)/iu;
 const LIST_FACT = /(?:кто\s+входит|что\s+входит|какие\s+(?:плем|род|стран|област|район|вид|тип|член|участ)|перечисли|состав|список|входит\s+в|қандай\s+(?:тайпа|ру|облыс|аудан)|кіреді|members?|consists?\s+of|list\s+(?:the|all))/iu;
 const DATE_NUMBER_FACT = /(?:\b\d{3,4}\b|дата|год|численност|населени|процент|ставк|курс|сколько|халық\s+саны|мөлшерлем|бағам|қанша|how\s+many|population|rate|percent|date|year)/iu;
 const AUTHORITY_SENSITIVE = /(?:закон|статья|кодекс|правил|постановлен|указ|налог|статист|населени|базов[\p{L}\p{M}]*\s+ставк|нацбанк|национальн[\p{L}\p{M}]*\s+банк[\p{L}\p{M}]*|министр|президент|премьер|аким|заң|кодекс|ұлттық\s+банк|базалық\s+мөлшерлем|халық\s+саны|министр|президент|әкім|official|law|statistic|population|minister|president|prime\s+minister|central\s+bank)/iu;
-const HISTORICAL_OR_GEOGRAPHIC = /(?:истори|ханств|хан(?=\s|[?!.:,;]|$)|би(?=\s|[?!.:,;]|$)|батыр|жуз|жүз|zhuz|плем|род(?=\s|[?!.:,;]|$)|географ|област|район|столиц|тарих|хандық|тайпа|ру(?=\s|[?!.:,;]|$)|облыс|аудан|астана|history|historical|tribe|clan|region|capital)/iu;
+const HISTORICAL_OR_GEOGRAPHIC = /(?:истори|ханств|хан(?=\s|[?!.:,;]|$)|би(?=\s|[?!.:,;]|$)|батыр|жуз|жүз|zhuz|плем|род(?=\s|[?!.:,;]|$)|географ|област|район|столиц|тарих|хандық[\p{L}\p{M}]*|хандығ[\p{L}\p{M}]*|тайпа|ру(?=\s|[?!.:,;]|$)|облыс|аудан|астана|history|historical|tribe|clan|region|capital)/iu;
 const CURRENT_FACT = /(?:^|\s)(?:сейчас|сегодня|текущ[\p{L}\p{M}]*|последн[\p{L}\p{M}]*|қазір|қазіргі|бүгін|current|latest|today|now)(?=\s|[?!.:,;]|$)/iu;
 const CREATIVE_OR_PERSONAL = /(?:придумай|напиши\s+(?:стих|рассказ)|иде[яи]|помоги\s+решить|как\s+мне|что\s+мне\s+делать|посоветуй|create|brainstorm|write\s+(?:a\s+)?(?:poem|story)|what\s+should\s+i\s+do|advice)/iu;
 const NAMED_ENTITY_HINT = /\s[\p{Lu}][\p{L}\p{M}'’\-]{2,}/u;
@@ -48,6 +49,7 @@ export function factualRiskScore(value: string) {
   const exact = EXACT_FACT_FORM.test(query);
   let score = 0;
   if (exact) score += 1;
+  if (KAZAKH_QUESTION_WORD.test(query)) score += 1;
   if (exact && NAMED_ENTITY_HINT.test(query)) score += 2;
   if (LIST_FACT.test(query)) score += 2;
   if (DATE_NUMBER_FACT.test(query)) score += 1;
