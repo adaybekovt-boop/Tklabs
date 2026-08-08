@@ -149,6 +149,7 @@ test("protected API routes fail safely when Auth.js is unavailable", async () =>
 test("terms consent is database-backed, versioned, and admin-reviewable", async () => {
   const schema = await text("db/schema.ts");
   const terms = await text("lib/terms.ts");
+  const legal = await text("lib/legal-documents.ts");
   const consent = await text("lib/terms-consent.ts");
   const userId = await text("lib/terms-user-id.ts");
   const route = await text("app/api/account/terms/route.ts");
@@ -161,7 +162,10 @@ test("terms consent is database-backed, versioned, and admin-reviewable", async 
   assert.match(schema, /termsAcceptedAt/);
   assert.match(schema, /termsVersion/);
   assert.match(terms, /CURRENT_TERMS_VERSION/);
-  assert.match(consent, /acceptedVersion !== CURRENT_TERMS_VERSION/);
+  assert.match(legal, /CURRENT_LEGAL_BUNDLE_VERSION/);
+  assert.match(schema, /legalAcceptances/);
+  assert.match(consent, /acceptedVersion !== CURRENT_LEGAL_BUNDLE_VERSION/);
+  assert.match(consent, /db\.insert\(legalAcceptances\)/);
   assert.match(userId, /HMAC|hmacSha256Hex/);
   assert.doesNotMatch(consent, /crypto\.subtle\.digest\("SHA-256"/);
   assert.match(route, /isTrustedRequestOrigin/);

@@ -31,8 +31,8 @@ test("Patch Notes exposes known limitations and migration notes", async () => {
   const patchNotes = await read("app/patch-notes/page.tsx");
 
   assert.match(patchNotes, /data-preview-release-notices/);
-  assert.match(patchNotes, /preview-known-issues-title/);
-  assert.match(patchNotes, /preview-migration-title/);
+  assert.match(patchNotes, /ui\.knownIssues/);
+  assert.match(patchNotes, /ui\.migration/);
   assert.match(patchNotes, /previewRelease\.knownIssues\.map/);
   assert.match(patchNotes, /previewRelease\.migrationNotes\.map/);
 });
