@@ -49,6 +49,6 @@ test("browser assurance waits for hydrated client-owned Erma surfaces instead of
     assert.doesNotMatch(browserContract, /data-locale-toggle/);
     assert.match(browserContract, /data-app-dock.*data-mobile-workspace-switcher/);
   }
-  assert.match(playgroundE2e, /data-testid="prompt-input"/);
+  assert.match(playgroundE2e, /getByTestId\("prompt-input"\)/);
   assert.doesNotMatch(playgroundE2e, /mobile-prompt-input/);
 });
