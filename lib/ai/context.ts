@@ -1,3 +1,5 @@
+import { buildStructuredMemorySummary } from "@/lib/ai/memory";
+
 export type ChatContextRole = "user" | "assistant";
 
 export type ChatContextMessage = {
@@ -21,7 +23,6 @@ export const DEFAULT_OUTPUT_RESERVE_TOKENS = 8_192;
 export const MAX_CONTEXT_MESSAGES = 80;
 export const MAX_CONTEXT_MESSAGE_CHARACTERS = 12_000;
 const RECENT_MESSAGES_TO_KEEP = 12;
-const MAX_SUMMARY_CHARACTERS = 8_000;
 
 export class ChatContextValidationError extends Error {
   readonly status: 400 | 413;
@@ -35,10 +36,6 @@ export class ChatContextValidationError extends Error {
 
 function characterLength(value: string) {
   return Array.from(value).length;
-}
-
-function normalizeWhitespace(value: string) {
-  return value.replace(/\s+/g, " ").trim();
 }
 
 /**
@@ -93,21 +90,8 @@ export function normalizeChatContextMessages(value: unknown): ChatContextMessage
   return normalized;
 }
 
-function summaryLine(message: ChatContextMessage) {
-  const label = message.role === "user" ? "User" : "Assistant";
-  const compact = normalizeWhitespace(message.content);
-  const excerpt = Array.from(compact).slice(0, 700).join("");
-  return `${label}: ${excerpt}${characterLength(compact) > 700 ? "…" : ""}`;
-}
-
 function buildSummary(messages: ChatContextMessage[]) {
-  if (!messages.length) return "";
-  const lines = messages.map(summaryLine);
-  let summary = lines.join("\n");
-  if (characterLength(summary) > MAX_SUMMARY_CHARACTERS) {
-    summary = Array.from(summary).slice(-MAX_SUMMARY_CHARACTERS).join("");
-  }
-  return summary;
+  return buildStructuredMemorySummary(messages);
 }
 
 export function prepareChatContext(input: {
@@ -146,12 +130,11 @@ export function prepareChatContext(input: {
 
     while (estimatedTokens > inputBudget && summary) {
       const lines = summary.split("\n");
-      if (lines.length <= 1) {
-        summary = "";
-      } else {
-        lines.shift();
-        summary = lines.join("\n");
-      }
+      const headingIndex = lines.findIndex((line, index) => index > 0 && /^[A-Z][^:]{1,40}:$/.test(line));
+      if (headingIndex > 0) lines.splice(0, headingIndex);
+      else if (lines.length > 1) lines.shift();
+      else lines.length = 0;
+      summary = lines.join("\n");
       estimatedTokens = estimateMessagesTokens(messages, summary);
     }
 
