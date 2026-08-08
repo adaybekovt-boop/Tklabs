@@ -1,0 +1,41 @@
+name: Apply verified v0.20 legal digest
+
+on:
+  push:
+    branches:
+      - agent/v0.20-trust-architecture
+    paths:
+      - .github/workflows/patch-v020-legal-digest.yml
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/v0.20-trust-architecture
+      - name: Apply digest verified by trust:legal
+        shell: bash
+        run: |
+          node <<'NODE'
+          const fs = require('fs');
+          const path = 'lib/legal-documents.ts';
+          let source = fs.readFileSync(path, 'utf8');
+          const before = 'dc79d1a0e5f1b7e4f49dcd248918641629df0e421c04d4e34f39f539a1a05b7c';
+          const after = 'b87851713df7c721edd7e1f2f17cf047da4a34ea68ed13e89530f80e3f402f42';
+          if (!source.includes(before)) throw new Error('Expected placeholder legal digest not found');
+          source = source.replace(before, after);
+          fs.writeFileSync(path, source);
+          NODE
+      - name: Commit verified digest
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add lib/legal-documents.ts
+          git commit -m "fix: bind legal bundle to verified digest"
+          git push origin HEAD:agent/v0.20-trust-architecture
