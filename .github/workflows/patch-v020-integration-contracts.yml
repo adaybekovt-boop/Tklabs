@@ -1,0 +1,68 @@
+name: Patch v0.20 integration contracts
+
+on:
+  push:
+    branches:
+      - agent/v0.20-trust-architecture
+    paths:
+      - .github/workflows/patch-v020-integration-contracts.yml
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/v0.20-trust-architecture
+      - name: Update superseded integration contracts
+        shell: bash
+        run: |
+          node <<'NODE'
+          const fs = require('fs');
+
+          {
+            const path = 'tests/backend-contract.test.mjs';
+            let source = fs.readFileSync(path, 'utf8');
+            source = source.replace(
+              '  const terms = await text("lib/terms.ts");\n  const consent = await text("lib/terms-consent.ts");',
+              '  const terms = await text("lib/terms.ts");\n  const legal = await text("lib/legal-documents.ts");\n  const consent = await text("lib/terms-consent.ts");'
+            );
+            source = source.replace(
+              '  assert.match(terms, /CURRENT_TERMS_VERSION/);\n  assert.match(consent, /acceptedVersion !== CURRENT_TERMS_VERSION/);',
+              '  assert.match(terms, /CURRENT_TERMS_VERSION/);\n  assert.match(legal, /CURRENT_LEGAL_BUNDLE_VERSION/);\n  assert.match(schema, /legalAcceptances/);\n  assert.match(consent, /acceptedVersion !== CURRENT_LEGAL_BUNDLE_VERSION/);\n  assert.match(consent, /db\\.insert\\(legalAcceptances\\)/);'
+            );
+            fs.writeFileSync(path, source);
+          }
+
+          {
+            const path = 'tests/v0-16-9-interface-polish.test.mjs';
+            let source = fs.readFileSync(path, 'utf8');
+            source = source.replace(
+              '  assert.match(patchNotes, /preview-known-issues-title/);\n  assert.match(patchNotes, /preview-migration-title/);',
+              '  assert.match(patchNotes, /ui\\.knownIssues/);\n  assert.match(patchNotes, /ui\\.migration/);'
+            );
+            fs.writeFileSync(path, source);
+          }
+
+          {
+            const path = 'tests/v0.20-trust-ux.test.mjs';
+            let source = fs.readFileSync(path, 'utf8');
+            source = source.replace(
+              'assert.match(sheet, /attachments leave the device/i);',
+              'assert.match(sheet, /selected attachments[\\s\\S]{0,120}leaves the device/i);'
+            );
+            fs.writeFileSync(path, source);
+          }
+          NODE
+      - name: Commit contract updates
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add tests/backend-contract.test.mjs tests/v0-16-9-interface-polish.test.mjs tests/v0.20-trust-ux.test.mjs
+          git commit -m "test: align integration contracts with Trust Architecture"
+          git push origin HEAD:agent/v0.20-trust-architecture
