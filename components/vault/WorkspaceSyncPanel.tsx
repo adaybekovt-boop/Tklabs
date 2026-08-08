@@ -16,46 +16,91 @@ export function WorkspaceSyncPanel({ locale }: { locale: Locale }) {
   const [notice, setNotice] = useState("");
 
   async function refresh() {
-    setBusy(true); setNotice(""); setArmed(false);
-    try { const result = await fetchRemoteWorkspaceSnapshot(); setAvailable(result.available); setRemote(result.snapshot); setStaged(null); }
-    catch { setNotice(ru ? "Не удалось проверить sync." : "Unable to check sync."); }
-    finally { setBusy(false); }
+    setBusy(true);
+    setNotice("");
+    setArmed(false);
+    try {
+      const result = await fetchRemoteWorkspaceSnapshot();
+      setAvailable(result.available);
+      setRemote(result.snapshot);
+      setStaged(null);
+    } catch {
+      setNotice(ru ? "Не удалось проверить sync." : "Unable to check sync.");
+    } finally {
+      setBusy(false);
+    }
   }
 
-  useEffect(() => { void refresh(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, []);
+  useEffect(() => {
+    let cancelled = false;
+    void fetchRemoteWorkspaceSnapshot()
+      .then((result) => {
+        if (cancelled) return;
+        setAvailable(result.available);
+        setRemote(result.snapshot);
+        setStaged(null);
+      })
+      .catch(() => {
+        if (!cancelled) setNotice(ru ? "Не удалось проверить sync." : "Unable to check sync.");
+      });
+    return () => { cancelled = true; };
+  }, [ru]);
 
   async function upload() {
-    setBusy(true); setNotice(""); setArmed(false);
+    setBusy(true);
+    setNotice("");
+    setArmed(false);
     try {
       const payload = collectWorkspaceSnapshot();
       const result = await uploadWorkspaceSnapshot(payload, remote?.revision ?? 0);
       setAvailable(result.available);
-      if (!result.available || !result.snapshot) { setNotice(ru ? "Sync не настроен на сервере." : "Sync is not configured on the server."); return; }
+      if (!result.available || !result.snapshot) {
+        setNotice(ru ? "Sync не настроен на сервере." : "Sync is not configured on the server.");
+        return;
+      }
       setRemote({ ...result.snapshot, payload });
       setNotice(ru ? "Зашифрованный snapshot обновлён." : "Encrypted snapshot updated.");
     } catch (error) {
-      setNotice(error instanceof Error && error.message === "workspace_sync_conflict" ? (ru ? "Snapshot изменился на другом устройстве. Обновите состояние." : "The snapshot changed on another device. Refresh first.") : (ru ? "Не удалось загрузить snapshot." : "Unable to upload snapshot."));
-    } finally { setBusy(false); }
+      setNotice(error instanceof Error && error.message === "workspace_sync_conflict"
+        ? (ru ? "Snapshot изменился на другом устройстве. Обновите состояние." : "The snapshot changed on another device. Refresh first.")
+        : (ru ? "Не удалось загрузить snapshot." : "Unable to upload snapshot."));
+    } finally {
+      setBusy(false);
+    }
   }
 
   async function stageDownload() {
-    setBusy(true); setNotice(""); setArmed(false);
+    setBusy(true);
+    setNotice("");
+    setArmed(false);
     try {
       const result = await fetchRemoteWorkspaceSnapshot();
-      setAvailable(result.available); setRemote(result.snapshot); setStaged(result.snapshot);
+      setAvailable(result.available);
+      setRemote(result.snapshot);
+      setStaged(result.snapshot);
       if (!result.snapshot) setNotice(ru ? "Облачного snapshot пока нет." : "There is no remote snapshot yet.");
-    } catch { setNotice(ru ? "Не удалось получить snapshot." : "Unable to download snapshot."); }
-    finally { setBusy(false); }
+    } catch {
+      setNotice(ru ? "Не удалось получить snapshot." : "Unable to download snapshot.");
+    } finally {
+      setBusy(false);
+    }
   }
 
   function apply() {
     if (!staged) return;
-    if (!armed) { setArmed(true); setNotice(ru ? "Повторное нажатие применит snapshot к этому устройству." : "Press again to apply the snapshot to this device."); return; }
+    if (!armed) {
+      setArmed(true);
+      setNotice(ru ? "Повторное нажатие применит snapshot к этому устройству." : "Press again to apply the snapshot to this device.");
+      return;
+    }
     try {
       const count = applyWorkspaceSnapshot(staged.payload);
       setNotice(ru ? `Восстановлено записей: ${count}. Перезагружаю интерфейс…` : `Restored ${count} entries. Reloading the interface…`);
       window.setTimeout(() => window.location.reload(), 250);
-    } catch { setNotice(ru ? "Snapshot не прошёл локальную проверку." : "The snapshot failed local validation."); setArmed(false); }
+    } catch {
+      setNotice(ru ? "Snapshot не прошёл локальную проверку." : "The snapshot failed local validation.");
+      setArmed(false);
+    }
   }
 
   return (
