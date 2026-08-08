@@ -1,0 +1,41 @@
+name: Sync v0.21 current release
+
+on:
+  push:
+    branches:
+      - agent/v0.21-erma-intelligence-engine
+    paths:
+      - .github/workflows/sync-v021-current-release.yml
+
+permissions:
+  contents: write
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/v0.21-erma-intelligence-engine
+      - name: Synchronize legacy current-release helper
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path('lib/releases/current.ts')
+          if path.exists():
+              source = path.read_text()
+              source = source.replace('v0.20.10', 'v0.21.15')
+              source = source.replace('Mobile Fixed Layers', 'Erma Intelligence Engine')
+              path.write_text(source)
+          PY
+      - name: Remove one-shot workflow and commit
+        run: |
+          git rm .github/workflows/sync-v021-current-release.yml
+          if git diff --quiet --cached && git diff --quiet; then
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add lib/releases/current.ts || true
+          git commit -m "chore: sync v0.21.15 current release metadata"
+          git push origin HEAD:agent/v0.21-erma-intelligence-engine
