@@ -1,12 +1,12 @@
 export type GroundingLanguage = "ru" | "en";
 
-const KAZAKHSTAN_CONTEXT = /(?:казахстан|қазақстан|kazakhstan|қазақ|казах|жуз|жүз|zhuz|ұлы\s+жүз|орта\s+жүз|кіші\s+жүз|улы\s+жуз|старш(?:ий|его)\s+жуз|средн(?:ий|его)\s+жуз|младш(?:ий|его)\s+жуз|аким|әкім|тенге|теңге|ұбт|ент\b|абылай|т[өо]ле\s+би|tole\s+bi|қазыбек|әйтеке|абай|құнанбай|кунанбай|шоқан|шокан|уәлиханов|валиханов|ыбырай|алтынсарин|әл[-\s]?фараби|аль[-\s]?фараби|бауыржан|момышұлы|момышулы|қонаев|конаев|алаш|бөкейхан|бокейхан|жеті\s+жарғы|жеты\s+жаргы|ясауи|яcауи|туркестан|байконур|чарын|медеу|хан[-\s]?тенгри|айтыс|алматы|астан[аы]|шымкент)/iu;
-const EXACT_FACT_FORM = /^(?:кто|что|где|когда|какой|какая|какое|какие|какого|каков|какова|каковы|почему|сколько|назови|перечисли|кто\s+входит|что\s+входит|кім|не|қайда|қашан|қандай|қанша|неге|who|what|where|when|which|why|how\s+many|how\s+much|list|name)\b/iu;
+const KAZAKHSTAN_CONTEXT = /(?:казахстан|қазақстан|kazakhstan|қазақ|казах|жуз|жүз|zhuz|ұлы\s+жүз|орта\s+жүз|кіші\s+жүз|улы\s+жуз|старш(?:ий|его)\s+жуз|средн(?:ий|его)\s+жуз|младш(?:ий|его)\s+жуз|аким|әкім|тенге|теңге|ұбт|ент(?=\s|[?!.:,;]|$)|абылай|т[өо]ле\s+би|tole\s+bi|қазыбек|әйтеке|абай|құнанбай|кунанбай|шоқан|шокан|уәлиханов|валиханов|ыбырай|алтынсарин|әл[-\s]?фараби|аль[-\s]?фараби|бауыржан|момышұлы|момышулы|қонаев|конаев|алаш|бөкейхан|бокейхан|жеті\s+жарғы|жеты\s+жаргы|ясауи|яcауи|туркестан|байконур|чарын|медеу|хан[-\s]?тенгри|айтыс|алматы|астан[аы]|шымкент)/iu;
+const EXACT_FACT_FORM = /^(?:кто|что|где|когда|какой|какая|какое|какие|какого|каков|какова|каковы|почему|сколько|назови|перечисли|кім|не|қайда|қашан|қандай|қанша|неге|who|what|where|when|which|why|how\s+many|how\s+much|list|name)(?=\s|[?!.:,;]|$)/iu;
 const LIST_FACT = /(?:кто\s+входит|что\s+входит|какие\s+(?:плем|род|стран|област|район|вид|тип|член|участ)|перечисли|состав|список|входит\s+в|қандай\s+(?:тайпа|ру|облыс|аудан)|кіреді|members?|consists?\s+of|list\s+(?:the|all))/iu;
 const DATE_NUMBER_FACT = /(?:\b\d{3,4}\b|дата|год|численност|населени|процент|ставк|курс|сколько|халық\s+саны|мөлшерлем|бағам|қанша|how\s+many|population|rate|percent|date|year)/iu;
-const AUTHORITY_SENSITIVE = /(?:закон|статья|кодекс|правил|постановлен|указ|налог|статист|населени|базов\w*\s+ставк|нацбанк|национальн\w*\s+банк\w*|министр|президент|премьер|аким|заң|кодекс|ұлттық\s+банк|базалық\s+мөлшерлем|халық\s+саны|министр|президент|әкім|official|law|statistic|population|minister|president|prime\s+minister|central\s+bank)/iu;
-const HISTORICAL_OR_GEOGRAPHIC = /(?:истори|ханств|хан\b|би\b|батыр|жуз|жүз|zhuz|плем|род\b|географ|област|район|столиц|тарих|хандық|тайпа|ру\b|облыс|аудан|астана|history|historical|tribe|clan|region|capital)/iu;
-const CURRENT_FACT = /\b(?:сейчас|сегодня|текущ\w*|последн\w*|қазір|қазіргі|бүгін|current|latest|today|now)\b/iu;
+const AUTHORITY_SENSITIVE = /(?:закон|статья|кодекс|правил|постановлен|указ|налог|статист|населени|базов[\p{L}\p{M}]*\s+ставк|нацбанк|национальн[\p{L}\p{M}]*\s+банк[\p{L}\p{M}]*|министр|президент|премьер|аким|заң|кодекс|ұлттық\s+банк|базалық\s+мөлшерлем|халық\s+саны|министр|президент|әкім|official|law|statistic|population|minister|president|prime\s+minister|central\s+bank)/iu;
+const HISTORICAL_OR_GEOGRAPHIC = /(?:истори|ханств|хан(?=\s|[?!.:,;]|$)|би(?=\s|[?!.:,;]|$)|батыр|жуз|жүз|zhuz|плем|род(?=\s|[?!.:,;]|$)|географ|област|район|столиц|тарих|хандық|тайпа|ру(?=\s|[?!.:,;]|$)|облыс|аудан|астана|history|historical|tribe|clan|region|capital)/iu;
+const CURRENT_FACT = /(?:^|\s)(?:сейчас|сегодня|текущ[\p{L}\p{M}]*|последн[\p{L}\p{M}]*|қазір|қазіргі|бүгін|current|latest|today|now)(?=\s|[?!.:,;]|$)/iu;
 const CREATIVE_OR_PERSONAL = /(?:придумай|напиши\s+(?:стих|рассказ)|иде[яи]|помоги\s+решить|как\s+мне|что\s+мне\s+делать|посоветуй|create|brainstorm|write\s+(?:a\s+)?(?:poem|story)|what\s+should\s+i\s+do|advice)/iu;
 const NAMED_ENTITY_HINT = /\s[\p{Lu}][\p{L}\p{M}'’\-]{2,}/u;
 const SECRETISH = /\b(?:sk|nvapi|ghp|github_pat|xox[baprs]|AIza)[-_A-Za-z0-9]{12,}\b/g;
@@ -79,7 +79,7 @@ function officialQuery(query: string) {
   if (!isKazakhstanContext(query)) return "";
   if (/(?:закон|статья|кодекс|правил|постановлен|указ|заң|law)/iu.test(query)) return `${query} site:adilet.zan.kz`;
   if (/(?:статист|населени|халық\s+саны|population|statistic)/iu.test(query)) return `${query} site:stat.gov.kz`;
-  if (/(?:нацбанк|национальн\w*\s+банк|ұлттық\s+банк|базов\w*\s+ставк|базалық\s+мөлшерлем|курс|бағам|тенге|теңге|central\s+bank)/iu.test(query)) return `${query} site:nationalbank.kz`;
+  if (/(?:нацбанк|национальн[\p{L}\p{M}]*\s+банк|ұлттық\s+банк|базов[\p{L}\p{M}]*\s+ставк|базалық\s+мөлшерлем|курс|бағам|тенге|теңге|central\s+bank)/iu.test(query)) return `${query} site:nationalbank.kz`;
   if (/(?:президент|акорд|president)/iu.test(query)) return `${query} site:akorda.kz`;
   if (HISTORICAL_OR_GEOGRAPHIC.test(query)) return `${query} site:e-history.kz`;
   return `${query} site:gov.kz`;
