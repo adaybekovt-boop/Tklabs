@@ -1,9 +1,12 @@
+import { shouldGroundExactFact } from "@/lib/ai/intelligence/grounding";
+
 export type ErmaTaskIntent =
   | "conversation"
   | "analysis"
   | "math"
   | "research"
   | "fresh_information"
+  | "fact_lookup"
   | "tklab_policy"
   | "tklab_release"
   | "document"
@@ -37,6 +40,7 @@ function routeFor(intent: ErmaTaskIntent, prompt: string): ErmaIntelligenceRoute
   if (intent === "tklab_release") return { schemaVersion: 1, intent, freshness: "internal-current", verification: "verify-sources", toolClass: "internal", shouldPlanTools: true, shouldCiteSources: true, maxToolCalls: comparison ? 5 : 2, maxToolRounds: 2, reasonCode: "TKLAB_RELEASE_SOURCE_OF_TRUTH" };
   if (intent === "math") return { schemaVersion: 1, intent, freshness: "none", verification: "verify-calculation", toolClass: "math", shouldPlanTools: true, shouldCiteSources: false, maxToolCalls: 4, maxToolRounds: 2, reasonCode: "DETERMINISTIC_MATH_PREFERRED" };
   if (intent === "fresh_information" || intent === "research") return { schemaVersion: 1, intent, freshness: "web-current", verification: "verify-sources", toolClass: "web", shouldPlanTools: true, shouldCiteSources: true, maxToolCalls: intent === "research" ? 8 : 5, maxToolRounds: intent === "research" ? 3 : 2, reasonCode: intent === "research" ? "MULTI_SOURCE_RESEARCH" : "CURRENT_EXTERNAL_FACTS_REQUIRED" };
+  if (intent === "fact_lookup") return { schemaVersion: 1, intent, freshness: current ? "web-current" : "none", verification: "verify-sources", toolClass: "web", shouldPlanTools: true, shouldCiteSources: true, maxToolCalls: 6, maxToolRounds: 2, reasonCode: current ? "CURRENT_GROUNDED_FACT_LOOKUP" : "GROUNDED_FACT_LOOKUP" };
   if (intent === "document") return { schemaVersion: 1, intent, freshness: "none", verification: "verify-sources", toolClass: "document", shouldPlanTools: true, shouldCiteSources: true, maxToolCalls: comparison ? 6 : 4, maxToolRounds: 2, reasonCode: "DOCUMENT_EVIDENCE_REQUIRED" };
   if (intent === "code") return { schemaVersion: 1, intent, freshness: current ? "web-current" : "none", verification: "verify-tools", toolClass: current ? "web" : "code", shouldPlanTools: true, shouldCiteSources: current, maxToolCalls: current ? 5 : 2, maxToolRounds: current ? 2 : 1, reasonCode: current ? "CURRENT_TECHNICAL_FACTS_REQUIRED" : "ISOLATED_CODE_VERIFICATION_PREFERRED" };
   if (intent === "comparison") return { schemaVersion: 1, intent, freshness: current ? "web-current" : "none", verification: current ? "verify-sources" : "normal", toolClass: current ? "web" : "none", shouldPlanTools: current, shouldCiteSources: current, maxToolCalls: current ? 6 : 0, maxToolRounds: current ? 2 : 0, reasonCode: current ? "CURRENT_COMPARISON" : "STATIC_COMPARISON" };
@@ -52,6 +56,7 @@ export function routeErmaTask(prompt: string): ErmaIntelligenceRoute {
   if (DOCUMENT_WORDS.test(normalized)) return routeFor("document", normalized);
   if (MATH_WORDS.test(normalized)) return routeFor("math", normalized);
   if (CURRENT_WORDS.test(normalized) && (WEB_FACT_WORDS.test(normalized) || ANALYSIS_WORDS.test(normalized))) return routeFor("fresh_information", normalized);
+  if (shouldGroundExactFact(normalized)) return routeFor("fact_lookup", normalized);
   if (CODE_WORDS.test(normalized)) return routeFor("code", normalized);
   if (PLAN_WORDS.test(normalized)) return routeFor("planning", normalized);
   if (COMPARE_WORDS.test(normalized)) return routeFor("comparison", normalized);
