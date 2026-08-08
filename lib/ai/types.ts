@@ -3,6 +3,7 @@ export type AiProvider = "nvidia" | "clodex" | "edge-fallback";
 export type AiToolName =
   | "search_documentation"
   | "search_patch_notes"
+  | "search_tklab_knowledge"
   | "get_service_status"
   | "calculate"
   | "search_local_archive"
