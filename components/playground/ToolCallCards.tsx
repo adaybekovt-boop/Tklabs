@@ -1,12 +1,14 @@
-import { AlertTriangle, Calculator, CheckCircle2, CircleSlash2, Clock3, ExternalLink, FileSearch, Gauge, LibraryBig, Search, Wrench } from "lucide-react";
+import { AlertTriangle, Calculator, CheckCircle2, CircleSlash2, Clock3, ExternalLink, FileSearch, Gauge, Globe2, LibraryBig, Search, ShieldCheck, Sigma, Wrench } from "lucide-react";
 
 import type { AiToolCallTrace, AiToolName } from "@/lib/ai/types";
 import type { Locale } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 
 function ToolIcon({ name }: { name: AiToolName }) {
-  if (name === "calculate") return <Calculator size={15} />;
+  if (name === "calculate" || name === "solve_math") return name === "solve_math" ? <Sigma size={15} /> : <Calculator size={15} />;
   if (name === "search_patch_notes") return <LibraryBig size={15} />;
+  if (name === "search_tklab_knowledge") return <ShieldCheck size={15} />;
+  if (name === "search_web" || name === "open_web_result") return <Globe2 size={15} />;
   if (name === "search_documentation") return <FileSearch size={15} />;
   if (name === "search_local_archive") return <Search size={15} />;
   if (name === "get_service_status") return <Gauge size={15} />;
@@ -24,10 +26,14 @@ function toolLabel(name: AiToolName, locale: Locale) {
   const labels: Record<AiToolName, { ru: string; en: string }> = {
     search_documentation: { ru: "Поиск по документации", en: "Documentation search" },
     search_patch_notes: { ru: "Поиск по обновлениям", en: "Patch Notes search" },
+    search_tklab_knowledge: { ru: "Знания TK LAB", en: "TK LAB knowledge" },
     get_service_status: { ru: "Статус сервисов", en: "Service status" },
     calculate: { ru: "Вычисление", en: "Calculation" },
+    solve_math: { ru: "Проверка математики", en: "Math verification" },
     search_local_archive: { ru: "Поиск в локальном архиве", en: "Local archive search" },
     get_model_capabilities: { ru: "Возможности модели", en: "Model capabilities" },
+    search_web: { ru: "Поиск в интернете", en: "Web search" },
+    open_web_result: { ru: "Чтение веб-источника", en: "Read web source" },
   };
   return labels[name][locale];
 }
