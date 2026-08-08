@@ -92,6 +92,7 @@ export function providerFailureReason(error: unknown) {
   if (error instanceof Error && error.message === "nvidia_not_configured") return "nvidia_not_configured";
   if (error instanceof Error && error.message === "nvidia_output_blocked") return "safety_output_blocked";
   if (error instanceof Error && error.message === "nvidia_output_too_large") return "nvidia_output_too_large";
+  if (error instanceof Error && error.message === "nvidia_model_has_no_vision") return "vision_model_unavailable";
   return "nvidia_request_failed";
 }
 
@@ -99,4 +100,10 @@ export function streamInterruptedText(language: Language) {
   return language === "ru"
     ? "Соединение с моделью прервалось. Частичный ответ сохранён."
     : "The model connection was interrupted. The partial response was saved.";
+}
+
+export function visionUnavailableText(language: Language) {
+  return language === "ru"
+    ? "Сейчас не удалось надёжно обработать изображение. Я не буду угадывать его содержимое — попробуйте отправить фото ещё раз чуть позже."
+    : "I could not reliably process the image right now. I will not guess what it contains — please try sending it again a little later.";
 }
