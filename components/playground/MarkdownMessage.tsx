@@ -3,7 +3,9 @@
 import { Maximize2, X } from "lucide-react";
 import { useState, type ReactNode } from "react";
 import Markdown from "react-markdown";
+import rehypeKatex from "rehype-katex";
 import remarkGfm from "remark-gfm";
+import remarkMath from "remark-math";
 
 import { ChatOverlay } from "@/components/playground/ChatOverlay";
 import { safeMarkdownUrl } from "@/lib/safe-markdown-url";
@@ -30,7 +32,8 @@ function FullscreenCodeBlock({ children }: { children: ReactNode }) {
 export function MarkdownMessage({ content }: { content: string }) {
   return (
     <Markdown
-      remarkPlugins={[remarkGfm]}
+      remarkPlugins={[remarkGfm, remarkMath]}
+      rehypePlugins={[[rehypeKatex, { strict: false, throwOnError: false, output: "htmlAndMathml" }]]}
       urlTransform={safeMarkdownUrl}
       components={{
         a: ({ href, children }) => href && href !== "#blocked-url" ? <a href={href} target="_blank" rel="noreferrer noopener" className="underline decoration-outline-variant underline-offset-4 hover:text-chat-accent">{children}</a> : <>{children}</>,
