@@ -31,7 +31,7 @@ const PLAN_WORDS = /(?:план|поэтап|пошаг|roadmap|plan|steps?|stra
 const COMPARE_WORDS = /(?:сравн|разниц|отлич|compare|versus|\bvs\b|difference|между)/i;
 const RESEARCH_WORDS = /(?:исслед|проанализируй рынок|обзор источников|deep research|research|survey|landscape|competitive analysis)/i;
 const ANALYSIS_WORDS = /(?:проанализ|объясни почему|разбери|оцени|докажи|reason|analy[sz]e|explain why|evaluate|derive)/i;
-const MATH_WORDS = /(?:посчитай|вычисли|уравнен|интеграл|производн|матриц|вероятност|статист|формул|latex|математ|solve|calculate|compute|equation|integral|derivative|matrix|probability|statistics|\b[xyz]\s*[=+\-*\/^]|\d\s*[+\-*\/^]\s*\d)/i;
+const MATH_WORDS = /(?:посчитай|вычисли|уравнен|интеграл|производн|матриц|вероятност|формул|latex|математ|solve|calculate|compute|equation|integral|derivative|matrix|probability|\b[xyz]\s*[=+\-*\/^]|\d\s*[+\-*\/^]\s*\d)/i;
 
 function clamp(value: number, min: number, max: number) { return Math.max(min, Math.min(max, value)); }
 
