@@ -37,6 +37,7 @@ export default async function HomePage() {
             <p className="label-caps text-secondary">TK LAB · ERMA</p>
             <h1 className="display-title max-w-2xl">{ru ? "Спокойная AI-среда для реальной работы" : "A calm AI workspace for real work"}</h1>
             <p className="max-w-xl text-[17px] leading-[1.75] text-on-surface-variant">{ru ? "Задайте вопрос, приложите текст или продолжите локальный проект. Основная навигация всегда закреплена снизу: AI-чат, обновления, профиль и остальные разделы доступны без повторяющихся кнопок." : "Ask a question, attach text, or continue a local project. Primary navigation stays pinned below: AI chat, updates, profile, and the rest of the workspace remain available without repeated call-to-action buttons."}</p>
+            <p className="text-xs font-medium uppercase tracking-[0.12em] text-secondary md:hidden">{ru ? "Основное меню закреплено внизу экрана" : "Primary navigation is pinned to the bottom"}</p>
             <div className="pt-2 sm:pt-4">
               <Link href="/models" className="inline-flex min-h-11 items-center gap-1 border-b border-primary text-sm font-medium text-primary">{ru ? "Как работает Erma Auto" : "How Erma Auto works"}<ArrowUpRight size={15} /></Link>
             </div>
