@@ -31,13 +31,23 @@ export function TermsGate({ enabled, locale }: { enabled: boolean; locale: Terms
         return payload;
       })
       .then((payload) => {
-        if (!active || payload.currentVersion !== CURRENT_TERMS_VERSION) return;
+        if (!active) return;
+        if (payload.currentVersion !== CURRENT_TERMS_VERSION) {
+          // Version skew means the browser is stale or the server just rolled
+          // forward. Never let a stale client bypass a newly-required consent.
+          setChecked(false);
+          setStage("language");
+          setError(unavailableText);
+          setOpen(true);
+          return;
+        }
         if (payload.required) setOpen(true);
         else setOpen(false);
         if (payload.language === "ru" || payload.language === "en") setLanguage(payload.language);
       })
       .catch(() => {
         if (active) {
+          setChecked(false);
           setError(unavailableText);
           setOpen(true);
         }
@@ -73,9 +83,17 @@ export function TermsGate({ enabled, locale }: { enabled: boolean; locale: Terms
         body: JSON.stringify({ language, version: CURRENT_TERMS_VERSION }),
       });
       if (!response.ok) {
+        if (response.status === 409) {
+          setChecked(false);
+          setStage("language");
+          setError(text.unavailable);
+          setOpen(true);
+          return;
+        }
         setError(response.status === 503 ? text.unavailable : text.acceptanceError);
         return;
       }
+      setChecked(false);
       setOpen(false);
     } catch {
       setError(text.acceptanceError);
@@ -85,7 +103,13 @@ export function TermsGate({ enabled, locale }: { enabled: boolean; locale: Terms
   }
 
   return (
-    <div className="fixed inset-0 z-[100] grid overflow-y-auto bg-primary/75 p-4 sm:p-8" role="dialog" aria-modal="true" aria-labelledby="terms-gate-title">
+    <div
+      className="fixed inset-0 z-[220] grid overflow-y-auto bg-primary/75 p-4 sm:p-8"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="terms-gate-title"
+      data-terms-gate
+    >
       <div className="m-auto w-full max-w-3xl border border-primary bg-surface p-6 shadow-2xl sm:p-10">
         {stage === "language" ? (
           <div className="mx-auto max-w-xl py-8 text-center sm:py-14">
@@ -109,7 +133,7 @@ export function TermsGate({ enabled, locale }: { enabled: boolean; locale: Terms
               ))}
             </div>
             {error && (
-              <div className="mt-6 space-y-3">
+              <div className="mt-6 space-y-3" aria-live="polite">
                 <p className="text-[13px] text-error">{error}</p>
                 <button type="button" className="label-caps border-b border-primary pb-1 text-primary" onClick={() => { setError(null); setRetryToken((value) => value + 1); }}>
                   {text.retry}
@@ -125,7 +149,7 @@ export function TermsGate({ enabled, locale }: { enabled: boolean; locale: Terms
                 <h1 id="terms-gate-title" className="headline-title">{text.title}</h1>
                 <p className="mt-3 text-[14px] text-on-surface-variant">{text.effectiveDate} · {text.versionLabel} {CURRENT_TERMS_VERSION}</p>
               </div>
-              <button type="button" className="label-caps text-secondary underline underline-offset-4 hover:text-primary" onClick={() => setStage("language")}>RU / EN</button>
+              <button type="button" className="label-caps text-secondary underline underline-offset-4 hover:text-primary" onClick={() => { setChecked(false); setStage("language"); }}>RU / EN</button>
             </div>
             <p className="mt-7 max-w-2xl leading-[1.7] text-on-surface-variant">{text.intro}</p>
             <div className="mt-8 max-h-[48vh] overflow-y-auto border-y border-outline-variant py-7 pr-3 sm:max-h-[52vh]">
@@ -144,7 +168,7 @@ export function TermsGate({ enabled, locale }: { enabled: boolean; locale: Terms
               <input type="checkbox" className="mt-1 size-4 accent-primary" checked={checked} onChange={(event) => setChecked(event.target.checked)} />
               <span>{text.readAgreement}</span>
             </label>
-            {error && <p className="mt-4 text-[13px] text-error">{error}</p>}
+            {error && <p className="mt-4 text-[13px] text-error" aria-live="polite">{error}</p>}
             <div className="mt-7 flex flex-col-reverse gap-3 sm:flex-row sm:items-center sm:justify-between">
               <span className="text-[12px] text-secondary">{text.versionLabel} {CURRENT_TERMS_VERSION}</span>
               <button type="button" className="quiet-button quiet-button--dark" disabled={!checked || busy} onClick={() => void accept()}>
