@@ -41,7 +41,7 @@ export class DemoStreamSession {
   private startPayload() { const { context, requestId } = this.input; return { requestId, status: "connecting", context: { estimatedTokens: context.estimatedTokens, messages: context.includedMessageCount, attachments: context.attachmentCount, limit: context.contextLimit, compacted: context.compacted } }; }
 
   private async run() {
-    const { request, body, requestId, prompt, context, language, model, requestedReasoning, effort, tone, privilegedAccount, documents, quota, startedAt, requestedModel } = this.input;
+    const { request, body, requestId, prompt, context, language, model, requestedReasoning, effort, tone, privilegedAccount, documents, images, quota, startedAt, requestedModel } = this.input;
     this.send("start", this.startPayload());
     try {
       const toolAugmentation = await prepareReadOnlyToolAugmentation({ request, requestId, prompt, context, language, model, localArchive: body.localArchive, documents, allowCodeSandbox: privilegedAccount, signal: this.providerController.signal });
@@ -49,7 +49,7 @@ export class DemoStreamSession {
       this.augmentedSummary = toolAugmentation.summary;
       for (const trace of this.toolCalls) this.send("tool", trace);
 
-      const result = await streamWithNvidia({ messages: context.messages, summary: this.augmentedSummary, language, model, requestedReasoning, effort, allowCode: privilegedAccount, tone, signal: this.providerController.signal }, async (delta) => {
+      const result = await streamWithNvidia({ messages: context.messages, summary: this.augmentedSummary, language, model, requestedReasoning, effort, allowCode: privilegedAccount, tone, images, signal: this.providerController.signal }, async (delta) => {
         const delivered = this.send("delta", { text: delta });
         if (!delivered) { if (!this.providerController.signal.aborted) this.providerController.abort("response_closed"); return; }
         if (!this.firstTokenAt) this.firstTokenAt = Date.now();
