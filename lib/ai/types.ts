@@ -11,7 +11,8 @@ export type AiToolName =
   | "search_local_archive"
   | "get_model_capabilities"
   | "search_web"
-  | "open_web_result";
+  | "open_web_result"
+  | "run_code_sandbox";
 export type AiToolCallStatus = "success" | "error" | "timeout" | "blocked";
 export type AiToolCallLink = { label: string; href: string };
 export type AiToolCallTrace = { id: string; name: AiToolName; status: AiToolCallStatus; durationMs: number; summary: string; links?: AiToolCallLink[] };
