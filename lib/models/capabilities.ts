@@ -12,6 +12,7 @@ export const READ_ONLY_AI_TOOLS: readonly AiToolName[] = [
   "get_model_capabilities",
   "search_web",
   "open_web_result",
+  "run_code_sandbox",
 ] as const;
 
 export type ErmaToolCapabilities = {
