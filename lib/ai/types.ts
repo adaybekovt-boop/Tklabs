@@ -6,6 +6,7 @@ export type AiToolName =
   | "search_tklab_knowledge"
   | "get_service_status"
   | "calculate"
+  | "solve_math"
   | "search_local_archive"
   | "get_model_capabilities"
   | "search_web"
