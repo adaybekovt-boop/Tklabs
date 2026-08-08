@@ -32,6 +32,7 @@ export default async function HomePage() {
     <>
       <StitchHeader active="home" />
       <main>
+        <p className="sr-only md:hidden">{ru ? "Основная навигация закреплена внизу экрана." : "Primary navigation is fixed at the bottom of the screen."}</p>
         {/* Regression reference retained for mobile tests: aspect-[4/5] lg:aspect-auto. */}
         <section className="stitch-container mb-section-gap mt-8 grid items-center gap-8 sm:mt-12 sm:gap-10 lg:mt-20 lg:grid-cols-2 lg:gap-12">
           <ScrollReveal className="space-y-6 sm:space-y-8">
