@@ -1,3 +1,4 @@
+import { routeErmaTask } from "@/lib/ai/intelligence/router";
 import type { AiToolName } from "@/lib/ai/types";
 
 export type DirectToolRecipe = {
@@ -53,5 +54,7 @@ export function detectDirectToolRecipe(prompt: string): DirectToolRecipe | null 
 
 export function shouldOfferPlanner(prompt: string) {
   if (detectDirectToolRecipe(prompt)) return false;
-  return /(?:release|patch|version|changelog|релиз|верси|обновлен|documentation|docs?|документац|инструкц|справк|service\s*status|health|статус|доступност|archive|history|conversation|архив|истори|диалог|model capabilit|tool calling|tools?|возможност.*модел|инструмент)/i.test(prompt);
+  const route = routeErmaTask(prompt);
+  if (route.shouldPlanTools && (route.toolClass === "internal" || route.toolClass === "web" || route.toolClass === "math" || route.toolClass === "document")) return true;
+  return /(?:documentation|docs?|документац|инструкц|справк|service\s*status|health|статус|доступност|archive|history|conversation|архив|истори|диалог|model capabilit|tool calling|tools?|возможност.*модел|инструмент)/i.test(prompt);
 }
