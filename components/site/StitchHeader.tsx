@@ -96,7 +96,7 @@ export async function StitchHeader({ active, chatMode = false }: StitchHeaderPro
     <>
       {!chatMode && (
         <>
-          <header className="sticky top-0 z-50 border-b border-outline-variant/30 bg-surface/95 backdrop-blur-sm">
+          <header className="sticky top-0 z-50 hidden border-b border-outline-variant/30 bg-surface/95 backdrop-blur-sm lg:block">
             <div className="stitch-container flex min-h-14 items-center justify-between gap-3 md:min-h-[80px] md:gap-8">
               <div className="flex min-w-0 items-center gap-3">
                 <Link href="/" className="shrink-0" aria-label="TK LAB">
