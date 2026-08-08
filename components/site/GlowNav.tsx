@@ -1,8 +1,9 @@
 "use client";
 
-import { useRouter } from "next/navigation";
 import { Activity, Boxes, FlaskConical, Newspaper } from "lucide-react";
+
 import { MenuBar } from "@/components/ui/glow-menu";
+import { useRouteTransition } from "@/components/site/useRouteTransition";
 
 export type GlowNavLabels = {
   chat: string;
@@ -13,7 +14,7 @@ export type GlowNavLabels = {
 
 // Secondary resource routes remain available from the footer, including href: "/developers".
 export function GlowNav({ active, labels }: { active?: string; labels: GlowNavLabels }) {
-  const router = useRouter();
+  const navigate = useRouteTransition();
   const items = [
     { icon: FlaskConical, label: labels.chat, href: "/playground", activeKey: "laboratory", gradient: "radial-gradient(circle, rgba(249,115,22,0.18) 0%, rgba(234,88,12,0.07) 50%, rgba(194,65,12,0) 100%)", iconColor: "text-orange-500" },
     { icon: Boxes, label: labels.models, href: "/models", activeKey: "models", gradient: "radial-gradient(circle, rgba(168,85,247,0.18) 0%, rgba(147,51,234,0.07) 50%, rgba(126,34,206,0) 100%)", iconColor: "text-purple-500" },
@@ -28,7 +29,7 @@ export function GlowNav({ active, labels }: { active?: string; labels: GlowNavLa
       activeItem={activeLabel}
       onItemClick={(label) => {
         const item = items.find((entry) => entry.label === label);
-        if (item) router.push(item.href);
+        if (item) navigate(item.href);
       }}
     />
   );

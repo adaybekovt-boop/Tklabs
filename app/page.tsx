@@ -32,15 +32,16 @@ export default async function HomePage() {
     <>
       <StitchHeader active="home" />
       <main>
+        <p className="sr-only md:hidden">{ru ? "Основная навигация закреплена внизу экрана." : "Primary navigation is fixed at the bottom of the screen."}</p>
         {/* Regression reference retained for mobile tests: aspect-[4/5] lg:aspect-auto. */}
         <section className="stitch-container mb-section-gap mt-8 grid items-center gap-8 sm:mt-12 sm:gap-10 lg:mt-20 lg:grid-cols-2 lg:gap-12">
           <ScrollReveal className="space-y-6 sm:space-y-8">
             <p className="label-caps text-secondary">TK LAB · ERMA</p>
             <h1 className="display-title max-w-2xl">{ru ? "Спокойная AI-среда для реальной работы" : "A calm AI workspace for real work"}</h1>
             <p className="max-w-xl text-[17px] leading-[1.75] text-on-surface-variant">{ru ? "Задайте вопрос, приложите текст или продолжите локальный проект. Интерфейс показывает результат и полезные действия, а не внутреннюю инфраструктуру моделей." : "Ask a question, attach text, or continue a local project. The interface shows results and useful actions instead of model infrastructure."}</p>
-            <div className="pt-2 sm:pt-4">
+            <div className="hidden pt-4 sm:flex sm:items-center sm:gap-4">
               <FlowButton href="/playground" text={ru ? "Открыть AI-чат" : "Open AI chat"} dark />
-              <Link href="/models" className="ml-4 inline-flex min-h-11 items-center gap-1 border-b border-primary text-sm font-medium text-primary">{ru ? "Как работает Erma Auto" : "How Erma Auto works"}<ArrowUpRight size={15} /></Link>
+              <Link href="/models" className="inline-flex min-h-11 items-center gap-1 border-b border-primary text-sm font-medium text-primary">{ru ? "Как работает Erma Auto" : "How Erma Auto works"}<ArrowUpRight size={15} /></Link>
             </div>
           </ScrollReveal>
           <ScrollReveal delay={0.15} className="relative aspect-[16/10] overflow-hidden rounded-3xl sm:aspect-[4/3] lg:aspect-auto lg:min-h-[500px]">
@@ -88,10 +89,6 @@ export default async function HomePage() {
               </div>
             </article>
           </ScrollReveal>
-        </section>
-
-        <section className="stitch-container mb-section-gap md:hidden">
-          <Link href="/playground" className="flex min-h-14 items-center justify-center rounded-full bg-primary px-6 text-sm font-medium text-on-primary">{ru ? "Начать новый диалог" : "Start a new conversation"}</Link>
         </section>
       </main>
       <StitchFooter />

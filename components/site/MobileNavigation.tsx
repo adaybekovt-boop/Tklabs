@@ -21,6 +21,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { LanguageToggle } from "@/components/site/LanguageToggle";
 import { ThemeToggle } from "@/components/site/ThemeToggle";
+import { shouldAnimateLink, useRouteTransition } from "@/components/site/useRouteTransition";
 import type { Locale } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 
@@ -67,6 +68,7 @@ export function MobileNavigation({
   labels: MobileNavigationLabels;
 }) {
   const pathname = usePathname();
+  const navigate = useRouteTransition();
   const [open, setOpen] = useState(false);
   const [portalReady, setPortalReady] = useState(false);
   const panelRef = useRef<HTMLDivElement>(null);
@@ -244,7 +246,14 @@ export function MobileNavigation({
                         <Link
                           key={href}
                           href={href}
-                          onClick={closeForNavigation}
+                          onClick={(event) => {
+                            if (!shouldAnimateLink(event)) {
+                              closeForNavigation();
+                              return;
+                            }
+                            event.preventDefault();
+                            navigate(href, closeForNavigation);
+                          }}
                           aria-current={active ? "page" : undefined}
                           className={cn(
                             "flex min-h-[4.5rem] items-center gap-3 rounded-2xl border px-4 py-3 transition-[transform,border-color,background-color] active:scale-[.99] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-primary/20",
@@ -297,6 +306,11 @@ export function MobileNavigation({
               <Link
                 key={href}
                 href={href}
+                onClick={(event) => {
+                  if (!shouldAnimateLink(event) || active) return;
+                  event.preventDefault();
+                  navigate(href);
+                }}
                 aria-current={active ? "page" : undefined}
                 className={cn(
                   "group relative flex min-h-[58px] flex-col items-center justify-center gap-1 rounded-2xl px-1 text-[10px] font-semibold leading-none focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-primary/20",
