@@ -1,8 +1,8 @@
 /* global self, caches, Request, Response, fetch, URL */
 
 const CACHE_PREFIX = "tklabs";
-const CACHE_VERSION = "v0.17.5";
-const CACHE_REVISION = "access-policy-r1";
+const CACHE_VERSION = "v0.19.7";
+const CACHE_REVISION = "workspace-evolution-r1";
 const STATIC_CACHE = `${CACHE_PREFIX}-${CACHE_VERSION}-${CACHE_REVISION}-static`;
 const OFFLINE_URL = "/offline";
 const PRECACHE_URLS = [
@@ -35,7 +35,8 @@ self.addEventListener("install", (event) => {
       const response = await fetch(request);
       await putSafe(cache, request, response);
     }));
-    await self.skipWaiting();
+    // Do not call skipWaiting automatically. Existing clients keep the active
+    // Worker until the user explicitly applies the update from PwaRuntime.
   })());
 });
 
@@ -51,6 +52,7 @@ self.addEventListener("activate", (event) => {
 
 self.addEventListener("message", (event) => {
   if (event.data?.type === "SKIP_WAITING") void self.skipWaiting();
+  if (event.data?.type === "GET_VERSION") event.source?.postMessage?.({ type: "TKLABS_SW_VERSION", version: CACHE_VERSION, revision: CACHE_REVISION });
 });
 
 self.addEventListener("fetch", (event) => {
