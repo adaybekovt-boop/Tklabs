@@ -1,7 +1,7 @@
 export type ProductFactsLocale = "ru" | "en";
 export type StorageMode = "local" | "synced" | "ephemeral";
 
-export const PRODUCT_FACTS_VERSION = "2026-08-09";
+export const PRODUCT_FACTS_VERSION = "2026-08-08";
 export const PRODUCT_POSITIONING = {
   ru: "Local-first AI workspace с явным контролем данных.",
   en: "A local-first AI workspace with explicit data control.",
