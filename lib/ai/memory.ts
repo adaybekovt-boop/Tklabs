@@ -80,11 +80,14 @@ export function buildStructuredChatMemory(messages: MemoryMessage[]): Structured
   return memory;
 }
 
+// Context compaction removes sections from the beginning when the provider
+// budget gets tight. Keep low-priority factual excerpts first so goals,
+// decisions, constraints, and open work survive longer under pressure.
 const SECTION_ORDER: Array<[keyof StructuredChatMemory, string]> = [
+  ["facts", "Relevant facts"],
   ["goals", "Goals"],
   ["decisions", "Decisions"],
   ["constraints", "Constraints"],
-  ["facts", "Relevant facts"],
   ["openTasks", "Open tasks"],
 ];
 
