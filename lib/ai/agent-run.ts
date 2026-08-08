@@ -1,4 +1,4 @@
-export const AGENT_RUN_PROTOCOL_VERSION = "2.0" as const;
+export const AGENT_RUN_PROTOCOL_VERSION = "2.1" as const;
 
 export type AgentRunStatus = "idle" | "planning" | "running" | "completed" | "failed" | "cancelled";
 export type AgentRunStepStatus = "pending" | "running" | "completed" | "failed" | "cancelled";
@@ -8,6 +8,7 @@ export const AGENT_RUN_EVENT_NAMES = [
   "plan.created",
   "step.started",
   "step.completed",
+  "step.failed",
   "tool.started",
   "tool.completed",
   "reference.added",
@@ -117,6 +118,19 @@ export function applyAgentRunEvent(state: AgentRunState, message: AgentRunEvent)
         steps: updateStep(state, stepId, (step) => ({
           ...step,
           status: "completed",
+          detail: typeof payload.detail === "string" ? payload.detail : step.detail,
+          completedAt: message.timestamp,
+        })),
+      };
+    }
+    case "step.failed": {
+      const stepId = typeof payload.stepId === "string" ? payload.stepId : "";
+      return {
+        ...state,
+        status: "running",
+        steps: updateStep(state, stepId, (step) => ({
+          ...step,
+          status: "failed",
           detail: typeof payload.detail === "string" ? payload.detail : step.detail,
           completedAt: message.timestamp,
         })),
