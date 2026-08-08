@@ -12,7 +12,7 @@ test("the original v0.14 read-only tools remain available while the evolved runt
   assert.match(registry, /additionalProperties: false/g);
   assert.match(registry, /MAX_AI_TOOL_CALLS = 8/);
   assert.match(registry, /MAX_AI_TOOL_ROUNDS = 3/);
-  assert.match(registry, /AI_TOOL_TIMEOUT_MS = 3_500/);
+  assert.match(registry, /AI_TOOL_TIMEOUT_MS = 9_000/);
   assert.match(capabilities, /mode: "read-only"/);
   assert.match(capabilities, /parallelCalls: false/);
 });
