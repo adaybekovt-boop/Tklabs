@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 
 import "@/app/globals.css";
 import "@/app/motion.css";
+import "@/app/navigation-polish.css";
 import "@/app/interface-polish.css";
 import "@/lib/public-branding";
 import { PwaRuntime } from "@/components/pwa/PwaRuntime";
