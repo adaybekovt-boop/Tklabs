@@ -41,13 +41,14 @@ test("conversation drawer keeps context and activity while removing duplicated A
   assert.match(toolbar, /automatically chooses the right depth and tools/);
 });
 
-test("browser assurance waits for client-owned Erma surfaces instead of removed tuning controls", async () => {
+test("browser assurance waits for hydrated client-owned Erma surfaces instead of removed tuning controls", async () => {
   const playgroundE2e = await source("e2e/playground.spec.mjs");
   const intelligenceE2e = await source("e2e/intelligence.spec.mjs");
 
   for (const browserContract of [playgroundE2e, intelligenceE2e]) {
     assert.doesNotMatch(browserContract, /data-locale-toggle/);
-    assert.match(browserContract, /data-testid=\\?"prompt-input\\?"|data-testid="prompt-input"/);
+    assert.match(browserContract, /data-app-dock.*data-mobile-workspace-switcher/);
   }
+  assert.match(playgroundE2e, /data-testid="prompt-input"/);
   assert.doesNotMatch(playgroundE2e, /mobile-prompt-input/);
 });
