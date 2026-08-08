@@ -1,7 +1,7 @@
 import { eq } from "drizzle-orm";
 
 import { getDb } from "@/db";
-import { legalAcceptances, users } from "@/db/schema";
+import { auditEvents, legalAcceptances, users, workspaceSnapshots } from "@/db/schema";
 import { recordAuditEvent } from "@/lib/audit-events";
 import { CURRENT_LEGAL_BUNDLE_DIGEST, CURRENT_LEGAL_BUNDLE_VERSION } from "@/lib/legal-documents";
 import type { TermsLanguage } from "@/lib/terms";
@@ -19,7 +19,17 @@ async function ensureUser(user: TermsUser) {
     const db = getDb(); const now = new Date(); const id = await termsUserId(email);
     await db.insert(users).values({ id, email, name: user.name?.trim() || null, image: user.image?.trim() || null, createdAt: now, updatedAt: now }).onConflictDoUpdate({ target: users.email, set: { name: user.name?.trim() || null, image: user.image?.trim() || null, updatedAt: now } }).run();
     let row = await db.select().from(users).where(eq(users.email, email)).get(); if (!row) throw new TermsStorageUnavailableError();
-    if (row.id !== id && row.id === (await legacyTermsUserId(email))) { await db.update(users).set({ id }).where(eq(users.email, email)).run(); row = { ...row, id }; }
+    if (row.id !== id && row.id === (await legacyTermsUserId(email))) {
+      const legacyId = row.id;
+      // Related rows now exist, so migrate them before changing the users PK.
+      // Keeping the user row on the legacy id until the final statement makes
+      // a partial failure retryable instead of silently orphaning linked data.
+      await db.update(workspaceSnapshots).set({ userId: id }).where(eq(workspaceSnapshots.userId, legacyId)).run();
+      await db.update(legalAcceptances).set({ userId: id }).where(eq(legalAcceptances.userId, legacyId)).run();
+      await db.update(auditEvents).set({ userId: id }).where(eq(auditEvents.userId, legacyId)).run();
+      await db.update(users).set({ id }).where(eq(users.email, email)).run();
+      row = { ...row, id };
+    }
     return { db, row };
   } catch (error) { if (error instanceof TermsStorageUnavailableError) throw error; console.error("Unable to access the terms consent database", error); throw new TermsStorageUnavailableError(); }
 }
