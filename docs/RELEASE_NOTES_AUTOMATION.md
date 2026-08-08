@@ -8,11 +8,15 @@ GitHub Releases is the canonical source for new release drafts and published rel
 
 Release Drafter configuration lives in `.github/release-drafter.yml`. The workflow is `.github/workflows/release-drafter.yml` and pins Release Drafter v7.7.0 to commit `34d80673e067bdc0c24568d3af899c216adcfaa9`.
 
-## Automatic lifecycle
+## Bootstrap and automatic lifecycle
+
+The repository did not previously publish GitHub Releases or tags even though the source release identity reached v0.17.5. The workflow therefore has an explicit first-run bootstrap: while no published GitHub Release exists, it maintains a draft `v0.18.0` and scans changes only after the v0.17.5 merge boundary (`2026-08-07T07:57:18Z`). This prevents old repository history from being treated as a new release and avoids Release Drafter inventing an unrelated initial version.
+
+The bootstrap draft is never published automatically. Once the first GitHub Release is explicitly published, subsequent runs use Release Drafter's normal semantic version resolution from that published baseline.
 
 On pull-request activity the autolabeler classifies conventional fix/feature/docs work using the repository's existing `bug`, `enhancement`, and `documentation` labels.
 
-After a pull request is merged to `main`, Release Drafter updates the next draft release automatically. The draft is named from semantic version resolution and is stored in GitHub Releases. Publishing remains an explicit maintainer action so a draft cannot silently become a production release or drift from the repository's release identity.
+After a pull request is merged to `main`, Release Drafter updates the next draft release automatically. Publishing remains an explicit maintainer action so a draft cannot silently become a production release.
 
 ## Standard sections
 
@@ -26,9 +30,7 @@ Release entries are grouped into these stable headings:
 - Dependencies
 - Maintenance
 
-Security, Interface, Documentation, and Dependencies can also be classified from changed paths. Hot Fixes use the existing `bug` label, and Features use `enhancement`.
-
-A change labeled `skip-changelog` is excluded from the draft. A `major` label can be used deliberately to request a major semantic-version increment; otherwise Features resolve to a minor increment and the fallback is a patch increment.
+Security, Interface, Documentation, and Dependencies can be classified from changed paths. Hot Fixes use the existing `bug` label, and Features use `enhancement`. Feature entries request a minor semantic-version increment; all other categories default to a patch increment.
 
 ## Pull request naming
 
