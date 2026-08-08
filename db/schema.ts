@@ -13,6 +13,15 @@ export const users = sqliteTable("users", {
   updatedAt: integer("updated_at", { mode: "timestamp_ms" }).notNull(),
 });
 
+export const legalAcceptances = sqliteTable("legal_acceptances", {
+  id: text("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  bundleVersion: text("bundle_version").notNull(),
+  bundleDigest: text("bundle_digest").notNull(),
+  language: text("language", { enum: ["ru", "en"] }).notNull(),
+  acceptedAt: integer("accepted_at", { mode: "timestamp_ms" }).notNull(),
+});
+
 export const workspaceSnapshots = sqliteTable("workspace_snapshots", {
   userId: text("user_id").primaryKey(),
   ciphertext: text("ciphertext").notNull(),

@@ -1,8 +1,9 @@
 import { eq } from "drizzle-orm";
 
 import { getDb } from "@/db";
-import { users } from "@/db/schema";
-import { CURRENT_TERMS_VERSION, type TermsLanguage } from "@/lib/terms";
+import { legalAcceptances, users } from "@/db/schema";
+import { CURRENT_LEGAL_BUNDLE_DIGEST, CURRENT_LEGAL_BUNDLE_VERSION } from "@/lib/legal-documents";
+import type { TermsLanguage } from "@/lib/terms";
 import { legacyTermsUserId, termsUserId } from "@/lib/terms-user-id";
 
 export class TermsStorageUnavailableError extends Error {
@@ -22,6 +23,7 @@ export type TermsConsentStatus = {
   required: boolean;
   accepted: boolean;
   currentVersion: string;
+  currentDigest: string;
   acceptedVersion: string | null;
   acceptedAt: string | null;
   language: TermsLanguage | null;
@@ -60,12 +62,6 @@ async function ensureUser(user: TermsUser) {
     }).run();
     let row = await db.select().from(users).where(eq(users.email, email)).get();
     if (!row) throw new TermsStorageUnavailableError();
-    // `id` is looked up only via the unique `email` column above, never
-    // recomputed and matched, so switching hash functions never breaks a
-    // lookup. Rows created before the HMAC migration still carry the bare
-    // SHA-256 id (onConflictDoUpdate never rewrites `id`); backfill them to
-    // the HMAC id opportunistically. `id` has no external references (see
-    // db/schema.ts), so rewriting the primary key here is safe.
     if (row.id !== id && row.id === (await legacyTermsUserId(email))) {
       await db.update(users).set({ id }).where(eq(users.email, email)).run();
       row = { ...row, id };
@@ -83,9 +79,10 @@ export async function getTermsConsentStatus(user: TermsUser): Promise<TermsConse
   const accepted = Boolean(row.termsAccepted);
   const acceptedVersion = row.termsVersion ?? null;
   return {
-    required: !accepted || acceptedVersion !== CURRENT_TERMS_VERSION,
+    required: !accepted || acceptedVersion !== CURRENT_LEGAL_BUNDLE_VERSION,
     accepted,
-    currentVersion: CURRENT_TERMS_VERSION,
+    currentVersion: CURRENT_LEGAL_BUNDLE_VERSION,
+    currentDigest: CURRENT_LEGAL_BUNDLE_DIGEST,
     acceptedVersion,
     acceptedAt: serializeDate(row.termsAcceptedAt),
     language: row.language ?? null,
@@ -93,15 +90,23 @@ export async function getTermsConsentStatus(user: TermsUser): Promise<TermsConse
 }
 
 export async function acceptTerms(user: TermsUser, language: TermsLanguage, version: string) {
-  if (version !== CURRENT_TERMS_VERSION) throw new Error("Terms version is not current.");
+  if (version !== CURRENT_LEGAL_BUNDLE_VERSION) throw new Error("Terms version is not current.");
   const { db, row } = await ensureUser(user);
   const now = new Date();
   await db.update(users).set({
     termsAccepted: true,
     termsAcceptedAt: now,
-    termsVersion: CURRENT_TERMS_VERSION,
+    termsVersion: CURRENT_LEGAL_BUNDLE_VERSION,
     language,
     updatedAt: now,
   }).where(eq(users.id, row.id)).run();
+  await db.insert(legalAcceptances).values({
+    id: crypto.randomUUID(),
+    userId: row.id,
+    bundleVersion: CURRENT_LEGAL_BUNDLE_VERSION,
+    bundleDigest: CURRENT_LEGAL_BUNDLE_DIGEST,
+    language,
+    acceptedAt: now,
+  }).run();
   return getTermsConsentStatus(user);
 }
