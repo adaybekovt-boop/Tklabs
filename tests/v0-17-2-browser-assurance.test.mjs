@@ -19,7 +19,8 @@ test("v0.17.2 runs isolated Chromium and WebKit browser assurance", async () => 
   assert.match(workflow, /browser-assurance-/);
   assert.match(scenarios, /page\.route/);
   assert.match(scenarios, /text\/event-stream/);
-  assert.match(scenarios, /mobile-prompt-input/);
+  assert.match(scenarios, /prompt-input/);
+  assert.doesNotMatch(scenarios, /mobile-prompt-input/);
   assert.match(scenarios, /manifest\.webmanifest/);
 });
 

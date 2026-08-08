@@ -79,7 +79,6 @@ test("Workspace Vault merge and replace modes are explicit", async () => {
 test("Workspace Vault is discoverable and never calls a server API", async () => {
   const page = await read("app/vault/page.tsx");
   const component = await read("components/vault/WorkspaceVault.tsx");
-  const drawer = await read("components/playground/MobileChatDrawer.tsx");
   const footer = await read("components/site/StitchFooter.tsx");
   const release = await read("docs/releases/v0.16.6.md");
 
@@ -89,7 +88,6 @@ test("Workspace Vault is discoverable and never calls a server API", async () =>
   assert.match(component, /importVault\("replace"\)/);
   assert.match(component, /data-workspace-vault-import/);
   assert.doesNotMatch(component, /fetch\(/);
-  assert.match(drawer, /href="\/vault"/);
   assert.match(footer, /href="\/vault"/);
   assert.match(release, /SHA-256/);
 });

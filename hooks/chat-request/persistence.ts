@@ -1,8 +1,8 @@
 import { DEFAULT_CONTEXT_LIMIT_TOKENS, estimateMessagesTokens, type ChatContextMessage } from "@/lib/ai/context";
-import { chatResponseModeInstruction, type ChatResponseMode } from "@/lib/chat-modes";
+import type { ChatResponseMode } from "@/lib/chat-modes";
 import type { Locale } from "@/lib/i18n";
 import type { ArchivedMessageVersion } from "@/lib/local-archive";
-import { AUTO_ERMA_MODEL_KEY, resolveAutoErmaModelKey } from "@/lib/models/public";
+import { AUTO_ERMA_MODEL_KEY } from "@/lib/models/public";
 import type { ChatMessage } from "@/components/playground/MessageList";
 import type { ChatInputSubmitMeta } from "@/components/ui/ai-chat-input";
 
@@ -26,16 +26,17 @@ export function contextStatsFromMessages(messages: ChatMessage[]): ChatContextSt
   };
 }
 
+/**
+ * v0.22: response style is routed by Erma on the server. Legacy mode values are
+ * deliberately ignored so a hidden value from an older client cannot steer the
+ * current answer. Attachments remain plain untrusted document context.
+ */
 export function modeAttachments(
   attachments: ChatInputSubmitMeta["attachments"],
-  mode: ChatResponseMode,
-  locale: Locale,
+  _mode: ChatResponseMode,
+  _locale: Locale,
 ) {
-  const instruction = chatResponseModeInstruction(mode, locale);
-  if (attachments.length === 0) return [{ name: ".tklabs-response-mode.txt", content: instruction }];
-  return attachments.map((attachment, index) => index === 0
-    ? { ...attachment, content: `${attachment.content}\n\n[TK LAB RESPONSE MODE]\n${instruction}` }
-    : attachment);
+  return attachments;
 }
 
 export function responseSnapshot(message: ChatMessage): ArchivedMessageVersion {
@@ -47,13 +48,15 @@ export function responseSnapshot(message: ChatMessage): ArchivedMessageVersion {
   };
 }
 
+/**
+ * Erma model selection is a server responsibility. Clodex remains an explicit
+ * privileged route, while every Erma request is normalized back to erma-auto.
+ */
 export function modelForPrompt(
   model: string,
-  prompt: string,
-  reasoning: boolean,
-  effort: ChatInputSubmitMeta["effort"],
+  _prompt: string,
+  _reasoning: boolean,
+  _effort: ChatInputSubmitMeta["effort"],
 ) {
-  return model === AUTO_ERMA_MODEL_KEY
-    ? resolveAutoErmaModelKey(prompt, { reasoning, effort })
-    : model;
+  return model.startsWith("clodex:") ? model : AUTO_ERMA_MODEL_KEY;
 }

@@ -267,7 +267,7 @@ test("mobile layouts avoid fixed-width content traps", async () => {
   assert.match(home, /md:hidden/);
   assert.match(home, /aspect-\[4\/5\] lg:aspect-auto/);
   assert.doesNotMatch(home, /min-w-\[700px\]/);
-  assert.match(input, /position="responsive"/);
+  assert.match(input, /w-full max-w-\[780px\]/);
   assert.match(input, /ChatOverlay/);
   assert.match(login, /grid-cols-1.*sm:grid-cols-2/);
 });
@@ -292,7 +292,7 @@ test("privileged workspace access is reflected in the client and profile", async
   const accessRoute = await text("app/api/profile/access/route.ts");
 
   assert.match(publicModels, /PUBLIC_MAX_PROMPT_LENGTH = 2_000/);
-  assert.match(playground, /clodexAccess\?\.unlimited \|\| localPreview/);
+  assert.match(playground, /access\?\.unlimited \|\| localPreview/);
   assert.match(playground, /PRIVILEGED_MAX_PROMPT_LENGTH/);
   assert.match(playground, /maxLength=\{promptLimit\}/);
   assert.match(profile, /getProfileAccess/);
@@ -340,10 +340,11 @@ test("unlimited access stays in server-only paths", async () => {
 
 test("Playground renders the empty-state heading exactly once", async () => {
   const playground = await text("components/playground/PlaygroundChat.tsx");
-  assert.equal((playground.match(/\{text\.chat\.emptyTitle\}/g) ?? []).length, 1);
+  assert.equal((playground.match(/<h2 className=/g) ?? []).length, 1);
+  assert.match(playground, /Erma сама решит|Erma decides/);
 });
 
-test("chat uses one response contract and keeps model selection mobile-safe", async () => {
+test("chat uses one response contract and keeps the One Erma composer mobile-safe", async () => {
   const playground = await text("components/playground/PlaygroundChat.tsx");
   const chatHook = await text("hooks/use-chat-request.ts");
   const messageList = await text("components/playground/MessageList.tsx");
@@ -359,7 +360,8 @@ test("chat uses one response contract and keeps model selection mobile-safe", as
   assert.match(markdown, /remarkGfm/);
   assert.match(overlay, /aria-modal="true"/);
   assert.match(overlay, /Escape/);
-  assert.match(input, /aria-haspopup="listbox"/);
+  assert.match(input, /data-testid="prompt-input"/);
+  assert.doesNotMatch(input, /aria-haspopup="listbox"|SlidersHorizontal/);
   assert.match(input, /maxAttachmentContextLength/);
   assert.doesNotMatch(playground, /text\/event-stream|data:\s*\$\{JSON\.stringify/);
 });

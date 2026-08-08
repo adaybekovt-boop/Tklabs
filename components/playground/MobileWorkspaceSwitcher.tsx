@@ -1,10 +1,9 @@
 "use client";
 
-import { Activity, FileText, MessageSquareText, ShieldCheck, Workflow, X } from "lucide-react";
+import { FileText, ListChecks, MessageSquareText, ShieldCheck, X } from "lucide-react";
 import { createPortal } from "react-dom";
-import { useState, useSyncExternalStore } from "react";
+import { useSyncExternalStore } from "react";
 
-import { TrustControlSheet } from "@/components/playground/TrustControlSheet";
 import type { Locale } from "@/lib/i18n";
 import { acknowledgeTrustDisclosure, isTrustDisclosureAcknowledged, subscribeTrustDisclosure } from "@/lib/trust-disclosure";
 import { cn } from "@/lib/utils";
@@ -12,9 +11,8 @@ import type { WorkspaceSection } from "@/lib/workspace-events";
 
 const ITEMS: Array<{ id: WorkspaceSection; ru: string; en: string; icon: typeof MessageSquareText }> = [
   { id: "chat", ru: "Чат", en: "Chat", icon: MessageSquareText },
-  { id: "flow", ru: "Flow", en: "Flow", icon: Workflow },
-  { id: "artifacts", ru: "Файлы", en: "Artifacts", icon: FileText },
-  { id: "runs", ru: "Runs", en: "Runs", icon: Activity },
+  { id: "flow", ru: "Задачи", en: "Tasks", icon: ListChecks },
+  { id: "artifacts", ru: "Файлы", en: "Files", icon: FileText },
 ];
 
 const subscribeClientReady = () => () => undefined;
@@ -23,11 +21,10 @@ const serverReadySnapshot = () => false;
 
 export function MobileWorkspaceSwitcher({ locale, active, onSelect }: { locale: Locale; active: WorkspaceSection; onSelect: (section: WorkspaceSection) => void }) {
   const ru = locale === "ru";
-  const [trustOpen, setTrustOpen] = useState(false);
   const acknowledged = useSyncExternalStore(subscribeTrustDisclosure, () => isTrustDisclosureAcknowledged(), () => false);
   const portalReady = useSyncExternalStore(subscribeClientReady, clientReadySnapshot, serverReadySnapshot);
 
-  const dockLayer = portalReady
+  return portalReady
     ? createPortal(
         <>
           {!acknowledged && (
@@ -35,17 +32,15 @@ export function MobileWorkspaceSwitcher({ locale, active, onSelect }: { locale: 
               <ShieldCheck size={15} className="mt-0.5 shrink-0" />
               <p className="min-w-0 flex-1">
                 {ru
-                  ? "AI-запросы и отправленные вложения покидают устройство для генерации. Local/Ephemeral управляют хранением, а не on-device inference."
-                  : "AI requests and submitted attachments leave the device for generation. Local/Ephemeral control storage, not on-device inference."}
+                  ? "AI-запросы и отправленные файлы передаются внешнему AI-провайдеру для генерации. Режим приватности управляет хранением, а не локальным запуском модели."
+                  : "AI requests and submitted files are sent to an external AI provider for generation. Privacy mode controls storage, not on-device model execution."}
               </p>
-              <button type="button" className="grid size-8 shrink-0 place-items-center rounded-full" onClick={() => acknowledgeTrustDisclosure()} aria-label={ru ? "Понятно" : "Got it"}>
-                <X size={14} />
-              </button>
+              <button type="button" className="grid size-8 shrink-0 place-items-center rounded-full" onClick={() => acknowledgeTrustDisclosure()} aria-label={ru ? "Понятно" : "Got it"}><X size={14} /></button>
             </div>
           )}
-          <nav className="mobile-workspace-switcher md:hidden" aria-label={ru ? "Разделы рабочей области" : "Workspace sections"} data-mobile-workspace-switcher>
+          <nav className="mobile-workspace-switcher md:hidden" aria-label={ru ? "Разделы Erma" : "Erma sections"} data-mobile-workspace-switcher>
             {ITEMS.map(({ id, ru: ruLabel, en, icon: Icon }) => {
-              const selected = active === id;
+              const selected = active === id || (active === "runs" && id === "flow");
               return (
                 <button
                   key={id}
@@ -60,15 +55,9 @@ export function MobileWorkspaceSwitcher({ locale, active, onSelect }: { locale: 
                 </button>
               );
             })}
-            <button type="button" onClick={() => setTrustOpen(true)} className="mobile-workspace-switcher__item" aria-label={ru ? "Данные и приватность" : "Data and privacy"}>
-              <ShieldCheck size={17} aria-hidden="true" />
-              <span>Trust</span>
-            </button>
           </nav>
         </>,
         document.body,
       )
     : null;
-
-  return <>{dockLayer}<TrustControlSheet locale={locale} open={trustOpen} onClose={() => setTrustOpen(false)} /></>;
 }

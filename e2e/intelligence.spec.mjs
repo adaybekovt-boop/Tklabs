@@ -7,7 +7,7 @@ function sseBody(events) {
 }
 
 async function waitForClientShell(page) {
-  await expect(page.locator("[data-locale-toggle]").first()).toHaveAttribute("data-locale-ready", "true", { timeout: 15_000 });
+  await expect(page.locator('[data-app-dock], [data-mobile-workspace-switcher]').first()).toBeAttached({ timeout: 15_000 });
   await expect(page.locator("html")).not.toHaveAttribute("data-route-transition", "entering", { timeout: 15_000 });
 }
 
