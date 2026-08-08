@@ -1,5 +1,6 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { useState } from "react";
 
 import type { Locale } from "@/lib/i18n";
@@ -13,6 +14,7 @@ function downloadJson(name: string, text: string) {
 }
 
 export function PrivacyControlCenter({ locale }: { locale: Locale }) {
+  const router = useRouter();
   const ru = locale === "ru";
   const [status, setStatus] = useState<string | null>(null);
   const [confirmation, setConfirmation] = useState("");
@@ -45,7 +47,8 @@ export function PrivacyControlCenter({ locale }: { locale: Locale }) {
     try {
       const response = await fetch("/api/account/privacy", { method: "DELETE", headers: { "content-type": "application/json" }, body: JSON.stringify({ confirmation }) });
       if (!response.ok) throw new Error();
-      clearLocalWorkspace(); window.location.assign("/api/auth/signout");
+      clearLocalWorkspace();
+      router.push("/api/auth/signout");
     } catch { setStatus(ru ? "Удаление аккаунта не завершено. Данные не считаются удалёнными." : "Account deletion did not complete. Data is not considered deleted."); setBusy(false); }
   }
 
