@@ -19,9 +19,9 @@ test("mobile public chrome relies on the persistent bottom navigation", async ()
   assert.doesNotMatch(home, /Начать новый диалог|Start a new conversation/);
   assert.match(home, /hidden pt-4 sm:flex/);
   assert.match(login, /<StitchHeader \/>/);
-  assert.match(login, /\/legal\/terms/);
-  assert.match(login, /\/legal\/privacy/);
-  assert.match(login, /\/supported-countries/);
+  assert.match(login, /href="\/legal\/terms"/);
+  assert.match(login, /href="\/legal\/privacy"/);
+  assert.match(login, /href="\/supported-countries"/);
   assert.doesNotMatch(login, /FlowButton/);
 });
 
@@ -45,8 +45,8 @@ test("navigation motion is progressive and respects reduced motion", async () =>
     read("app/layout.tsx"),
   ]);
 
-  assert.match(orchestrator, /data\.routeLeaving/);
-  assert.match(orchestrator, /data\.routeEntering/);
+  assert.match(orchestrator, /dataset\.routeLeaving/);
+  assert.match(orchestrator, /dataset\.routeEntering/);
   assert.match(orchestrator, /prefers-reduced-motion: reduce/);
   assert.match(transition, /startViewTransition/);
   assert.match(transition, /prefers-reduced-motion: reduce/);
