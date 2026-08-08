@@ -18,6 +18,17 @@ function revealImmediately(node: Element, order: number) {
   node.style.setProperty("--motion-order", String(order % 8));
 }
 
+function isPlainInternalNavigation(event: MouseEvent, anchor: HTMLAnchorElement) {
+  if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return false;
+  if (anchor.target && anchor.target !== "_self") return false;
+  if (anchor.hasAttribute("download")) return false;
+
+  const url = new URL(anchor.href, window.location.href);
+  if (url.origin !== window.location.origin) return false;
+  if (url.pathname === window.location.pathname && url.search === window.location.search && url.hash) return false;
+  return true;
+}
+
 export function MotionOrchestrator() {
   const pathname = usePathname();
 
@@ -54,7 +65,17 @@ export function MotionOrchestrator() {
       scope.querySelectorAll(REVEAL_SELECTOR).forEach(register);
     }
 
+    function markNavigationStart(event: MouseEvent) {
+      if (reducedMotion) return;
+      const target = event.target;
+      if (!(target instanceof Element)) return;
+      const anchor = target.closest<HTMLAnchorElement>("a[href]");
+      if (!anchor || !isPlainInternalNavigation(event, anchor)) return;
+      root.dataset.routeLeaving = "true";
+    }
+
     scan();
+    document.addEventListener("click", markNavigationStart, true);
 
     const mutationObserver = new MutationObserver((records) => {
       for (const record of records) {
@@ -70,17 +91,21 @@ export function MotionOrchestrator() {
     return () => {
       observer?.disconnect();
       mutationObserver.disconnect();
+      document.removeEventListener("click", markNavigationStart, true);
       delete root.dataset.motion;
+      delete root.dataset.routeLeaving;
+      delete root.dataset.routeEntering;
     };
   }, []);
 
   useEffect(() => {
     const root = document.documentElement;
-    root.dataset.routeTransition = "true";
-    const frame = requestAnimationFrame(() => {
-      delete root.dataset.routeTransition;
-    });
-    return () => cancelAnimationFrame(frame);
+    delete root.dataset.routeLeaving;
+    root.dataset.routeEntering = "true";
+    const timer = window.setTimeout(() => {
+      delete root.dataset.routeEntering;
+    }, 420);
+    return () => window.clearTimeout(timer);
   }, [pathname]);
 
   return null;
