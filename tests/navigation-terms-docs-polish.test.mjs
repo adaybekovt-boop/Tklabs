@@ -16,6 +16,8 @@ test("mobile public chrome relies on the persistent bottom navigation", async ()
   assert.match(header, /<MobileNavigation/);
   assert.match(mobileNavigation, /fixed inset-x-0 bottom-0/);
   assert.match(mobileNavigation, /data-testid="mobile-bottom-navigation"/);
+  assert.match(mobileNavigation, /useRouteTransition/);
+  assert.match(mobileNavigation, /shouldAnimateLink/);
   assert.doesNotMatch(home, /Начать новый диалог|Start a new conversation/);
   assert.match(home, /hidden pt-4 sm:flex/);
   assert.match(login, /<StitchHeader \/>/);
