@@ -6,7 +6,7 @@ export function createAiProvenance(input: { requestedModel: string; actualProvid
   return { schemaVersion: 1, aiGenerated: true, tkLabVersion: CURRENT_RELEASE_VERSION, policyVersion: AI_POLICY_VERSION, generatedAt: (input.generatedAt ?? new Date()).toISOString(), providerClass: input.actualProvider === "edge-fallback" ? "local-fallback" : "external-model-provider", productModel: input.requestedModel, actualProvider: input.actualProvider, humanEdited: false };
 }
 
-export type ProvenanceEnvelope = { schema: "tklab.ai-artifact.v1"; content: string; provenance: AiProvenance & { humanEdited: boolean }; requestId: string };
+export type ProvenanceEnvelope = { schema: "tklab.ai-artifact.v1"; content: string; provenance: Omit<AiProvenance, "humanEdited"> & { humanEdited: boolean }; requestId: string };
 export function createProvenanceEnvelope(content: string, meta: AiResponseMeta, humanEdited = false): ProvenanceEnvelope {
   const provenance = meta.provenance ?? createAiProvenance({ requestedModel: meta.requestedModel, actualProvider: meta.actualProvider });
   return { schema: "tklab.ai-artifact.v1", content, provenance: { ...provenance, humanEdited }, requestId: meta.requestId };
