@@ -1,0 +1,126 @@
+html[data-route-transition="leaving"] main {
+  opacity: .72;
+  transform: translateY(6px) scale(.996);
+  transition:
+    opacity 150ms linear,
+    transform 190ms var(--motion-ease-standard);
+}
+
+html[data-route-transition="entering"] main {
+  animation: route-content-enter 380ms var(--motion-ease-emphasized) both;
+}
+
+[data-app-dock] {
+  transform-origin: center bottom;
+  animation: app-dock-enter 460ms var(--motion-ease-emphasized) both;
+  transition:
+    border-color var(--motion-base) linear,
+    background-color var(--motion-base) linear,
+    box-shadow var(--motion-base) var(--motion-ease-standard),
+    transform var(--motion-base) var(--motion-ease-emphasized);
+}
+
+[data-dock-link] {
+  transition:
+    color var(--motion-fast) linear,
+    background-color var(--motion-fast) linear,
+    transform var(--motion-base) var(--motion-ease-emphasized);
+}
+
+[data-dock-link] [data-dock-icon] {
+  transition:
+    color var(--motion-fast) linear,
+    background-color var(--motion-base) linear,
+    box-shadow var(--motion-base) var(--motion-ease-standard),
+    transform 260ms var(--motion-ease-emphasized);
+}
+
+[data-dock-link][data-active="true"] [data-dock-icon] {
+  animation: dock-icon-select 320ms var(--motion-ease-emphasized) both;
+}
+
+[data-dock-indicator] {
+  animation: dock-indicator-enter 260ms var(--motion-ease-emphasized) both;
+}
+
+[data-app-dock-backdrop] {
+  animation: dock-backdrop-enter 180ms linear both;
+}
+
+[data-app-dock-panel] {
+  transform-origin: center bottom;
+  animation: dock-sheet-enter 360ms var(--motion-ease-emphasized) both;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  [data-app-dock]:hover {
+    box-shadow: 0 22px 70px color-mix(in srgb, var(--color-primary) 16%, transparent);
+  }
+
+  [data-dock-link]:hover [data-dock-icon] {
+    transform: translateY(-2px) scale(1.04);
+  }
+}
+
+@keyframes route-content-enter {
+  from {
+    opacity: .18;
+    transform: translateY(10px) scale(.996);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes app-dock-enter {
+  from {
+    opacity: 0;
+    transform: translateY(20px) scale(.96);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes dock-icon-select {
+  0% { transform: scale(.9); }
+  58% { transform: scale(1.1); }
+  100% { transform: scale(1); }
+}
+
+@keyframes dock-indicator-enter {
+  from { opacity: 0; transform: translateY(4px) scale(.5); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@keyframes dock-backdrop-enter {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes dock-sheet-enter {
+  from {
+    opacity: 0;
+    transform: translateY(28px) scale(.985);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html[data-route-transition="leaving"] main,
+  html[data-route-transition="entering"] main,
+  [data-app-dock],
+  [data-app-dock-backdrop],
+  [data-app-dock-panel],
+  [data-dock-link][data-active="true"] [data-dock-icon],
+  [data-dock-indicator] {
+    animation: none !important;
+    transform: none !important;
+    transition-duration: 0.01ms !important;
+  }
+}

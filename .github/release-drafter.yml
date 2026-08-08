@@ -1,0 +1,77 @@
+name-template: "TK LAB v$RESOLVED_VERSION"
+tag-template: "v$RESOLVED_VERSION"
+change-template: "- $TITLE @$AUTHOR (#$NUMBER)"
+change-title-escapes: "\\<*_&"
+
+categories:
+  - title: "🔒 Security"
+    exclusive: true
+    when:
+      paths:
+        - "auth.ts"
+        - "lib/security-*.mjs"
+        - "lib/request-security.ts"
+        - "app/api/security/**"
+        - ".github/workflows/codeql.yml"
+  - title: "🚑 Hot Fixes"
+    exclusive: true
+    when:
+      label: "bug"
+  - title: "✨ Features"
+    exclusive: true
+    semver-increment: minor
+    when:
+      label: "enhancement"
+  - title: "🎨 Interface"
+    exclusive: true
+    when:
+      paths:
+        - "app/**/*.tsx"
+        - "app/**/*.css"
+        - "components/**"
+  - title: "📚 Documentation"
+    exclusive: true
+    when:
+      - label: "documentation"
+      - paths:
+          - "docs/**"
+          - "README.md"
+  - title: "📦 Dependencies"
+    exclusive: true
+    collapse-after: 0
+    when:
+      paths:
+        - "package.json"
+        - "package-lock.json"
+  - title: "⚙️ Maintenance"
+
+autolabeler:
+  - label: "bug"
+    branch:
+      - "/^(fix|hotfix)\\/.+/"
+    title:
+      - "/^(fix|hotfix)(\\(.+\\))?:/i"
+      - "/\\b(regression|bug)\\b/i"
+  - label: "enhancement"
+    branch:
+      - "/^(feat|feature)\\/.+/"
+    title:
+      - "/^(feat|feature)(\\(.+\\))?:/i"
+  - label: "documentation"
+    files:
+      - "docs/**"
+      - "README.md"
+    branch:
+      - "/^docs?\\/.+/"
+    title:
+      - "/^docs?(\\(.+\\))?:/i"
+
+template: |
+  Automated release draft for TK LAB. Entries are collected from merged pull requests and grouped by change type.
+
+  $CHANGES
+
+  ## Contributors
+  $CONTRIBUTORS
+
+  > Publishing remains an explicit release decision. The draft is updated automatically after merges to `main`.

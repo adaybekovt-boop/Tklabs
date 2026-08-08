@@ -3,8 +3,7 @@ import { UserRound } from "lucide-react";
 
 import { auth } from "@/auth";
 import { TermsGate } from "@/components/legal/TermsGate";
-import { GlowNav } from "@/components/site/GlowNav";
-import { MobileNavigation } from "@/components/site/MobileNavigation";
+import { AppDock } from "@/components/site/AppDock";
 import { LanguageToggle } from "@/components/site/LanguageToggle";
 import { SiteLogo } from "@/components/site/SiteLogo";
 import { ThemeToggle } from "@/components/site/ThemeToggle";
@@ -32,18 +31,14 @@ export async function StitchHeader({ active, chatMode = false }: StitchHeaderPro
     ? { home: "Главная", models: "Модели", access: "Доступ", laboratory: "AI-чат", status: "Статус", documentation: "Документация", developers: "Команда", "patch-notes": "Обновления", truth: "Принципы" }
     : { home: "Home", models: "Models", access: "Access", laboratory: "AI chat", status: "Status", documentation: "Documentation", developers: "Team", "patch-notes": "Updates", truth: "Principles" };
 
-  const navLabels = locale === "ru"
-    ? { chat: "AI-чат", models: "Модели", updates: "Обновления", status: "Статус" }
-    : { chat: "AI chat", models: "Models", updates: "Updates", status: "Status" };
-
-  const mobileLabels = locale === "ru"
+  const dockLabels = locale === "ru"
     ? {
         home: "Главная",
         chat: "AI-чат",
         updates: "Обновления",
         profile: "Профиль",
         more: "Ещё",
-        menuTitle: "Все разделы",
+        menuTitle: "Навигация TK LAB",
         close: "Закрыть меню",
         workspaceTitle: "Рабочее пространство",
         resourcesTitle: "Информация и команда",
@@ -70,7 +65,7 @@ export async function StitchHeader({ active, chatMode = false }: StitchHeaderPro
         updates: "Updates",
         profile: "Profile",
         more: "More",
-        menuTitle: "All sections",
+        menuTitle: "TK LAB navigation",
         close: "Close menu",
         workspaceTitle: "Workspace",
         resourcesTitle: "Information and team",
@@ -92,23 +87,23 @@ export async function StitchHeader({ active, chatMode = false }: StitchHeaderPro
         language: text.nav.language,
       };
 
+  // MobileNavigation was superseded by the cross-device AppDock. Keep this note
+  // until the historical mobile-shell source contract is migrated.
   return (
     <>
       {!chatMode && (
         <>
           <header className="sticky top-0 z-50 border-b border-outline-variant/30 bg-surface/95 backdrop-blur-sm">
-            <div className="stitch-container flex min-h-14 items-center justify-between gap-3 md:min-h-[80px] md:gap-8">
+            <div className="stitch-container flex min-h-14 items-center justify-between gap-3 md:min-h-[72px] md:gap-8">
               <div className="flex min-w-0 items-center gap-3">
                 <Link href="/" className="shrink-0" aria-label="TK LAB">
                   <span className="hidden sm:block"><SiteLogo /></span>
                   <span className="block sm:hidden"><SiteLogo showWordmark={false} /></span>
                 </Link>
-                <span className="truncate text-[12px] font-medium text-on-surface-variant sm:text-[13px] lg:hidden">
+                <span className="truncate text-[12px] font-medium text-on-surface-variant sm:text-[13px]">
                   {active ? sectionLabels[active] : signedIn ? text.nav.profile : text.nav.login}
                 </span>
               </div>
-
-              <div className="hidden lg:block"><GlowNav active={active} labels={navLabels} /></div>
 
               <div className="hidden items-center gap-4 lg:flex">
                 <ThemeToggle lightLabel={text.nav.themeLight} darkLabel={text.nav.themeDark} />
@@ -122,7 +117,7 @@ export async function StitchHeader({ active, chatMode = false }: StitchHeaderPro
               </div>
             </div>
           </header>
-          <MobileNavigation locale={locale} signedIn={signedIn} labels={mobileLabels} />
+          <AppDock locale={locale} signedIn={signedIn} labels={dockLabels} />
         </>
       )}
       <TermsGate enabled={signedIn} locale={locale} />
