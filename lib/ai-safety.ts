@@ -40,11 +40,15 @@ function decisionFor(category: PolicyCategory, code: string, blocked: boolean): 
 export function classifyPromptSafety(input: string, options: SafetyOptions = {}): SafetyDecision {
   void options;
   const normalized = normalize(input); const folded = homoglyphFold(normalized);
+  let caution: SafetyDecision | null = null;
   for (const rule of POLICY_RULES) {
     if (rule.category === "allowed" || !rule.patterns) continue;
     if (!matches(normalized, rule.patterns) && !matches(folded, rule.patterns)) continue;
-    return decisionFor(rule.category, rule.code, rule.action === "refuse");
+    const decision = decisionFor(rule.category, rule.code, rule.action === "refuse");
+    if (decision.blocked) return decision;
+    caution ??= decision;
   }
+  if (caution) return caution;
   // Preserve the historical public contract for ordinary allowed requests.
   // Policy metadata is attached only when an actual non-default category matched.
   return { blocked: false };
