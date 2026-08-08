@@ -1,0 +1,43 @@
+name: v0.22 browser readiness fix
+
+on:
+  push:
+    branches:
+      - agent/v0.22-erma-one-world-rc
+    paths:
+      - .github/workflows/v022-browser-ready-fix.yml
+
+permissions:
+  contents: write
+
+jobs:
+  fix:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/v0.22-erma-one-world-rc
+      - name: Bind browser readiness to client-only portals
+        shell: bash
+        run: |
+          python <<'PY'
+          from pathlib import Path
+          old = '[data-app-dock], [data-mobile-workspace-switcher], [data-testid="prompt-input"]'
+          new = '[data-app-dock], [data-mobile-workspace-switcher]'
+          for name in ["e2e/playground.spec.mjs", "e2e/intelligence.spec.mjs"]:
+              path = Path(name)
+              text = path.read_text()
+              if text.count(old) != 1:
+                  raise SystemExit(f"{name}: expected one readiness selector")
+              path.write_text(text.replace(old, new))
+          Path(".github/workflows/v022-browser-ready-fix.yml").unlink()
+          PY
+      - name: Commit hydration-safe Browser Assurance
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add e2e/playground.spec.mjs e2e/intelligence.spec.mjs .github/workflows/v022-browser-ready-fix.yml
+          git commit -m "test: wait for hydrated Erma shell"
+          git push origin HEAD:agent/v0.22-erma-one-world-rc
