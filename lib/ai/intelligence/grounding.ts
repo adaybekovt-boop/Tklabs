@@ -1,12 +1,13 @@
 export type GroundingLanguage = "ru" | "en";
 
-const KAZAKHSTAN_CONTEXT = /(?:казахстан|қазақстан|kazakhstan|қазақ|казах|жуз|жүз|ұлы\s+жүз|орта\s+жүз|кіші\s+жүз|улы\s+жуз|старш(?:ий|его)\s+жуз|средн(?:ий|его)\s+жуз|младш(?:ий|его)\s+жуз|аким|әкім|тенге|теңге|ұбт|ент\b|абылай|т[өо]ле\s+би|қазыбек|айтыс|алматы|астан[аы]|шымкент)/iu;
+const KAZAKHSTAN_CONTEXT = /(?:казахстан|қазақстан|kazakhstan|қазақ|казах|жуз|жүз|zhuz|ұлы\s+жүз|орта\s+жүз|кіші\s+жүз|улы\s+жуз|старш(?:ий|его)\s+жуз|средн(?:ий|его)\s+жуз|младш(?:ий|его)\s+жуз|аким|әкім|тенге|теңге|ұбт|ент\b|абылай|т[өо]ле\s+би|tole\s+bi|қазыбек|әйтеке|абай|құнанбай|кунанбай|шоқан|шокан|уәлиханов|валиханов|ыбырай|алтынсарин|әл[-\s]?фараби|аль[-\s]?фараби|бауыржан|момышұлы|момышулы|қонаев|конаев|алаш|бөкейхан|бокейхан|жеті\s+жарғы|жеты\s+жаргы|ясауи|яcауи|туркестан|байконур|чарын|медеу|хан[-\s]?тенгри|айтыс|алматы|астан[аы]|шымкент)/iu;
 const EXACT_FACT_FORM = /^(?:кто|что|где|когда|какой|какая|какие|какого|сколько|назови|перечисли|кто\s+входит|что\s+входит|who|what|where|when|which|how\s+many|list|name)\b/iu;
 const LIST_FACT = /(?:кто\s+входит|что\s+входит|какие\s+(?:плем|род|стран|област|район|вид|тип|член|участ)|перечисли|состав|список|входит\s+в|members?|consists?\s+of|list\s+(?:the|all))/iu;
 const DATE_NUMBER_FACT = /(?:\b\d{3,4}\b|дата|год|численност|населени|процент|ставк|курс|сколько|how\s+many|population|rate|percent|date|year)/iu;
-const AUTHORITY_SENSITIVE = /(?:закон|статья|кодекс|правил|постановлен|указ|налог|статист|населени|базов\w*\s+ставк|нацбанк|национальн\w*\s+банк|министр|президент|премьер|аким|official|law|statistic|population|minister|president|prime\s+minister|central\s+bank)/iu;
-const HISTORICAL_OR_GEOGRAPHIC = /(?:истори|ханств|хан\b|би\b|батыр|жуз|жүз|плем|род\b|географ|област|район|столиц|history|historical|tribe|clan|region|capital)/iu;
+const AUTHORITY_SENSITIVE = /(?:закон|статья|кодекс|правил|постановлен|указ|налог|статист|населени|базов\w*\s+ставк|нацбанк|национальн\w*\s+банк\w*|министр|президент|премьер|аким|official|law|statistic|population|minister|president|prime\s+minister|central\s+bank)/iu;
+const HISTORICAL_OR_GEOGRAPHIC = /(?:истори|ханств|хан\b|би\b|батыр|жуз|жүз|zhuz|плем|род\b|географ|област|район|столиц|history|historical|tribe|clan|region|capital)/iu;
 const CREATIVE_OR_PERSONAL = /(?:придумай|напиши\s+(?:стих|рассказ)|иде[яи]|помоги\s+решить|как\s+мне|что\s+мне\s+делать|посоветуй|create|brainstorm|write\s+(?:a\s+)?(?:poem|story)|what\s+should\s+i\s+do|advice)/iu;
+const NAMED_ENTITY_HINT = /\s[\p{Lu}][\p{L}\p{M}'’\-]{2,}/u;
 const SECRETISH = /\b(?:sk|nvapi|ghp|github_pat|xox[baprs]|AIza)[-_A-Za-z0-9]{12,}\b/g;
 const LONG_TOKEN = /\b[A-Za-z0-9_-]{32,}\b/g;
 const EMAIL = /\b[\w.+-]+@[\w.-]+\.[A-Za-z]{2,}\b/g;
@@ -43,8 +44,10 @@ export function isKazakhstanContext(value: string) {
 export function factualRiskScore(value: string) {
   const query = sanitizeSearchQuery(value);
   if (!query || CREATIVE_OR_PERSONAL.test(query)) return 0;
+  const exact = EXACT_FACT_FORM.test(query);
   let score = 0;
-  if (EXACT_FACT_FORM.test(query)) score += 1;
+  if (exact) score += 1;
+  if (exact && NAMED_ENTITY_HINT.test(query)) score += 2;
   if (LIST_FACT.test(query)) score += 2;
   if (DATE_NUMBER_FACT.test(query)) score += 1;
   if (AUTHORITY_SENSITIVE.test(query)) score += 2;
