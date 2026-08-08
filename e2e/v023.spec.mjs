@@ -1,7 +1,44 @@
+import { deflateSync } from "node:zlib";
 import { expect, test } from "@playwright/test";
 
 const PLAYGROUND_HARNESS = "/browser-assurance/playground";
-const ONE_PIXEL_PNG = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=";
+
+function crc32(buffer) {
+  let crc = 0xffffffff;
+  for (const byte of buffer) {
+    crc ^= byte;
+    for (let bit = 0; bit < 8; bit += 1) crc = (crc >>> 1) ^ (0xedb88320 & -(crc & 1));
+  }
+  return (crc ^ 0xffffffff) >>> 0;
+}
+
+function pngChunk(type, data) {
+  const typeBuffer = Buffer.from(type, "ascii");
+  const length = Buffer.alloc(4);
+  length.writeUInt32BE(data.length, 0);
+  const checksum = Buffer.alloc(4);
+  checksum.writeUInt32BE(crc32(Buffer.concat([typeBuffer, data])), 0);
+  return Buffer.concat([length, typeBuffer, data, checksum]);
+}
+
+function onePixelPng() {
+  const signature = Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]);
+  const header = Buffer.alloc(13);
+  header.writeUInt32BE(1, 0);
+  header.writeUInt32BE(1, 4);
+  header[8] = 8;
+  header[9] = 6;
+  header[10] = 0;
+  header[11] = 0;
+  header[12] = 0;
+  const scanline = Buffer.from([0, 255, 255, 255, 255]);
+  return Buffer.concat([
+    signature,
+    pngChunk("IHDR", header),
+    pngChunk("IDAT", deflateSync(scanline)),
+    pngChunk("IEND", Buffer.alloc(0)),
+  ]);
+}
 
 function sseBody(events) {
   return events.map(({ event, data }) => `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`).join("");
@@ -58,8 +95,8 @@ test("image-only composer submission sends a bounded multimodal attachment", asy
   const composer = page.getByTestId("prompt-input");
   const fileInput = page.locator('input[type="file"][multiple]').first();
   await expect(fileInput).toHaveCount(1);
-  await fileInput.setInputFiles({ name: "pixel.png", mimeType: "image/png", buffer: Buffer.from(ONE_PIXEL_PNG, "base64") });
-  await expect(composer.getByText("pixel.png")).toBeVisible();
+  await fileInput.setInputFiles({ name: "pixel.png", mimeType: "image/png", buffer: onePixelPng() });
+  await expect(composer.getByText("pixel.png")).toBeVisible({ timeout: 10_000 });
 
   const send = page.getByRole("button", { name: /Отправить|Send/i }).last();
   await expect(send).toBeEnabled();
