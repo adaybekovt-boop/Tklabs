@@ -38,6 +38,42 @@
   box-shadow: 0 8px 22px color-mix(in srgb, var(--color-primary) 18%, transparent);
 }
 
+@media (max-width: 767px), (pointer: coarse) {
+  .playground-shell {
+    height: var(--chat-visual-height, 100dvh);
+    max-height: var(--chat-visual-height, 100dvh);
+  }
+
+  [data-erma-nova-workspace],
+  .chat-workspace {
+    min-height: 0;
+    max-height: var(--chat-visual-height, 100dvh);
+  }
+
+  .playground-transcript {
+    overscroll-behavior-y: contain;
+    scroll-padding-bottom: 1rem;
+  }
+
+  .chat-composer-area {
+    position: relative;
+    z-index: 30;
+    padding-bottom: max(0.5rem, env(safe-area-inset-bottom, 0px));
+    transform: translateZ(0);
+    contain: layout paint;
+  }
+
+  [data-mobile-chat-drawer] [role="dialog"] {
+    animation: mobile-drawer-enter 180ms cubic-bezier(.2,.8,.2,1);
+    will-change: transform;
+  }
+}
+
+@keyframes mobile-drawer-enter {
+  from { transform: translateX(-18px); opacity: 0.88; }
+  to { transform: translateX(0); opacity: 1; }
+}
+
 @media (max-width: 359px) {
   .mobile-workspace-switcher__item { gap: 0.2rem; font-size: 0.62rem; }
 }
@@ -45,6 +81,12 @@
 @media (max-width: 767px) and (orientation: landscape), (max-height: 520px) and (pointer: coarse) {
   .mobile-workspace-switcher { min-height: 2.6rem; padding-block: 0.2rem; }
   .mobile-workspace-switcher__item { min-height: 2.15rem; }
+  .playground-header > div { min-height: 2.75rem; }
+  .chat-composer-area { padding-top: 0.35rem; padding-bottom: max(0.3rem, env(safe-area-inset-bottom, 0px)); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [data-mobile-chat-drawer] [role="dialog"] { animation: none; }
 }
 
 @media (min-width: 768px) {

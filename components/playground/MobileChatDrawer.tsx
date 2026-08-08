@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
-import { Activity, DatabaseBackup, FileText, Menu, MessageSquareText, Plus, Workflow, X } from "lucide-react";
+import { Activity, DatabaseBackup, FileText, MessageSquareText, Plus, Workflow, X } from "lucide-react";
 
 import { ConversationArchive } from "@/components/playground/ConversationArchive";
 import { LanguageToggle } from "@/components/site/LanguageToggle";
@@ -31,6 +31,7 @@ export function MobileChatDrawer({
   const drawerRef = useRef<HTMLDivElement | null>(null);
   const previousFocusRef = useRef<HTMLElement | null>(null);
   const onCloseRef = useRef(onClose);
+  const swipeRef = useRef<{ x: number; y: number } | null>(null);
   const ru = locale === "ru";
 
   useEffect(() => {
@@ -80,6 +81,21 @@ export function MobileChatDrawer({
     onClose();
   }
 
+  function handleTouchStart(event: React.TouchEvent<HTMLDivElement>) {
+    const touch = event.touches[0];
+    swipeRef.current = touch ? { x: touch.clientX, y: touch.clientY } : null;
+  }
+
+  function handleTouchEnd(event: React.TouchEvent<HTMLDivElement>) {
+    const start = swipeRef.current;
+    const touch = event.changedTouches[0];
+    swipeRef.current = null;
+    if (!start || !touch) return;
+    const deltaX = touch.clientX - start.x;
+    const deltaY = touch.clientY - start.y;
+    if (deltaX < -72 && Math.abs(deltaY) < 60) onClose();
+  }
+
   if (!open || typeof document === "undefined") return null;
 
   return createPortal(
@@ -91,26 +107,19 @@ export function MobileChatDrawer({
         role="dialog"
         aria-modal="true"
         aria-labelledby="mobile-chat-drawer-title"
-        className="absolute inset-y-0 left-0 flex w-[min(92vw,420px)] flex-col overflow-hidden rounded-none border-r border-outline-variant bg-surface-container-lowest shadow-2xl outline-none"
+        onTouchStart={handleTouchStart}
+        onTouchEnd={handleTouchEnd}
+        className="absolute inset-y-0 left-0 flex w-[min(92vw,420px)] touch-pan-y flex-col overflow-hidden rounded-none border-r border-outline-variant bg-surface-container-lowest shadow-2xl outline-none"
       >
         <header className="flex min-h-14 shrink-0 items-center justify-between gap-3 border-b border-outline-variant px-4">
-          <Link
-            href="/"
-            onClick={onClose}
-            aria-label="TK LAB"
-            className="group inline-flex items-center gap-2 rounded-xl p-1 transition hover:opacity-80"
-          >
-            <SiteLogo showWordmark={true} className="scale-90 origin-left" />
+          <Link href="/" onClick={onClose} aria-label="TK LAB" className="group inline-flex items-center gap-2 rounded-xl p-1 transition hover:opacity-80">
+            <SiteLogo showWordmark={true} className="origin-left scale-90" />
           </Link>
           <button type="button" onClick={onClose} className="grid size-11 shrink-0 place-items-center rounded-full text-on-secondary-container hover:bg-surface-container-low hover:text-primary" aria-label={text.chat.close}><X size={18} /></button>
         </header>
 
         <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 py-3">
-          <button
-            type="button"
-            onClick={() => { onNewChat(); onClose(); }}
-            className="flex min-h-12 w-full items-center justify-center gap-2 rounded-2xl bg-primary px-4 text-sm font-medium text-on-primary"
-          >
+          <button type="button" onClick={() => { onNewChat(); onClose(); }} className="flex min-h-12 w-full items-center justify-center gap-2 rounded-2xl bg-primary px-4 text-sm font-medium text-on-primary">
             <Plus size={17} />{text.chat.newDialog}
           </button>
 
