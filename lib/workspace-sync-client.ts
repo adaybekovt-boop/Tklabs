@@ -7,24 +7,14 @@ const EXACT_KEYS = new Set([
   "tklab.archive.v1",
   "tklab.settings.v1",
   "tklabs.workspace-artifacts.v1",
+  "tklabs.erma-flow.runs.v1",
   "tklabs.response-mode",
   "tklabs.erma-nova.workspace-tab",
   "tklabs-theme",
 ]);
 
-export type LocalWorkspaceSnapshot = {
-  version: typeof SNAPSHOT_VERSION;
-  createdAt: number;
-  values: Record<string, string>;
-};
-
-export type RemoteWorkspaceSnapshot = {
-  payload: string;
-  revision: number;
-  checksum: string;
-  updatedAt: string;
-};
-
+export type LocalWorkspaceSnapshot = { version: typeof SNAPSHOT_VERSION; createdAt: number; values: Record<string, string> };
+export type RemoteWorkspaceSnapshot = { payload: string; revision: number; checksum: string; updatedAt: string };
 function allowedKey(key: string) { return EXACT_KEYS.has(key) || key.startsWith(DRAFT_PREFIX); }
 
 export function collectWorkspaceSnapshot(storage: Storage = window.localStorage) {
@@ -43,15 +33,17 @@ export function collectWorkspaceSnapshot(storage: Storage = window.localStorage)
 export function applyWorkspaceSnapshot(payload: string, storage: Storage = window.localStorage) {
   const parsed = JSON.parse(payload) as Partial<LocalWorkspaceSnapshot>;
   if (parsed.version !== SNAPSHOT_VERSION || !parsed.values || typeof parsed.values !== "object" || Array.isArray(parsed.values)) throw new Error("workspace_snapshot_invalid");
-  const entries = Object.entries(parsed.values);
-  let total = 0;
-  for (const [key, value] of entries) {
-    if (!allowedKey(key) || typeof value !== "string") throw new Error("workspace_snapshot_invalid");
-    total += key.length + value.length;
-    if (total > MAX_SNAPSHOT_CHARACTERS) throw new Error("workspace_snapshot_too_large");
-  }
+  const entries = Object.entries(parsed.values); let total = 0;
+  for (const [key, value] of entries) { if (!allowedKey(key) || typeof value !== "string") throw new Error("workspace_snapshot_invalid"); total += key.length + value.length; if (total > MAX_SNAPSHOT_CHARACTERS) throw new Error("workspace_snapshot_too_large"); }
   for (const [key, value] of entries) storage.setItem(key, value);
   return entries.length;
+}
+
+export function clearLocalWorkspace(storage: Storage = window.localStorage) {
+  const keys: string[] = [];
+  for (let index = 0; index < storage.length; index += 1) { const key = storage.key(index); if (key && allowedKey(key)) keys.push(key); }
+  for (const key of keys) storage.removeItem(key);
+  return keys.length;
 }
 
 export async function fetchRemoteWorkspaceSnapshot(): Promise<{ available: boolean; snapshot: RemoteWorkspaceSnapshot | null }> {
@@ -62,13 +54,16 @@ export async function fetchRemoteWorkspaceSnapshot(): Promise<{ available: boole
 }
 
 export async function uploadWorkspaceSnapshot(payload: string, expectedRevision: number | null) {
-  const response = await fetch("/api/account/workspace-sync", {
-    method: "PUT",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({ payload, expectedRevision }),
-  });
+  const response = await fetch("/api/account/workspace-sync", { method: "PUT", headers: { "content-type": "application/json" }, body: JSON.stringify({ payload, expectedRevision }) });
   if (response.status === 503) return { available: false, snapshot: null };
   if (response.status === 409) throw new Error("workspace_sync_conflict");
   if (!response.ok) throw new Error(`workspace_sync_write_${response.status}`);
   return response.json() as Promise<{ available: true; snapshot: Omit<RemoteWorkspaceSnapshot, "payload"> }>;
+}
+
+export async function deleteRemoteWorkspaceSnapshot() {
+  const response = await fetch("/api/account/workspace-sync", { method: "DELETE" });
+  if (response.status === 503) return { available: false, deleted: false };
+  if (!response.ok) throw new Error(`workspace_sync_delete_${response.status}`);
+  return response.json() as Promise<{ available: true; deleted: boolean }>;
 }

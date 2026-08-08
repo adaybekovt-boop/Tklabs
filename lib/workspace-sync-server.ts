@@ -96,16 +96,29 @@ export async function putWorkspaceSnapshot(email: string, payload: string, expec
     const sealed = await encryptPayload(normalized, payload);
     const revision = currentRevision + 1;
     const updatedAt = new Date();
-    await db.insert(workspaceSnapshots).values({ userId: id, ...sealed, revision, updatedAt }).onConflictDoUpdate({
-      target: workspaceSnapshots.userId,
-      set: { ...sealed, revision, updatedAt },
-    }).run();
+    await db.insert(workspaceSnapshots).values({ userId: id, ...sealed, revision, updatedAt }).onConflictDoUpdate({ target: workspaceSnapshots.userId, set: { ...sealed, revision, updatedAt } }).run();
     return { revision, checksum: sealed.checksum, updatedAt: updatedAt.toISOString() };
   } catch (error) {
     if (error instanceof WorkspaceSyncConflictError) throw error;
     if (error instanceof WorkspaceSyncUnavailableError) throw error;
     if (error instanceof Error && error.message === "workspace_sync_payload_too_large") throw error;
     console.error("Unable to write workspace sync snapshot", error);
+    throw new WorkspaceSyncUnavailableError();
+  }
+}
+
+export async function deleteWorkspaceSnapshot(email: string) {
+  try {
+    const normalized = normalizeEmail(email);
+    if (!normalized) throw new WorkspaceSyncUnavailableError();
+    const db = getDb();
+    const row = await db.select({ id: users.id }).from(users).where(eq(users.email, normalized)).get();
+    if (!row?.id) return { deleted: false };
+    await db.delete(workspaceSnapshots).where(eq(workspaceSnapshots.userId, row.id)).run();
+    return { deleted: true };
+  } catch (error) {
+    if (error instanceof WorkspaceSyncUnavailableError) throw error;
+    console.error("Unable to delete workspace sync snapshot", error);
     throw new WorkspaceSyncUnavailableError();
   }
 }
