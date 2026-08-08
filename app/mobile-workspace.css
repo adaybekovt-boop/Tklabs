@@ -1,0 +1,52 @@
+:root {
+  --chat-visual-height: 100dvh;
+  --chat-visual-width: 100vw;
+  --chat-visual-offset-top: 0px;
+  --chat-keyboard-inset: 0px;
+}
+
+.mobile-workspace-switcher {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.25rem;
+  flex: 0 0 auto;
+  min-height: 3rem;
+  padding: 0.3rem max(0.4rem, env(safe-area-inset-left)) 0.3rem max(0.4rem, env(safe-area-inset-right));
+  border-bottom: 1px solid var(--color-outline-variant);
+  background: color-mix(in srgb, var(--color-surface) 94%, transparent);
+  backdrop-filter: blur(16px);
+}
+
+.mobile-workspace-switcher__item {
+  display: inline-flex;
+  min-width: 0;
+  min-height: 2.35rem;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  border-radius: 999px;
+  padding: 0.35rem 0.45rem;
+  color: var(--color-on-surface-variant);
+  font-size: 0.68rem;
+  font-weight: 650;
+  white-space: nowrap;
+}
+
+.mobile-workspace-switcher__item.is-active {
+  background: var(--color-primary);
+  color: var(--color-on-primary);
+  box-shadow: 0 8px 22px color-mix(in srgb, var(--color-primary) 18%, transparent);
+}
+
+@media (max-width: 359px) {
+  .mobile-workspace-switcher__item { gap: 0.2rem; font-size: 0.62rem; }
+}
+
+@media (max-width: 767px) and (orientation: landscape), (max-height: 520px) and (pointer: coarse) {
+  .mobile-workspace-switcher { min-height: 2.6rem; padding-block: 0.2rem; }
+  .mobile-workspace-switcher__item { min-height: 2.15rem; }
+}
+
+@media (min-width: 768px) {
+  .mobile-workspace-switcher { display: none; }
+}
