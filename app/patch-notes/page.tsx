@@ -90,7 +90,7 @@ export default async function PatchNotesPage() {
           <span className="label-caps shrink-0 rounded-full border border-outline-variant px-3 py-1 text-secondary">{entries.length} {text.patchNotes.releaseCount}</span>
         </section>
 
-        <section>
+        <section aria-label={text.patchNotes.workspaceTitle}>
           <MobileReleaseBrowser entries={entries} locale={locale} />
           <div className="hidden lg:block">
             <PatchNotesBrowser entries={entries} locale={locale} />
