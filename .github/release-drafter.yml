@@ -4,9 +4,6 @@ change-template: "- $TITLE @$AUTHOR (#$NUMBER)"
 change-title-escapes: "\\<*_&"
 
 categories:
-  - type: pre-exclude
-    when:
-      label: "skip-changelog"
   - title: "🔒 Security"
     exclusive: true
     when:
@@ -47,17 +44,6 @@ categories:
         - "package.json"
         - "package-lock.json"
   - title: "⚙️ Maintenance"
-
-  - type: version-resolver
-    semver-increment: major
-    when:
-      label: "major"
-  - type: version-resolver
-    semver-increment: minor
-    when:
-      label: "enhancement"
-  - type: version-resolver
-    semver-increment: patch
 
 autolabeler:
   - label: "bug"
