@@ -1,15 +1,16 @@
 import { searchTkLabKnowledge, tkLabKnowledgeVersions, type TkLabKnowledgeKind } from "@/lib/ai/knowledge/tklab";
+import { MathInputError, solveMath, type MathOperation } from "@/lib/ai/math/engine";
 import { executeReadOnlyTool, type RawNvidiaToolCall, type ToolExecutionContext, type ToolExecutionResult } from "@/lib/ai/tools/executor";
 import { AI_TOOL_TIMEOUT_MS } from "@/lib/ai/tools/registry";
 import { openWebResult, searchWeb, type WebSearchSession } from "@/lib/ai/web/gateway";
 
-type IntelligenceToolName = "search_web" | "open_web_result" | "search_tklab_knowledge";
+type IntelligenceToolName = "search_web" | "open_web_result" | "search_tklab_knowledge" | "solve_math";
 
 class IntelligenceToolInputError extends Error {}
 
 function argsObject(call: RawNvidiaToolCall) {
   const raw = call.function?.arguments;
-  if (typeof raw !== "string" || raw.length > 4_000) throw new IntelligenceToolInputError("invalid_tool_arguments");
+  if (typeof raw !== "string" || raw.length > 12_000) throw new IntelligenceToolInputError("invalid_tool_arguments");
   let parsed: unknown;
   try { parsed = JSON.parse(raw); } catch { throw new IntelligenceToolInputError("invalid_tool_arguments"); }
   if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) throw new IntelligenceToolInputError("invalid_tool_arguments");
@@ -40,12 +41,18 @@ function knowledgeKinds(value: unknown): TkLabKnowledgeKind[] {
   return [...new Set(kinds)];
 }
 
+function mathOperation(value: unknown): MathOperation {
+  const allowed = new Set<MathOperation>(["evaluate", "quadratic", "statistics", "determinant", "derivative", "integral"]);
+  if (typeof value !== "string" || !allowed.has(value as MathOperation)) throw new IntelligenceToolInputError("invalid_math_operation");
+  return value as MathOperation;
+}
+
 function id(call: RawNvidiaToolCall) {
   return typeof call.id === "string" && call.id.trim() ? call.id.trim().slice(0, 120) : `tool-${crypto.randomUUID()}`;
 }
 
 function isIntelligenceTool(value: unknown): value is IntelligenceToolName {
-  return value === "search_web" || value === "open_web_result" || value === "search_tklab_knowledge";
+  return value === "search_web" || value === "open_web_result" || value === "search_tklab_knowledge" || value === "solve_math";
 }
 
 async function withTimeout<T>(operation: (signal: AbortSignal) => Promise<T>) {
@@ -62,6 +69,24 @@ export async function executeIntelligenceTool(call: RawNvidiaToolCall, context: 
   const toolCallId = id(call);
   try {
     const args = argsObject(call);
+
+    if (name === "solve_math") {
+      rejectUnknown(args, ["operation", "expression", "a", "b", "c", "values", "matrix"]);
+      const operation = mathOperation(args.operation);
+      const result = solveMath(operation, args);
+      return {
+        toolCallId,
+        name,
+        content: JSON.stringify({ ok: true, data: { ...result, trust: "deterministic_math_engine" } }).slice(0, 24_000),
+        trace: {
+          id: toolCallId,
+          name,
+          status: "success",
+          durationMs: Date.now() - startedAt,
+          summary: context.language === "ru" ? `Математика проверена: ${operation}` : `Math verified: ${operation}`,
+        },
+      };
+    }
 
     if (name === "search_tklab_knowledge") {
       rejectUnknown(args, ["query", "kinds", "limit"]);
@@ -120,7 +145,7 @@ export async function executeIntelligenceTool(call: RawNvidiaToolCall, context: 
     };
   } catch (error) {
     const timedOut = (error instanceof DOMException && error.name === "AbortError") || (error instanceof Error && error.message === "tool_timeout");
-    const blocked = error instanceof IntelligenceToolInputError || (error instanceof Error && /blocked|private|not_in_session|content_type|redirect/.test(error.message));
+    const blocked = error instanceof IntelligenceToolInputError || error instanceof MathInputError || (error instanceof Error && /blocked|private|not_in_session|content_type|redirect/.test(error.message));
     const status = timedOut ? "timeout" : blocked ? "blocked" : "error";
     console.info("ai.intelligence_tool_call", { requestId: context.requestId, name, status, durationMs: Date.now() - startedAt, reason: error instanceof Error ? error.message.slice(0, 80) : "unknown" });
     return {
