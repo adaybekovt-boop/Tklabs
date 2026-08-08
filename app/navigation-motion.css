@@ -11,6 +11,21 @@ html[data-route-transition="entering"] main {
 }
 
 /*
+ * Viewport-fixed layers are direct children of document.body. A transformed body
+ * becomes their containing block in Chromium/WebKit, which makes `bottom: 0`
+ * resolve against the document height on long mobile pages. Keep page-level
+ * motion opacity-only and put spatial route motion on <main> instead.
+ */
+html[data-motion="ready"] body {
+  animation-name: viewport-safe-page-enter;
+}
+
+html[data-route-transition="true"] body {
+  transform: none;
+  transition-property: opacity;
+}
+
+/*
  * The fixed dock anchor itself must never be transformed. Mobile Chromium/WebKit
  * can otherwise composite it against the document scroll layer, making `bottom`
  * resolve at the end of a long page instead of the visual viewport. Motion lives
@@ -69,6 +84,11 @@ html[data-route-transition="entering"] main {
   [data-dock-link]:hover [data-dock-icon] {
     transform: translateY(-2px) scale(1.04);
   }
+}
+
+@keyframes viewport-safe-page-enter {
+  from { opacity: 0; }
+  to { opacity: 1; }
 }
 
 @keyframes route-content-enter {
