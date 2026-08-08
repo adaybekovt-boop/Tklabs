@@ -2,7 +2,7 @@ import type { Locale } from "@/lib/i18n";
 import { CURRENT_TERMS_VERSION } from "@/lib/terms";
 
 export const CURRENT_LEGAL_BUNDLE_VERSION = "2026-08-08";
-export const CURRENT_LEGAL_BUNDLE_DIGEST = "dc79d1a0e5f1b7e4f49dcd248918641629df0e421c04d4e34f39f539a1a05b7c";
+export const CURRENT_LEGAL_BUNDLE_DIGEST = "b87851713df7c721edd7e1f2f17cf047da4a34ea68ed13e89530f80e3f402f42";
 
 export type LegalDocumentSlug = "privacy" | "acceptable-use" | "ai-transparency" | "subprocessors" | "security";
 
