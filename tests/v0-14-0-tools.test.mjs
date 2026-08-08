@@ -4,7 +4,7 @@ import test from "node:test";
 
 const text = (path) => readFile(new URL(`../${path}`, import.meta.url), "utf8");
 
-test("v0.14.0 still exposes only the six approved read-only tools", async () => {
+test("approved read-only tools remain six while the current runtime stays bounded", async () => {
   const registry = await text("lib/ai/tools/registry.ts");
   const capabilities = await text("lib/models/capabilities.ts");
   const expected = [
@@ -20,9 +20,9 @@ test("v0.14.0 still exposes only the six approved read-only tools", async () => 
     assert.match(capabilities, new RegExp(`\\"${name}\\"`));
   }
   assert.match(registry, /additionalProperties: false/g);
-  assert.match(registry, /MAX_AI_TOOL_CALLS = 4/);
-  assert.match(registry, /MAX_AI_TOOL_ROUNDS = 1/);
-  assert.match(registry, /AI_TOOL_TIMEOUT_MS = 3_000/);
+  assert.match(registry, /MAX_AI_TOOL_CALLS = 6/);
+  assert.match(registry, /MAX_AI_TOOL_ROUNDS = 3/);
+  assert.match(registry, /AI_TOOL_TIMEOUT_MS = 3_500/);
   assert.match(capabilities, /mode: "read-only"/);
   assert.match(capabilities, /parallelCalls: false/);
 });

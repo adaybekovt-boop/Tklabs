@@ -3,9 +3,10 @@
 /* eslint-disable react-hooks/set-state-in-effect -- browser-only workspace state hydrates from localStorage. */
 
 import { lazy, Suspense, useEffect, useState } from "react";
-import { Activity, ChevronLeft, FileText, MessageSquareText, Workflow } from "lucide-react";
+import { Activity, FileText, MessageSquareText, Workflow } from "lucide-react";
 
 import Link from "next/link";
+import { MobileWorkspaceSwitcher } from "@/components/playground/MobileWorkspaceSwitcher";
 import { LanguageToggle } from "@/components/site/LanguageToggle";
 import { SiteLogo } from "@/components/site/SiteLogo";
 import type { Locale } from "@/lib/i18n";
@@ -79,39 +80,28 @@ export function ErmaNovaWorkspace({ locale }: { locale: Locale }) {
     { id: "artifacts", label: ru ? "Артефакты" : "Artifacts", icon: FileText },
     { id: "runs", label: "Agent Runs", icon: Activity },
   ];
-  const mobileSectionTitle = tab === "flow"
-    ? "Erma Flow"
-    : tab === "artifacts"
-      ? ru ? "Артефакты" : "Artifacts"
-      : "Agent Runs";
 
   return (
     <div className="flex h-full min-h-0 flex-1 flex-col overflow-hidden bg-surface" data-erma-nova-workspace data-active-workspace={tab}>
-      {tab !== "chat" && (
-        <header className="flex min-h-14 shrink-0 items-center justify-between gap-3 border-b border-outline-variant bg-surface-container-lowest/95 px-3 backdrop-blur-md md:hidden">
-          <button type="button" onClick={() => selectTab("chat")} className="grid size-11 place-items-center rounded-full text-primary hover:bg-surface-container-low" aria-label={ru ? "Вернуться в чат" : "Back to chat"}><ChevronLeft size={20} /></button>
-          <p className="min-w-0 flex-1 truncate text-center text-sm font-semibold text-primary">{mobileSectionTitle}</p>
-          <div className="flex min-h-10 items-center rounded-xl border border-outline-variant bg-surface px-2"><LanguageToggle locale={locale} label={ru ? "Язык интерфейса" : "Interface language"} /></div>
-        </header>
-      )}
+      <MobileWorkspaceSwitcher locale={locale} active={tab} onSelect={selectTab} />
 
       <header className="hidden min-h-14 shrink-0 grid-cols-[1fr_auto_1fr] items-center gap-2 border-b border-outline-variant bg-surface-container-lowest/95 px-5 backdrop-blur-md md:grid">
-        <div className="flex items-center min-w-0">
+        <div className="flex min-w-0 items-center">
           <Link
             href="/"
             aria-label={ru ? "На главную" : "Go to home"}
             className="group inline-flex items-center gap-2 rounded-xl p-1 transition hover:opacity-80"
             title={ru ? "На главную" : "Go to home"}
           >
-            <SiteLogo showWordmark={true} className="scale-90 origin-left" />
+            <SiteLogo showWordmark={true} className="origin-left scale-90" />
           </Link>
         </div>
 
-        <div className="flex items-center justify-center min-w-0">
+        <div className="flex min-w-0 items-center justify-center">
           <nav
             role="tablist"
             className="flex min-w-0 max-w-full items-center overflow-x-auto rounded-full border border-outline-variant bg-surface-container-low p-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
-            aria-label={ru ? "Рабочее пространство Erma Flow" : "Erma Flow workspace"}
+            aria-label={ru ? "Рабочее пространство Erma" : "Erma workspace"}
           >
             {tabs.map(({ id, label, icon: Icon }) => (
               <button

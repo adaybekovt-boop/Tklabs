@@ -12,3 +12,12 @@ export const users = sqliteTable("users", {
   createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
   updatedAt: integer("updated_at", { mode: "timestamp_ms" }).notNull(),
 });
+
+export const workspaceSnapshots = sqliteTable("workspace_snapshots", {
+  userId: text("user_id").primaryKey(),
+  ciphertext: text("ciphertext").notNull(),
+  iv: text("iv").notNull(),
+  checksum: text("checksum").notNull(),
+  revision: integer("revision").notNull().default(1),
+  updatedAt: integer("updated_at", { mode: "timestamp_ms" }).notNull(),
+});

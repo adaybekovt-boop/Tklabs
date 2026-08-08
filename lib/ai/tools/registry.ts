@@ -2,10 +2,10 @@ import { shouldOfferPlanner } from "@/lib/ai/tools/intents";
 import { READ_ONLY_AI_TOOLS } from "@/lib/models/capabilities";
 import type { AiToolName } from "@/lib/ai/types";
 
-export const MAX_AI_TOOL_CALLS = 4;
-export const MAX_AI_TOOL_ROUNDS = 1;
-export const DEFAULT_AI_TOOL_CALLS = 2;
-export const AI_TOOL_TIMEOUT_MS = 3_000;
+export const MAX_AI_TOOL_CALLS = 6;
+export const MAX_AI_TOOL_ROUNDS = 3;
+export const DEFAULT_AI_TOOL_CALLS = 3;
+export const AI_TOOL_TIMEOUT_MS = 3_500;
 
 export type NvidiaToolDefinition = {
   type: "function";

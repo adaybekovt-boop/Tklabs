@@ -96,7 +96,7 @@ test("Erma Nova mobile chat keeps the dedicated mobile surfaces", async () => {
   assert.match(language, /localStorage is unavailable/);
 });
 
-test("Agent Run Protocol 2.0 keeps plans bounded and state explicit", () => {
+test("Agent Run Protocol keeps plans bounded and state explicit", () => {
   const started = applyAgentRunEvent(createEmptyAgentRun(), {
     event: "run.started",
     runId: "run-1",
@@ -130,13 +130,13 @@ test("Artifact Studio models local drafts and explicit version snapshots", () =>
   const edited = updateArtifact(artifact, { content: "First draft" });
   const versioned = snapshotArtifact(edited, "First stable draft");
 
-  assert.equal(artifact.schemaVersion, 1);
+  assert.equal(artifact.schemaVersion, 2);
   assert.equal(edited.content, "First draft");
   assert.equal(versioned.versions.length, 1);
   assert.equal(versioned.versions[0]?.label, "First stable draft");
 });
 
-test("Agent Run Protocol 2.0 has a typed SSE frame", () => {
+test("Agent Run Protocol has a typed SSE frame", () => {
   const event = {
     event: "run.started",
     runId: "run-2",

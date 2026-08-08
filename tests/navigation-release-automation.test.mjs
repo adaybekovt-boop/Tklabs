@@ -64,7 +64,7 @@ test("release notes are drafted automatically with stable categories and a pinne
   assert.match(config, /autolabeler:/);
   assert.match(workflow, /release-drafter\/release-drafter@34d80673e067bdc0c24568d3af899c216adcfaa9/);
   assert.match(workflow, /release-drafter\/release-drafter\/autolabeler@34d80673e067bdc0c24568d3af899c216adcfaa9/);
-  assert.match(workflow, /version: "0\.18\.0"/);
+  assert.match(workflow, /version: "0\.19\.7"/);
   assert.match(workflow, /initial-commits-since: "2026-08-07T07:57:18Z"/);
   assert.match(workflow, /releases\/latest/);
   assert.match(docs, /GitHub Releases is the canonical source/);

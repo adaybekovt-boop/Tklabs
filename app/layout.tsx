@@ -4,6 +4,7 @@ import "@/app/globals.css";
 import "@/app/motion.css";
 import "@/app/navigation-motion.css";
 import "@/app/interface-polish.css";
+import "@/app/mobile-workspace.css";
 import "@/lib/public-branding";
 import { PwaRuntime } from "@/components/pwa/PwaRuntime";
 import { MotionOrchestrator } from "@/components/site/MotionOrchestrator";
