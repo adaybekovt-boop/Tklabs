@@ -30,7 +30,7 @@ export default async function LoginPage() {
     <>
       <StitchHeader />
       <main className="stitch-container flex min-h-[72dvh] items-center justify-center py-12 sm:py-20 lg:min-h-[calc(100dvh-80px)]">
-        <ScrollReveal className="w-full max-w-xl" data-motion-card>
+        <ScrollReveal className="w-full max-w-xl">
           <section className="rounded-[2rem] border border-outline-variant bg-surface-container-lowest p-6 shadow-[0_24px_80px_rgba(15,23,42,.07)] sm:p-10 lg:p-12">
             <p className="label-caps text-secondary">{text.login.account}</p>
             <h1 className="mt-5 font-serif text-[clamp(2.4rem,7vw,4.8rem)] leading-[.98] tracking-[-.04em] text-primary">{text.login.title}</h1>
