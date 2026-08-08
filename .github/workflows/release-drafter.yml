@@ -33,7 +33,35 @@ jobs:
       contents: write
       pull-requests: read
     steps:
-      - name: Update draft release
+      - name: Detect published release baseline
+        id: release-baseline
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          status="$(curl --silent --show-error --output /dev/null --write-out '%{http_code}' \
+            --header "Authorization: Bearer $GITHUB_TOKEN" \
+            --header "Accept: application/vnd.github+json" \
+            --header "X-GitHub-Api-Version: 2022-11-28" \
+            "https://api.github.com/repos/${GITHUB_REPOSITORY}/releases/latest")"
+          case "$status" in
+            200) echo "exists=true" >> "$GITHUB_OUTPUT" ;;
+            404) echo "exists=false" >> "$GITHUB_OUTPUT" ;;
+            *) echo "Unexpected GitHub Releases status: $status" >&2; exit 1 ;;
+          esac
+
+      - name: Bootstrap v0.18.0 draft from the v0.17.5 boundary
+        if: steps.release-baseline.outputs.exists == 'false'
+        uses: release-drafter/release-drafter@34d80673e067bdc0c24568d3af899c216adcfaa9 # v7.7.0
+        with:
+          version: "0.18.0"
+          initial-commits-since: "2026-08-07T07:57:18Z"
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Update next semantic release draft
+        if: steps.release-baseline.outputs.exists == 'true'
         uses: release-drafter/release-drafter@34d80673e067bdc0c24568d3af899c216adcfaa9 # v7.7.0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
