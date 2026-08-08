@@ -36,6 +36,16 @@ test("public and workspace navigation are body-level fixed layers with stable vi
   assert.match(navigationMotion, /\[data-app-dock\] > div\s*\{[\s\S]*?app-dock-content-enter/);
 });
 
+test("document-level motion cannot become the containing block for fixed mobile layers", async () => {
+  const navigationMotion = await source("app/navigation-motion.css");
+
+  assert.match(navigationMotion, /html\[data-motion="ready"\] body\s*\{[\s\S]*?animation-name:\s*viewport-safe-page-enter/);
+  assert.match(navigationMotion, /@keyframes viewport-safe-page-enter\s*\{[\s\S]*?opacity:\s*0;[\s\S]*?opacity:\s*1;[\s\S]*?\}/);
+  const safeKeyframes = navigationMotion.match(/@keyframes viewport-safe-page-enter\s*\{([\s\S]*?)\n\}/)?.[1] ?? "";
+  assert.doesNotMatch(safeKeyframes, /transform\s*:/, "page-entry animation must not transform body");
+  assert.match(navigationMotion, /html\[data-route-transition="true"\] body\s*\{[\s\S]*?transform:\s*none/);
+});
+
 test("blocking mobile sheets share document scroll locking and explicit layer order", async () => {
   const overlay = await source("components/playground/ChatOverlay.tsx");
   const drawer = await source("components/playground/MobileChatDrawer.tsx");
