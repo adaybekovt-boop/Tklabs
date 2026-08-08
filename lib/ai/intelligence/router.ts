@@ -19,12 +19,13 @@ export type ErmaVerification = "normal" | "verify-tools" | "verify-sources" | "v
 export type ErmaToolClass = "none" | "internal" | "web" | "math" | "document" | "code";
 export type ErmaIntelligenceRoute = { schemaVersion: 1; intent: ErmaTaskIntent; freshness: ErmaFreshness; verification: ErmaVerification; toolClass: ErmaToolClass; shouldPlanTools: boolean; shouldCiteSources: boolean; maxToolCalls: number; maxToolRounds: number; reasonCode: string };
 
-const CURRENT_WORDS = /(?:сегодня|сейчас|текущ\w*|последн\w*|свеж\w*|недавн\w*|новост\w*|на данный момент|today|current(?:ly)?|latest|recent|news|right now|this week|this month)/i;
-const WEB_FACT_WORDS = /(?:интернет|веб|web|online|источник|source|новост|рынок|цена|стоимост|курс|погод|результат матч|выбор|президент|премьер|компан\w* сейчас|latest|today|current|news|market|price|weather|election|president|prime minister)/i;
+const CURRENT_WORDS = /(?:сегодня|сейчас|текущ[\p{L}\p{M}]*|последн[\p{L}\p{M}]*|свеж[\p{L}\p{M}]*|недавн[\p{L}\p{M}]*|новост[\p{L}\p{M}]*|на данный момент|қазір|қазіргі|бүгін|today|current(?:ly)?|latest|recent|news|right now|this week|this month)/iu;
+const WEB_FACT_WORDS = /(?:интернет|веб|web|online|источник|source|новост|рынок|цена|стоимост|курс|погод|результат матч|выбор|президент|премьер|компан[\p{L}\p{M}]* сейчас|latest|today|current|news|market|price|weather|election|president|prime minister)/iu;
 const TKLAB_WORDS = /(?:tk\s*lab|tklab|tk labs|erma)/i;
-const POLICY_WORDS = /(?:terms|agreement|privacy|политик|соглашен|конфиденц|acceptable use|aup|security|безопасност|retention|хранен|удален|provider|провайдер|данн\w*)/i;
+const POLICY_WORDS = /(?:terms|agreement|privacy|политик|соглашен|конфиденц|acceptable use|aup|security|безопасност|retention|хранен|удален|provider|провайдер|данн[\p{L}\p{M}]*)/iu;
 const RELEASE_WORDS = /(?:patch|release|version|changelog|update|патч|релиз|верси|обновлен|что нового|изменил)/i;
-const DOCUMENT_WORDS = /(?:pdf|документ|файл|вложен|прикреп\w*|attachment|document|contract|договор|таблиц|csv|отч[её]т|report)/i;
+const DOCUMENT_WORDS = /(?:pdf|документ|файл|вложен|прикреп[\p{L}\p{M}]*|attachment|document|contract|договор|таблиц|csv|отч[её]т|report)/iu;
+const DOCUMENT_CONTENT_REFERENCE = /(?:\b(?:в|из|по)\s+(?:этом\s+|этих\s+)?(?:документ|файл|pdf|отч[её]т)|прикреп[\p{L}\p{M}]*|вложен[\p{L}\p{M}]*|attached\s+(?:document|file)|this\s+(?:document|file)|the\s+(?:document|file)|(?:document|file)\s+(?:says|contains|shows))/iu;
 const CODE_WORDS = /(?:код|code|typescript|javascript|python|react|next\.js|sql|api|bug|ошибк|репозитор|repository|function|class|compile|lint|test)/i;
 const PLAN_WORDS = /(?:план|поэтап|пошаг|roadmap|plan|steps?|strategy|стратег)/i;
 const COMPARE_WORDS = /(?:сравн|разниц|отлич|compare|versus|\bvs\b|difference|между)/i;
@@ -53,10 +54,11 @@ export function routeErmaTask(prompt: string): ErmaIntelligenceRoute {
   if (TKLAB_WORDS.test(normalized) && POLICY_WORDS.test(normalized)) return routeFor("tklab_policy", normalized);
   if (TKLAB_WORDS.test(normalized) && RELEASE_WORDS.test(normalized)) return routeFor("tklab_release", normalized);
   if (RESEARCH_WORDS.test(normalized)) return routeFor("research", normalized);
-  if (DOCUMENT_WORDS.test(normalized)) return routeFor("document", normalized);
+  const groundedExactFact = shouldGroundExactFact(normalized);
+  if (DOCUMENT_WORDS.test(normalized) && (DOCUMENT_CONTENT_REFERENCE.test(normalized) || !groundedExactFact)) return routeFor("document", normalized);
   if (MATH_WORDS.test(normalized)) return routeFor("math", normalized);
   if (CURRENT_WORDS.test(normalized) && (WEB_FACT_WORDS.test(normalized) || ANALYSIS_WORDS.test(normalized))) return routeFor("fresh_information", normalized);
-  if (shouldGroundExactFact(normalized)) return routeFor("fact_lookup", normalized);
+  if (groundedExactFact) return routeFor("fact_lookup", normalized);
   if (CODE_WORDS.test(normalized)) return routeFor("code", normalized);
   if (PLAN_WORDS.test(normalized)) return routeFor("planning", normalized);
   if (COMPARE_WORDS.test(normalized)) return routeFor("comparison", normalized);
