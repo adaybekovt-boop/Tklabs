@@ -3,23 +3,8 @@
 import { useEffect, useRef, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 
+import { lockDocumentScroll } from "@/lib/document-scroll-lock";
 import { cn } from "@/lib/utils";
-
-let bodyLockCount = 0;
-let bodyOverflowBeforeLock = "";
-
-function lockBodyScroll() {
-  if (bodyLockCount === 0) {
-    bodyOverflowBeforeLock = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-  }
-  bodyLockCount += 1;
-}
-
-function unlockBodyScroll() {
-  bodyLockCount = Math.max(0, bodyLockCount - 1);
-  if (bodyLockCount === 0) document.body.style.overflow = bodyOverflowBeforeLock;
-}
 
 export function ChatOverlay({
   open,
@@ -51,7 +36,7 @@ export function ChatOverlay({
     if (!open) return;
 
     previousFocusRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
-    lockBodyScroll();
+    const releaseScrollLock = lockDocumentScroll();
 
     const focusFrame = requestAnimationFrame(() => {
       const firstFocusable = dialogRef.current?.querySelector<HTMLElement>(
@@ -93,7 +78,7 @@ export function ChatOverlay({
     return () => {
       cancelAnimationFrame(focusFrame);
       document.removeEventListener("keydown", onKeyDown);
-      unlockBodyScroll();
+      releaseScrollLock();
       previousFocusRef.current?.focus();
     };
   }, [open]);
@@ -101,7 +86,7 @@ export function ChatOverlay({
   if (!open || typeof document === "undefined") return null;
 
   return createPortal(
-    <div className="fixed inset-0 z-[100]" role="presentation" data-chat-overlay="true">
+    <div className="fixed inset-0 z-[180] h-[100dvh] overflow-hidden" role="presentation" data-chat-overlay="true">
       <button type="button" tabIndex={-1} className="absolute inset-0 rounded-none bg-black/45 backdrop-blur-[2px]" aria-label={closeLabel} onClick={onClose} />
       <div
         ref={dialogRef}
@@ -123,11 +108,11 @@ export function ChatOverlay({
           if (deltaY > 72 && Math.abs(deltaX) < 80) onClose();
         }}
         className={cn(
-          "chat-overlay-panel absolute max-h-[min(86dvh,720px)] overflow-y-auto border border-outline-variant bg-surface-container-lowest p-4 shadow-2xl outline-none sm:p-5",
+          "chat-overlay-panel absolute max-h-[min(86dvh,720px)] overflow-y-auto overscroll-contain border border-outline-variant bg-surface-container-lowest p-4 shadow-2xl outline-none sm:p-5",
           position === "sheet"
             ? "inset-x-0 bottom-0 rounded-t-[2rem] pb-[max(1.25rem,env(safe-area-inset-bottom))] md:inset-x-4 md:bottom-4 md:mx-auto md:max-w-xl md:rounded-[2rem]"
             : position === "popover"
-              ? "left-3 right-3 top-20 mx-auto max-w-xl rounded-[2rem] md:left-auto md:right-6 md:mx-0 md:w-[380px]"
+              ? "left-3 right-3 top-[max(1rem,env(safe-area-inset-top,0px))] mx-auto max-w-xl rounded-[2rem] md:left-auto md:right-6 md:top-20 md:mx-0 md:w-[380px]"
               : "inset-x-0 bottom-0 rounded-t-[2rem] pb-[max(1.25rem,env(safe-area-inset-bottom))] md:bottom-auto md:left-auto md:right-6 md:top-20 md:mx-0 md:w-[380px] md:rounded-[2rem]",
           className,
         )}
