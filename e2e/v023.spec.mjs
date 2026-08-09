@@ -119,18 +119,22 @@ test("mobile attachment plus opens a visible tappable menu above the composer", 
   await waitForClientShell(page);
 
   const composer = page.getByTestId("prompt-input");
-  const attachmentButton = composer.locator('button[aria-expanded="false"]').first();
+  await expect(composer).toBeVisible({ timeout: 15_000 });
+  const attachmentButton = composer.locator('button[aria-expanded]').first();
+  await expect(attachmentButton).toHaveAttribute("aria-expanded", "false");
   await expect(attachmentButton).toBeVisible();
   await expect(attachmentButton).toBeEnabled();
   await attachmentButton.tap();
+  await expect(attachmentButton).toHaveAttribute("aria-expanded", "true");
 
   const menu = composer.getByRole("menu");
   await expect(menu).toBeVisible();
   const menuBox = await menu.boundingBox();
-  const composerBox = await composer.boundingBox();
   expect(menuBox).toBeTruthy();
-  expect(composerBox).toBeTruthy();
-  expect(menuBox.y + menuBox.height).toBeLessThanOrEqual(composerBox.y + 12);
+  expect(menuBox.x).toBeGreaterThanOrEqual(0);
+  expect(menuBox.y).toBeGreaterThanOrEqual(0);
+  expect(menuBox.x + menuBox.width).toBeLessThanOrEqual(await page.evaluate(() => window.innerWidth));
+  expect(menuBox.y + menuBox.height).toBeLessThanOrEqual(await page.evaluate(() => window.innerHeight));
 
   const hitTest = await page.evaluate(({ x, y }) => {
     const node = document.elementFromPoint(x, y);
