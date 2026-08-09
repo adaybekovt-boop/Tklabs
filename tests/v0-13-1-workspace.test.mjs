@@ -81,8 +81,10 @@ test("the unified composer keeps only user-goal controls while Erma owns routing
   assert.match(input, /onAttachmentsChange/);
   assert.match(input, /handlePrimaryAction/);
   assert.match(input, /<textarea/);
-  assert.match(responsive, /PromptInput as ResponsiveChatComposer/);
+  assert.match(responsive, /<PromptInput \{\.\.\.props\} \/>/);
+  assert.match(responsive, /setErmaVoiceModeEnabled/);
   assert.doesNotMatch(input, /setSettingsOpen|CHAT_RESPONSE_MODES|SlidersHorizontal|Deep reasoning/);
+  assert.doesNotMatch(responsive, /CHAT_RESPONSE_MODES|EffortBars|ModelMark|settingsOpen/);
   assert.match(modes, /"normal" \| "analysis" \| "code" \| "search" \| "document"/);
 });
 
