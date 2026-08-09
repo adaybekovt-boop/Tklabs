@@ -76,12 +76,15 @@ type SpeechRecognitionLike = {
 };
 type SpeechRecognitionConstructor = new () => SpeechRecognitionLike;
 
+type AttachmentMenuPlacement = "above" | "below";
+
 const IMAGE_ACCEPT = "image/jpeg,image/png,image/webp";
 const MAX_IMAGE_SOURCE_BYTES = 12 * 1024 * 1024;
 const MAX_IMAGE_DATA_BYTES = 900 * 1024;
 const MAX_IMAGE_TOTAL_BYTES = 1_700 * 1024;
 const MAX_IMAGE_COUNT = 2;
 const MAX_IMAGE_DIMENSION = 1536;
+const ATTACHMENT_MENU_GAP = 8;
 
 function normalizeSpeechSegment(value: string) {
   return value.trim().replace(/\s+/g, " ");
@@ -185,6 +188,7 @@ export const PromptInput = React.forwardRef<HTMLDivElement, PromptInputProps>(fu
   const [attachments, setAttachments] = React.useState<ChatInputAttachment[]>([]);
   const [activeAttachment, setActiveAttachment] = React.useState<ChatInputAttachment | null>(null);
   const [attachmentMenuOpen, setAttachmentMenuOpen] = React.useState(false);
+  const [attachmentMenuPlacement, setAttachmentMenuPlacement] = React.useState<AttachmentMenuPlacement>("above");
   const [recording, setRecording] = React.useState(false);
   const [online, setOnline] = React.useState(true);
   const [voiceError, setVoiceError] = React.useState("");
@@ -192,6 +196,7 @@ export const PromptInput = React.forwardRef<HTMLDivElement, PromptInputProps>(fu
   const textareaRef = React.useRef<HTMLTextAreaElement>(null);
   const fileInputRef = React.useRef<HTMLInputElement>(null);
   const cameraInputRef = React.useRef<HTMLInputElement>(null);
+  const attachmentMenuRef = React.useRef<HTMLDivElement>(null);
   const recognitionRef = React.useRef<SpeechRecognitionLike | null>(null);
   const attachmentsRef = React.useRef<ChatInputAttachment[]>([]);
   const transcriptBaseRef = React.useRef("");
@@ -227,6 +232,38 @@ export const PromptInput = React.forwardRef<HTMLDivElement, PromptInputProps>(fu
     textarea.style.height = "0px";
     textarea.style.height = `${Math.min(Math.max(textarea.scrollHeight, 44), 176)}px`;
   }, [value]);
+
+  React.useLayoutEffect(() => {
+    if (!attachmentMenuOpen) return;
+
+    const updatePlacement = () => {
+      const menu = attachmentMenuRef.current;
+      if (!menu) return;
+      const anchor = menu.offsetParent instanceof HTMLElement ? menu.offsetParent : menu.parentElement;
+      if (!anchor) return;
+
+      const anchorRect = anchor.getBoundingClientRect();
+      const menuHeight = menu.getBoundingClientRect().height;
+      const visualViewport = window.visualViewport;
+      const viewportTop = visualViewport?.offsetTop ?? 0;
+      const viewportBottom = viewportTop + (visualViewport?.height ?? window.innerHeight);
+      const availableAbove = anchorRect.top - viewportTop - ATTACHMENT_MENU_GAP;
+      const availableBelow = viewportBottom - anchorRect.bottom - ATTACHMENT_MENU_GAP;
+      const placement: AttachmentMenuPlacement = menuHeight <= availableAbove || availableAbove >= availableBelow ? "above" : "below";
+      setAttachmentMenuPlacement((current) => current === placement ? current : placement);
+    };
+
+    updatePlacement();
+    const visualViewport = window.visualViewport;
+    window.addEventListener("resize", updatePlacement);
+    visualViewport?.addEventListener("resize", updatePlacement);
+    visualViewport?.addEventListener("scroll", updatePlacement);
+    return () => {
+      window.removeEventListener("resize", updatePlacement);
+      visualViewport?.removeEventListener("resize", updatePlacement);
+      visualViewport?.removeEventListener("scroll", updatePlacement);
+    };
+  }, [attachmentMenuOpen]);
 
   function submit() {
     if (!canSubmit) return;
@@ -393,7 +430,15 @@ export const PromptInput = React.forwardRef<HTMLDivElement, PromptInputProps>(fu
       )}
 
       {attachmentMenuOpen && (
-        <div className="absolute bottom-[calc(100%+8px)] left-0 z-40 w-52 overflow-hidden rounded-2xl border border-outline-variant bg-surface-container-lowest p-1.5 shadow-xl" role="menu">
+        <div
+          ref={attachmentMenuRef}
+          className={cn(
+            "absolute left-0 z-40 w-52 overflow-hidden rounded-2xl border border-outline-variant bg-surface-container-lowest p-1.5 shadow-xl",
+            attachmentMenuPlacement === "above" ? "bottom-[calc(100%+8px)]" : "top-[calc(100%+8px)]",
+          )}
+          role="menu"
+          data-placement={attachmentMenuPlacement}
+        >
           <button type="button" role="menuitem" onClick={() => cameraInputRef.current?.click()} className="flex min-h-11 w-full items-center gap-3 rounded-xl px-3 text-left text-sm text-primary hover:bg-surface-container-low"><Camera size={17} />{locale === "ru" ? "Камера" : "Camera"}</button>
           <button type="button" role="menuitem" onClick={() => fileInputRef.current?.click()} className="flex min-h-11 w-full items-center gap-3 rounded-xl px-3 text-left text-sm text-primary hover:bg-surface-container-low"><Upload size={17} />{locale === "ru" ? "Фото или файл" : "Photo or file"}</button>
         </div>
