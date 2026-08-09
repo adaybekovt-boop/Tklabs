@@ -58,6 +58,7 @@ const MAX_MESSAGE_CONTENT_LENGTH = 12_000;
 const MAX_ARCHIVE_JSON_LENGTH = 1_500_000;
 const MAX_MESSAGE_VERSIONS = 5;
 const MAX_TOOL_CALLS_PER_MESSAGE = 4;
+const MAX_GROUNDING_SUGGESTIONS_HTML = 60_000;
 const AI_TOOL_NAMES = new Set<AiToolName>([
   "search_documentation",
   "search_patch_notes",
@@ -65,6 +66,7 @@ const AI_TOOL_NAMES = new Set<AiToolName>([
   "calculate",
   "search_local_archive",
   "get_model_capabilities",
+  "search_web",
 ]);
 let archiveCache: ArchivedSession[] | null = null;
 let pendingArchivePayload: string | null = null;
@@ -129,13 +131,61 @@ function sortSessions(sessions: ArchivedSession[]) {
   });
 }
 
+function sanitizeGrounding(value: unknown): AiResponseMeta["grounding"] {
+  if (!value || typeof value !== "object") return undefined;
+  const grounding = value as NonNullable<AiResponseMeta["grounding"]>;
+  if (grounding.provider !== "google-search" || grounding.directPassThrough !== true) return undefined;
+
+  const searchQueries = Array.isArray(grounding.searchQueries)
+    ? grounding.searchQueries
+        .filter((query): query is string => typeof query === "string" && Boolean(query.trim()))
+        .slice(0, 8)
+        .map((query) => query.trim().slice(0, 400))
+    : [];
+
+  const citations = Array.isArray(grounding.citations)
+    ? grounding.citations.flatMap((citation) => {
+        if (!citation || typeof citation !== "object") return [];
+        const candidate = citation as { title?: unknown; url?: unknown; startIndex?: unknown; endIndex?: unknown };
+        if (typeof candidate.title !== "string" || typeof candidate.url !== "string" || !candidate.title.trim()) return [];
+        try {
+          const url = new URL(candidate.url);
+          if (url.protocol !== "https:" && url.protocol !== "http:") return [];
+        } catch {
+          return [];
+        }
+        const startIndex = optionalNumber(candidate.startIndex);
+        const endIndex = optionalNumber(candidate.endIndex);
+        return [{
+          title: candidate.title.trim().slice(0, 220),
+          url: candidate.url.slice(0, 2_000),
+          ...(startIndex !== undefined ? { startIndex } : {}),
+          ...(endIndex !== undefined ? { endIndex } : {}),
+        }];
+      }).slice(0, 16)
+    : [];
+
+  const searchSuggestionsHtml = typeof grounding.searchSuggestionsHtml === "string"
+    && grounding.searchSuggestionsHtml.length <= MAX_GROUNDING_SUGGESTIONS_HTML
+    ? grounding.searchSuggestionsHtml
+    : undefined;
+
+  return {
+    provider: "google-search",
+    directPassThrough: true,
+    searchQueries,
+    citations,
+    ...(searchSuggestionsHtml ? { searchSuggestionsHtml } : {}),
+  };
+}
+
 function sanitizeMeta(value: unknown): AiResponseMeta | undefined {
   if (!value || typeof value !== "object") return undefined;
   const meta = value as Partial<AiResponseMeta>;
   if (
     typeof meta.requestId !== "string"
     || typeof meta.requestedModel !== "string"
-    || (meta.actualProvider !== "nvidia" && meta.actualProvider !== "clodex" && meta.actualProvider !== "edge-fallback")
+    || (meta.actualProvider !== "nvidia" && meta.actualProvider !== "google-grounding" && meta.actualProvider !== "clodex" && meta.actualProvider !== "edge-fallback")
     || typeof meta.actualModel !== "string"
   ) return undefined;
   const inputTokens = optionalNumber(meta.inputTokens);
@@ -145,6 +195,7 @@ function sanitizeMeta(value: unknown): AiResponseMeta | undefined {
   const contextAttachmentCount = optionalNumber(meta.contextAttachmentCount);
   const contextLimit = optionalNumber(meta.contextLimit);
   const toolCalls = sanitizeToolCalls(meta.toolCalls);
+  const grounding = sanitizeGrounding(meta.grounding);
   return {
     requestId: meta.requestId.slice(0, 120),
     requestedModel: meta.requestedModel.slice(0, 120),
@@ -162,6 +213,7 @@ function sanitizeMeta(value: unknown): AiResponseMeta | undefined {
     ...(contextLimit !== undefined ? { contextLimit } : {}),
     ...(meta.contextCompacted === true ? { contextCompacted: true } : {}),
     ...(toolCalls ? { toolCalls } : {}),
+    ...(grounding ? { grounding } : {}),
   };
 }
 

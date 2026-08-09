@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 
 import { AgentActivity } from "@/components/playground/AgentActivity";
+import { GoogleGroundingPanel } from "@/components/playground/GoogleGroundingPanel";
 import AIThinkingBlock from "@/components/ui/ai-thinking-block";
 import type { AiResponseMeta } from "@/lib/ai/types";
 import { getDictionary, type Locale } from "@/lib/i18n";
@@ -156,6 +157,7 @@ export function MessageList({
               </div>
             ) : <AnswerBody content={message.content} pending={isPending && message.id === lastMessage?.id} error={message.error} />}
 
+            <GoogleGroundingPanel grounding={message.meta?.grounding} locale={locale} />
             {message.stopped && <p className="mt-3 rounded-xl bg-surface-container-low px-3 py-2 text-[11px] text-on-secondary-container">{ui.stopped}</p>}
             {message.meta?.fallbackReason && <p className="mt-3 rounded-xl border border-outline-variant bg-surface-container-low px-3 py-2 text-[11px] leading-5 text-on-secondary-container">{fallbackNotice}</p>}
             <AgentActivity calls={message.meta?.toolCalls} locale={locale} />

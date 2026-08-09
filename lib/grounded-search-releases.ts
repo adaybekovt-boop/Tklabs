@@ -4,6 +4,21 @@ import type { PublicReleaseNote } from "@/lib/releases/types";
 const RU: PublicReleaseNote[] = [
   {
     date: "09 авг. 2026",
+    version: "v0.24.2",
+    title: "Google Direct Grounding",
+    summary: "Подходящие factual/current/research запросы теперь могут получать официальный Google Search grounded-ответ напрямую: Google формирует grounded text, citations и Search Suggestions, а Erma не пересказывает этот текст повторно через NVIDIA.",
+    changes: [
+      "Текущая реплика пользователя после privacy-minimization передаётся в Gemini Interactions API с Google Search tool без отправки полной истории чата.",
+      "Полноценный grounded-ответ Google проходит direct pass-through в чат без NVIDIA rewriting.",
+      "URL citations и Google Search Suggestions сохраняются и отображаются рядом с ответом в изолированном attribution UI.",
+      "Если Google не выполнил поиск или не вернул полный attribution payload, Erma автоматически использует прежний проверяемый web-search pipeline.",
+      "Blocked, restricted и high-impact safety-категории не используют direct pass-through и остаются в стандартном TK LAB safety/synthesis контуре.",
+      "Grounding metadata сохраняется в локальном архиве, поэтому атрибуция не исчезает после перезагрузки страницы.",
+      "Google quota и HTTP 429 нельзя обойти на стороне приложения; при недоступности direct grounding используется доступный fallback-путь.",
+    ],
+  },
+  {
+    date: "09 авг. 2026",
     version: "v0.24.1",
     title: "Grounding Reliability Hotfix",
     summary: "Исправлена реальная production-проблема v0.24.0: factual-router запускал web verification, но production мог быть развернут без настроенного search provider, после чего Erma дважды повторяла неудачный поиск и отвечала слишком длинным отказом.",
@@ -36,6 +51,21 @@ const RU: PublicReleaseNote[] = [
 ];
 
 const EN: PublicReleaseNote[] = [
+  {
+    date: "09 Aug 2026",
+    version: "v0.24.2",
+    title: "Google Direct Grounding",
+    summary: "Eligible factual/current/research requests can now use the official Google Search grounded answer directly: Google produces grounded text, citations, and Search Suggestions, and Erma no longer rewrites that text through NVIDIA.",
+    changes: [
+      "The privacy-minimized current user turn is sent to the Gemini Interactions API with the Google Search tool without sending the full chat history.",
+      "A complete Google grounded answer is passed directly into chat without NVIDIA rewriting.",
+      "URL citations and Google Search Suggestions are preserved and shown next to the answer in an isolated attribution surface.",
+      "If Google does not execute search or does not return complete attribution, Erma automatically falls back to the existing verifiable web-search pipeline.",
+      "Blocked, restricted, and high-impact safety categories do not use direct pass-through and stay inside the standard TK LAB safety/synthesis path.",
+      "Grounding metadata is preserved in the local archive so attribution survives page reloads.",
+      "Google quota and HTTP 429 cannot be bypassed by the application; an available fallback path is used when direct grounding is unavailable.",
+    ],
+  },
   {
     date: "09 Aug 2026",
     version: "v0.24.1",

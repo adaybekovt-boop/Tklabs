@@ -5,7 +5,7 @@ import test from "node:test";
 import { CURRENT_LEGAL_BUNDLE_DIGEST, CURRENT_LEGAL_BUNDLE_VERSION, LEGAL_DOCUMENT_MANIFEST, getLegalDocument } from "../lib/legal-documents.ts";
 
 test("v0.20 legal bundle is versioned and covers trust documents", () => {
-  assert.equal(CURRENT_LEGAL_BUNDLE_VERSION, "2026-08-08");
+  assert.equal(CURRENT_LEGAL_BUNDLE_VERSION, "2026-08-09");
   assert.match(CURRENT_LEGAL_BUNDLE_DIGEST, /^[a-f0-9]{64}$/);
   assert.deepEqual(LEGAL_DOCUMENT_MANIFEST.map((entry) => entry.slug), ["terms", "privacy", "acceptable-use", "ai-transparency", "subprocessors", "security"]);
   assert.match(getLegalDocument("en", "privacy").sections.map((section) => section.paragraphs.join(" ")).join(" "), /not end-to-end encryption/i);

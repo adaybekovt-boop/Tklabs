@@ -33,11 +33,18 @@ export function buildAnswerDirective(route: ErmaIntelligenceRoute, verification:
     comparison: ["- Compare on explicit criteria, keep like-for-like facts aligned, and identify where evidence is asymmetric."],
   };
 
+  const routeSpecific = route.intent === "fact_lookup" && route.reasonCode.includes("KAZAKHSTAN")
+    ? [
+        "- Kazakhstan exactness guard: when source verification is not verified, do not guess or reconstruct clan/tribe/zhuz membership, demographic rankings, officeholders, legal facts, dates, or exact lists from model memory.",
+        "- In that unverified state, give only a short statement that external verification is unavailable and, if safe, a non-specific explanation of what would need verification. Never replace a requested Kazakh entity with a different zhuz, clan, tribe, office, or similarly named concept.",
+      ]
+    : [];
+
   const verificationLine = verification.status === "verified"
     ? `- Verification: ${verification.code}. Do not broaden this scoped verification beyond the evidence.`
     : verification.status === "not-required"
       ? "- No extra verification was required for this route."
       : `- Verification is ${verification.status} (${verification.code}); explicitly qualify claims that depend on missing evidence.`;
 
-  return [...common, ...intent[route.intent], verificationLine].join("\n");
+  return [...common, ...intent[route.intent], ...routeSpecific, verificationLine].join("\n");
 }

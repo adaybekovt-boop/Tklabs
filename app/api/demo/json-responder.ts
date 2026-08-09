@@ -1,3 +1,4 @@
+import { estimateTextTokens } from "@/lib/ai/context";
 import { logAiProviderFailure, logAiRequest } from "@/lib/ai/logging";
 import { generateWithNvidia } from "@/lib/ai/providers/nvidia";
 import { createAiResponseMeta } from "@/lib/ai/response";
@@ -12,6 +13,39 @@ export async function respondWithDemoJson(input: PreparedDemoRequest) {
   const { request, body, requestId, prompt, context, language, model, requestedReasoning, effort, tone, privilegedAccount, documents, images, quota, rateLimitCookie, startedAt, requestedModel } = input;
 
   const toolAugmentation = await prepareReadOnlyToolAugmentation({ request, requestId, prompt, context, language, model, localArchive: body.localArchive, documents, allowCodeSandbox: privilegedAccount, signal: request.signal });
+
+  if (toolAugmentation.directGrounding) {
+    const direct = toolAugmentation.directGrounding;
+    const directResult = withContextMetadata(withToolCalls({
+      answer: direct.answer,
+      provider: "google-grounding",
+      actualModel: direct.model,
+      inputTokens: estimateTextTokens(prompt),
+      outputTokens: estimateTextTokens(direct.answer),
+      grounding: direct.grounding,
+    }, toolAugmentation.traces), context);
+    await quota.commit();
+    const meta = createAiResponseMeta(directResult, requestedModel, requestId, startedAt);
+    logAiRequest(meta);
+    return jsonResponse({ answer: direct.answer, meta }, requestId, 200, rateLimitCookie);
+  }
+
+  if (toolAugmentation.guardedAnswer) {
+    const guarded = toolAugmentation.guardedAnswer;
+    const guardedResult = withContextMetadata(withToolCalls({
+      answer: guarded.answer,
+      provider: "edge-fallback",
+      actualModel: "kazakhstan-verification-guard",
+      fallbackReason: guarded.reason,
+      inputTokens: estimateTextTokens(prompt),
+      outputTokens: estimateTextTokens(guarded.answer),
+    }, toolAugmentation.traces), context);
+    await quota.commit();
+    const meta = createAiResponseMeta(guardedResult, requestedModel, requestId, startedAt);
+    logAiRequest(meta);
+    return jsonResponse({ answer: guarded.answer, meta }, requestId, 200, rateLimitCookie);
+  }
+
   const fallbackPrompt = contextualFallbackPrompt(context, toolAugmentation.summary);
 
   try {

@@ -49,6 +49,60 @@ export class DemoStreamSession {
       this.augmentedSummary = toolAugmentation.summary;
       for (const trace of this.toolCalls) this.send("tool", trace);
 
+      if (toolAugmentation.directGrounding) {
+        const direct = toolAugmentation.directGrounding;
+        const delivered = this.send("delta", { text: direct.answer });
+        if (!delivered) {
+          if (!this.providerController.signal.aborted) this.providerController.abort("response_closed");
+          throw new DOMException("Response closed", "AbortError");
+        }
+        this.firstTokenAt = Date.now();
+        this.partialAnswer = direct.answer;
+        await quota.commit();
+        const directResult = withContextMetadata(withToolCalls({
+          answer: direct.answer,
+          provider: "google-grounding",
+          actualModel: direct.model,
+          inputTokens: estimateTextTokens(prompt),
+          outputTokens: estimateTextTokens(direct.answer),
+          timeToFirstTokenMs: this.firstTokenAt - startedAt,
+          grounding: direct.grounding,
+        }, this.toolCalls), context);
+        const meta = createAiResponseMeta(directResult, requestedModel, requestId, startedAt);
+        logAiRequest(meta);
+        this.send("meta", meta);
+        this.send("done", { requestId, stopped: false });
+        this.close();
+        return;
+      }
+
+      if (toolAugmentation.guardedAnswer) {
+        const guarded = toolAugmentation.guardedAnswer;
+        const delivered = this.send("delta", { text: guarded.answer });
+        if (!delivered) {
+          if (!this.providerController.signal.aborted) this.providerController.abort("response_closed");
+          throw new DOMException("Response closed", "AbortError");
+        }
+        this.firstTokenAt = Date.now();
+        this.partialAnswer = guarded.answer;
+        await quota.commit();
+        const guardedResult = withContextMetadata(withToolCalls({
+          answer: guarded.answer,
+          provider: "edge-fallback",
+          actualModel: "kazakhstan-verification-guard",
+          fallbackReason: guarded.reason,
+          inputTokens: estimateTextTokens(prompt),
+          outputTokens: estimateTextTokens(guarded.answer),
+          timeToFirstTokenMs: this.firstTokenAt - startedAt,
+        }, this.toolCalls), context);
+        const meta = createAiResponseMeta(guardedResult, requestedModel, requestId, startedAt);
+        logAiRequest(meta);
+        this.send("meta", meta);
+        this.send("done", { requestId, stopped: false });
+        this.close();
+        return;
+      }
+
       const result = await streamWithNvidia({ messages: context.messages, summary: this.augmentedSummary, language, model, requestedReasoning, effort, allowCode: privilegedAccount, tone, images, signal: this.providerController.signal }, async (delta) => {
         const delivered = this.send("delta", { text: delta });
         if (!delivered) { if (!this.providerController.signal.aborted) this.providerController.abort("response_closed"); return; }
