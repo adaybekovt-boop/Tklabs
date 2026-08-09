@@ -13,67 +13,19 @@ permissions:
 jobs:
   probe:
     runs-on: ubuntu-latest
-    timeout-minutes: 12
+    timeout-minutes: 5
     steps:
-      - name: Probe production Erma through SSE
+      - name: Inspect production provider health
         shell: bash
         run: |
-          node <<'NODE'
-          const prompts = [
-            'Какие последние новости Казахстана сегодня? Назови три главных события и укажи источники.',
-            'Какие племена входят в Старший жуз Казахстана?',
-            'Самый многочисленный казахский род?',
-            'Когда была принята действующая Конституция Республики Казахстан?',
-            'Кто сейчас президент Казахстана?',
-            'Привет. Придумай короткую шутку про программиста.'
-          ];
-
-          async function probe(prompt) {
-            const response = await fetch('https://tklabs.uk/api/demo', {
-              method: 'POST',
-              headers: {
-                'content-type': 'application/json',
-                'accept': 'text/event-stream',
-                'origin': 'https://tklabs.uk',
-                'referer': 'https://tklabs.uk/'
-              },
-              body: JSON.stringify({ prompt, locale: 'ru', model: 'auto', reasonEnabled: false, effort: 'medium', tone: 'professional' })
-            });
-            const raw = await response.text();
-            let answer = '';
-            let meta = null;
-            let error = null;
-            for (const block of raw.split(/\n\n+/)) {
-              const event = block.match(/^event:\s*(.+)$/m)?.[1]?.trim();
-              const dataLine = block.match(/^data:\s*(.+)$/m)?.[1];
-              if (!event || !dataLine) continue;
-              let data;
-              try { data = JSON.parse(dataLine); } catch { continue; }
-              if (event === 'delta' && typeof data?.text === 'string') answer += data.text;
-              if (event === 'meta') meta = data;
-              if (event === 'error') error = data;
-            }
-            return { status: response.status, answer, meta, error, raw: raw.slice(0, 12000) };
-          }
-
-          for (let i = 0; i < prompts.length; i++) {
-            const prompt = prompts[i];
-            try {
-              const result = await probe(prompt);
-              console.log(`\n===== SYNTHETIC CASE ${i + 1} =====`);
-              console.log('PROMPT:', prompt);
-              console.log('HTTP:', result.status);
-              console.log('PROVIDER:', result.meta?.actualProvider ?? result.meta?.provider ?? 'unknown');
-              console.log('MODEL:', result.meta?.actualModel ?? 'unknown');
-              console.log('TOOLS:', JSON.stringify(result.meta?.toolCalls ?? []));
-              console.log('GROUNDING:', JSON.stringify(result.meta?.grounding ?? null));
-              console.log('ANSWER:', result.answer || '[empty]');
-              if (result.error) console.log('ERROR:', JSON.stringify(result.error));
-              if (!result.answer) console.log('RAW:', result.raw);
-            } catch (error) {
-              console.log(`\n===== SYNTHETIC CASE ${i + 1} FAILED =====`);
-              console.log('PROMPT:', prompt);
-              console.log('ERROR:', error instanceof Error ? error.stack : String(error));
-            }
-          }
-          NODE
+          set -euo pipefail
+          echo '=== /api/status ==='
+          curl -fsS -D /tmp/status.headers https://tklabs.uk/api/status -o /tmp/status.json || true
+          cat /tmp/status.headers || true
+          cat /tmp/status.json || true
+          echo
+          echo '=== /api/health ==='
+          curl -fsS -D /tmp/health.headers https://tklabs.uk/api/health -o /tmp/health.json || true
+          cat /tmp/health.headers || true
+          cat /tmp/health.json || true
+          echo
