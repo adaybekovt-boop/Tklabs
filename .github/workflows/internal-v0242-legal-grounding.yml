@@ -46,7 +46,7 @@ jobs:
           fs.writeFileSync(path, legal);
           NODE
       - name: Verify legal consistency
-        run: npm run legal:check
+        run: node scripts/check-legal-consistency.mjs
       - name: Commit disclosure and remove one-shot workflow
         run: |
           git config user.name "github-actions[bot]"
