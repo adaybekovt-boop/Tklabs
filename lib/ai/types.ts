@@ -1,4 +1,4 @@
-export type AiProvider = "nvidia" | "google-grounding" | "clodex" | "edge-fallback";
+export type AiProvider = "nvidia" | "google" | "cerebras" | "groq" | "google-grounding" | "clodex" | "edge-fallback";
 
 export type AiToolName =
   | "search_documentation"
