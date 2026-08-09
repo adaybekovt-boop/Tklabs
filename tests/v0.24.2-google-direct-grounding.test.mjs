@@ -4,6 +4,7 @@ import test from "node:test";
 
 import { buildAnswerDirective } from "../lib/ai/intelligence/answer.ts";
 import { routeErmaTask } from "../lib/ai/intelligence/router.ts";
+import { isContextDependentGroundingTurn } from "../lib/ai/tools/route-tools.ts";
 import { getGoogleDirectGrounding } from "../lib/ai/web/google-direct.ts";
 
 async function source(path) { return readFile(path, "utf8"); }
@@ -165,6 +166,15 @@ test("v0.24.2 synthetic router matrix keeps factual, current, reasoning and casu
   }
 });
 
+test("v0.24.2 keeps real conversation follow-ups context-aware without penalizing short self-contained facts", () => {
+  assert.equal(isContextDependentGroundingTurn("А кто сейчас?", 5), true);
+  assert.equal(isContextDependentGroundingTurn("Расскажи подробнее про него", 5), true);
+  assert.equal(isContextDependentGroundingTurn("Как я писал выше, проверь это", 5), true);
+  assert.equal(isContextDependentGroundingTurn("Новости Казахстана сегодня", 5), false);
+  assert.equal(isContextDependentGroundingTurn("Президент Казахстана сейчас?", 5), false);
+  assert.equal(isContextDependentGroundingTurn("А кто сейчас?", 1), false);
+});
+
 test("v0.24.2 Kazakhstan exact facts use the strict no-guess fallback policy", () => {
   const route = routeErmaTask("Какие племена входят в Старший жуз Казахстана?");
   assert.match(route.reasonCode, /KAZAKHSTAN/);
@@ -182,7 +192,7 @@ test("v0.24.2 bypasses NVIDIA rewriting for both SSE and JSON API responses", as
 
   assert.match(routeTools, /route\.toolClass === "web"/);
   assert.match(routeTools, /getGoogleDirectGrounding\(input\.prompt/);
-  assert.match(routeTools, /contextDependentTurn/);
+  assert.match(routeTools, /isContextDependentGroundingTurn/);
   assert.match(routeTools, /fallback_to_erma_search/);
   assert.match(session, /if \(toolAugmentation\.directGrounding\)/);
   assert.match(session, /provider: "google-grounding"/);
