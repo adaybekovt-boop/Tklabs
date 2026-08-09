@@ -22,6 +22,7 @@ export type ErmaGenerationInput = {
   signal?: AbortSignal;
   requestId?: string;
   fairnessKey?: string;
+  estimatedInputTokens?: number;
 };
 
 export type ErmaProviderGenerationResult = {
