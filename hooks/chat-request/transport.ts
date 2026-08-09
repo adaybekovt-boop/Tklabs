@@ -24,6 +24,7 @@ export function isResponseMeta(value: unknown): value is AiResponseMeta {
   return typeof meta.requestId === "string"
     && typeof meta.requestedModel === "string"
     && (meta.actualProvider === "nvidia"
+      || meta.actualProvider === "google-grounding"
       || meta.actualProvider === "clodex"
       || meta.actualProvider === "edge-fallback")
     && typeof meta.actualModel === "string"
