@@ -70,7 +70,6 @@ function bodyFor(input: ErmaGenerationInput, config: ProviderConfig, stream: boo
     ],
     max_tokens: maxOutputTokensFor(input.model.tier, input.effort),
     stream,
-    ...(stream ? { stream_options: { include_usage: true } } : {}),
   };
 }
 
