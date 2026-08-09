@@ -10,6 +10,9 @@ type HealthStatusEnv = {
   NVIDIA_API_KEY_SECONDARY?: string;
   NVIDIA_API_KEY_1?: string;
   NVIDIA_API_KEY?: string;
+  GOOGLE_GEMINI_API_KEY?: string;
+  GEMINI_API_KEY?: string;
+  GOOGLE_DIRECT_GROUNDING_MODEL?: string;
   AUTH_SECRET?: string;
   AUTH_GOOGLE_ID?: string;
   AUTH_GOOGLE_SECRET?: string;
@@ -97,6 +100,8 @@ async function providerCheck(id: string, url: string, headers: Record<string, st
 
 async function buildHealth(env: HealthStatusEnv): Promise<StoredHealth> {
   const nvidiaKey = firstEnv(env, "NVIDIA_API_KEY_PRIMARY", "NVIDIA_API_KEY_SECONDARY", "NVIDIA_API_KEY_1", "NVIDIA_API_KEY");
+  const googleGroundingKey = firstEnv(env, "GOOGLE_GEMINI_API_KEY", "GEMINI_API_KEY");
+  const googleDirectModel = firstEnv(env, "GOOGLE_DIRECT_GROUNDING_MODEL") || "gemini-3.6-flash";
   const clodexKey = firstEnv(env, "CLODEX_API_KEY");
   const clodexEnabled = env.CLODEX_ENABLED?.trim().toLowerCase() === "true";
   const clodexModelsConfigured = Boolean(getClodexModelConfig({
@@ -108,6 +113,13 @@ async function buildHealth(env: HealthStatusEnv): Promise<StoredHealth> {
 
   const checks = await Promise.all([
     providerCheck("inference", "https://integrate.api.nvidia.com/v1/models", nvidiaKey ? { authorization: `Bearer ${nvidiaKey}` } : {}, Boolean(nvidiaKey)),
+    providerCheck(
+      "google_grounding",
+      `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(googleDirectModel)}`,
+      googleGroundingKey ? { "x-goog-api-key": googleGroundingKey } : {},
+      Boolean(googleGroundingKey),
+      false,
+    ),
     providerCheck("clodex", "https://clodex.xyz/v1/models", clodexKey ? { "anthropic-version": "2023-06-01", "x-api-key": clodexKey } : {}, clodexEnabled && clodexModelsConfigured && Boolean(clodexKey), false),
     Promise.resolve<HealthCheck>({ id: "auth", status: authConfigured ? "operational" : "not_configured", latencyMs: null }),
     Promise.resolve<HealthCheck>({ id: "access", status: rateLimitConfigured ? "operational" : "not_configured", latencyMs: null }),
