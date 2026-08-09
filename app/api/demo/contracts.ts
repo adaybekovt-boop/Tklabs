@@ -13,6 +13,7 @@ export type ChatRequest = {
   tone?: unknown;
   attachments?: unknown;
   localArchive?: unknown;
+  personalMemory?: unknown;
 };
 
 export function normalizeLanguage(value: unknown): Language {
