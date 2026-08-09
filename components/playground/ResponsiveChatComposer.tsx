@@ -19,6 +19,7 @@ export function ResponsiveChatComposer(props: Props) {
   const locale = props.voiceLanguage?.toLowerCase().startsWith("ru") ? "ru" : "en";
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- localStorage is client-only; hydrate the persisted preference after mount to keep SSR deterministic.
     setVoiceMode(isErmaVoiceModeEnabled());
     const sync = (event: Event) => {
       const enabled = (event as CustomEvent<{ enabled?: unknown }>).detail?.enabled;
