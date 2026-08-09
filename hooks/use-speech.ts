@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 
+import { ERMA_VOICE_REPLY_EVENT, isErmaVoiceModeEnabled } from "@/lib/ai/voice-mode";
 import { TTS_MAX_TEXT_LENGTH } from "@/lib/tts-rate-limit";
 import type { Locale } from "@/lib/i18n";
 import type { ChatMessage } from "@/components/playground/MessageList";
@@ -37,6 +38,7 @@ export function useSpeech(locale: Locale, ttsAvailable: boolean, labels: { voice
   const ttsRequestRef = useRef<AbortController | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const audioUrlRef = useRef<string | null>(null);
+  const speakMessageRef = useRef<((message: ChatMessage) => Promise<void>) | null>(null);
 
   function releaseAudio() {
     const audio = audioRef.current;
@@ -161,6 +163,20 @@ export function useSpeech(locale: Locale, ttsAvailable: boolean, labels: { voice
       if (ttsRequestRef.current === controller) ttsRequestRef.current = null;
     }
   }
+
+  speakMessageRef.current = speakMessage;
+
+  useEffect(() => {
+    const playVoiceReply = (event: Event) => {
+      if (!isErmaVoiceModeEnabled()) return;
+      const detail = (event as CustomEvent<{ message?: Pick<ChatMessage, "id" | "role" | "content"> }>).detail;
+      const message = detail?.message;
+      if (!message || message.role !== "assistant" || !message.content.trim()) return;
+      void speakMessageRef.current?.(message as ChatMessage);
+    };
+    window.addEventListener(ERMA_VOICE_REPLY_EVENT, playVoiceReply);
+    return () => window.removeEventListener(ERMA_VOICE_REPLY_EVENT, playVoiceReply);
+  }, []);
 
   useEffect(() => () => {
     ttsRequestRef.current?.abort();
