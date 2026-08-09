@@ -5,6 +5,7 @@ import { countryRestrictedResponse, isRequestCountryRestricted } from "@/lib/cou
 
 export { ClodexAccess } from "./clodex-access";
 export { HealthStatus } from "./health-status";
+export { InferenceScheduler } from "./inference-scheduler";
 
 type AppFetch = typeof handler.fetch;
 type AppRequest = Parameters<AppFetch>[0];
