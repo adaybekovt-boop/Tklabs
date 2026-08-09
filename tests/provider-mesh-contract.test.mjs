@@ -57,3 +57,25 @@ test("mass-scale defaults remain conservative and configurable", async () => {
   assert.match(envExample, /ERMA_CEREBRAS_TPM=64000/);
   assert.match(envExample, /ERMA_MAX_ACTIVE_PER_USER=2/);
 });
+
+test("load testing requires explicit acknowledgement and blocks production by default", async () => {
+  const [loadTest, packageJson] = await Promise.all([
+    source("../scripts/load-test-erma.mjs"),
+    source("../package.json"),
+  ]);
+  assert.match(loadTest, /ERMA_LOAD_TEST_CONFIRM/);
+  assert.match(loadTest, /I_UNDERSTAND/);
+  assert.match(loadTest, /tklabs\.uk/);
+  assert.match(loadTest, /ERMA_LOAD_TEST_ALLOW_PRODUCTION/);
+  assert.match(loadTest, /p95/);
+  assert.match(loadTest, /actualProvider/);
+  assert.match(packageJson, /"load:erma": "node scripts\/load-test-erma\.mjs"/);
+});
+
+test("trust documents disclose dynamic provider mesh routing", async () => {
+  const legal = await source("../lib/legal-documents.ts");
+  assert.match(legal, /Google Gemini, NVIDIA, Cerebras, and Groq/);
+  assert.match(legal, /Cerebras model provider/);
+  assert.match(legal, /Groq model provider/);
+  assert.match(legal, /provider mesh/);
+});
