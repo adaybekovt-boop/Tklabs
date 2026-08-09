@@ -27,12 +27,14 @@ const PREVIEW_RELEASE: Record<Locale, PreviewReleaseNote> = {
     knownIssues: [
       "Это официальный Google Search grounded-ответ через Gemini API, а не скрейпинг потребительского блока AI Overview на google.com; формулировка может отличаться от Google app/Search UI.",
       "Google quota и rate limits продолжают действовать. При HTTP 429 или временной ошибке провайдера используется существующий fallback-путь; приложение не может обойти исчерпанную квоту Google.",
+      "По действующим условиям Grounding with Google Search Google хранит prompt, contextual information и generated output 30 дней для grounded results/Search Suggestions; отключить это хранение для данной функции нельзя.",
       "Прямой passthrough включается только когда Google действительно выполнил web search и вернул полный набор атрибуции; иначе ответ синтезируется обычным Erma pipeline.",
     ],
     migrationNotes: [
       "Новых D1 migrations в v0.24.2 нет.",
       "Для direct grounding нужен существующий Cloudflare Worker secret GOOGLE_GEMINI_API_KEY либо GEMINI_API_KEY.",
       "GOOGLE_GROUNDING_MODEL остаётся обычной server-side variable; API key не передаётся браузеру и не записывается в репозиторий.",
+      "Legal bundle обновлён до 2026-08-09 из-за нового внешнего Google Search grounding processing и раскрытия 30-дневного retention; интерфейс согласия должен использовать новый digest.",
       "Локальный архив автоматически принимает новый provider marker google-grounding и сохраняет bounded grounding metadata.",
     ],
   },
@@ -58,12 +60,14 @@ const PREVIEW_RELEASE: Record<Locale, PreviewReleaseNote> = {
     knownIssues: [
       "This is the official Google Search grounded response through the Gemini API, not scraping of the consumer AI Overview block on google.com; wording may differ from the Google app/Search UI.",
       "Google quota and rate limits still apply. HTTP 429 or transient provider failures use the existing fallback path; the application cannot bypass exhausted Google quota.",
+      "Under the current Grounding with Google Search terms, Google stores prompts, contextual information, and generated output for 30 days to create grounded results/Search Suggestions, and this storage cannot be disabled for the feature.",
       "Direct pass-through is used only when Google actually performs web search and returns complete attribution; otherwise the normal Erma pipeline synthesizes the response.",
     ],
     migrationNotes: [
       "v0.24.2 adds no D1 migrations.",
       "Direct grounding requires an existing GOOGLE_GEMINI_API_KEY or GEMINI_API_KEY Cloudflare Worker secret.",
       "GOOGLE_GROUNDING_MODEL remains a normal server-side variable; the API key is never sent to the browser or stored in the repository.",
+      "The legal bundle was updated to 2026-08-09 for the new external Google Search grounding processing and 30-day retention disclosure; the consent surface must use the new digest.",
       "The local archive now accepts the google-grounding provider marker and preserves bounded grounding metadata.",
     ],
   },
