@@ -3,6 +3,8 @@ import type { AiGroundingCitation, AiGroundingMeta } from "@/lib/ai/types";
 import { validatePublicWebUrl } from "@/lib/ai/web/gateway";
 
 const GOOGLE_GROUNDING_ENDPOINT = "https://generativelanguage.googleapis.com/v1beta/interactions";
+const DEFAULT_DIRECT_GROUNDING_MODEL = "gemini-3.6-flash";
+const DEFAULT_RETRIEVAL_GROUNDING_MODEL = "gemini-3.5-flash-lite";
 const MAX_SEARCH_SUGGESTIONS_HTML = 60_000;
 
 export type GoogleDirectGroundingResult = {
@@ -40,6 +42,12 @@ export function isGoogleDirectGroundingConfigured() {
   return Boolean(groundingKey());
 }
 
+function directGroundingModels() {
+  const preferred = process.env.GOOGLE_DIRECT_GROUNDING_MODEL?.trim() || DEFAULT_DIRECT_GROUNDING_MODEL;
+  const retrievalFallback = process.env.GOOGLE_GROUNDING_MODEL?.trim() || DEFAULT_RETRIEVAL_GROUNDING_MODEL;
+  return [...new Set([preferred, retrievalFallback].filter(Boolean))];
+}
+
 function boundedText(value: unknown, max: number) {
   return typeof value === "string" ? value.trim().slice(0, max) : "";
 }
@@ -73,13 +81,7 @@ function extractSearchSuggestions(result: unknown) {
   return "";
 }
 
-export async function getGoogleDirectGrounding(query: string, signal?: AbortSignal): Promise<GoogleDirectGroundingResult> {
-  const apiKey = groundingKey();
-  if (!apiKey) throw new Error("google_grounding_not_configured");
-  const sanitized = sanitizeSearchQuery(query);
-  if (!sanitized) throw new Error("google_grounding_query_empty");
-  const model = process.env.GOOGLE_GROUNDING_MODEL?.trim() || "gemini-3.5-flash-lite";
-
+async function requestGrounding(apiKey: string, model: string, input: string, signal?: AbortSignal) {
   const response = await fetch(GOOGLE_GROUNDING_ENDPOINT, {
     method: "POST",
     signal,
@@ -91,14 +93,16 @@ export async function getGoogleDirectGrounding(query: string, signal?: AbortSign
     },
     body: JSON.stringify({
       model,
-      input: sanitized,
+      input,
       store: false,
-      tools: [{ type: "google_search", search_types: ["web_search"] }],
+      tools: [{ type: "google_search" }],
     }),
   });
   if (!response.ok) throw Object.assign(new Error(`google_grounding_http_${response.status}`), { status: response.status });
+  return await response.json().catch(() => null) as GoogleInteractionPayload | null;
+}
 
-  const payload = await response.json().catch(() => null) as GoogleInteractionPayload | null;
+function parseGroundingPayload(payload: GoogleInteractionPayload | null, model: string): GoogleDirectGroundingResult {
   const steps = Array.isArray(payload?.steps) ? payload.steps : [];
   const answerParts: string[] = [];
   const searchQueries: string[] = [];
@@ -156,4 +160,27 @@ export async function getGoogleDirectGrounding(query: string, signal?: AbortSign
       searchSuggestionsHtml,
     },
   };
+}
+
+export async function getGoogleDirectGrounding(query: string, signal?: AbortSignal): Promise<GoogleDirectGroundingResult> {
+  const apiKey = groundingKey();
+  if (!apiKey) throw new Error("google_grounding_not_configured");
+  const sanitized = sanitizeSearchQuery(query);
+  if (!sanitized) throw new Error("google_grounding_query_empty");
+
+  let lastError: unknown;
+  const models = directGroundingModels();
+  for (let index = 0; index < models.length; index += 1) {
+    const model = models[index];
+    try {
+      return parseGroundingPayload(await requestGrounding(apiKey, model, sanitized, signal), model);
+    } catch (error) {
+      lastError = error;
+      const status = typeof error === "object" && error && "status" in error && typeof error.status === "number" ? error.status : undefined;
+      const mayTryCompatibilityModel = index + 1 < models.length && (status === 400 || status === 404);
+      if (!mayTryCompatibilityModel) throw error;
+    }
+  }
+
+  throw lastError ?? new Error("google_grounding_failed");
 }
