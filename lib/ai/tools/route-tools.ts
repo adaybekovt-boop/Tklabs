@@ -18,7 +18,7 @@ function combineSummary(...parts: Array<string | undefined>) { return parts.filt
 function protectedMemory(summary: string | undefined) { return summary ? wrapUntrustedExternalText("conversation-memory", summary) : undefined; }
 
 const EXPLICIT_CONTEXT_REFERENCE = /(?:предыдущ[\p{L}\p{M}]*|сообщени[\p{L}\p{M}]*\s+выше|выше\s+(?:я\s+)?(?:писал|сказал)|как\s+я\s+(?:писал|сказал)|в\s+этом\s+(?:диалоге|чате)|этот\s+(?:вопрос|запрос)|про\s+(?:него|неё|нее|них|это)|насч[её]т\s+(?:него|неё|нее|них|этого)|previous\s+(?:message|answer|turn)|message\s+above|as\s+i\s+(?:said|wrote)|in\s+this\s+(?:chat|conversation)|this\s+(?:question|request)|about\s+(?:him|her|them|that|it))/iu;
-const DEICTIC_FOLLOW_UP = /^(?:а|и|ну|and|but|so)?\s*(?:кто|что|какой|какая|какие|где|когда|сколько|почему|как|who|what|which|where|when|why|how(?:\s+many)?)?\s*(?:он|она|они|это|этот|эта|эти|там|теперь|дальше|тогда|he|she|they|it|that|this|those|there|now|next|then)(?:\s|[?!.:,;]|$)/iu;
+const DEICTIC_FOLLOW_UP = /^(?:а|и|ну|and|but|so)?\s*(?:кто|что|какой|какая|какие|где|когда|сколько|почему|как|кім|не|қай(?:да|сы|сысы)|who|what|which|where|when|why|how(?:\s+many)?)?\s*(?:он|она|они|это|этот|эта|эти|там|сейчас|теперь|дальше|тогда|ол|олар|бұл|онда|қазір|кейін|he|she|they|it|that|this|those|there|now|currently|next|then)(?:\s|[?!.:,;]|$)/iu;
 
 export function isContextDependentGroundingTurn(prompt: string, originalMessageCount: number) {
   if (originalMessageCount <= 1) return false;
