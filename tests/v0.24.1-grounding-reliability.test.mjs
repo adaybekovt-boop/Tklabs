@@ -55,14 +55,12 @@ test("v0.24.1 static fact fallback stays useful when external verification is un
   assert.match(directive, /one focused clarification/i);
 });
 
-test("v0.24.1 deployment syncs search keys as Cloudflare secrets and then enforces readiness", async () => {
+test("v0.24.1 deployment requires search readiness without mutating Cloudflare secrets", async () => {
   const workflow = await source(".github/workflows/deploy-cloudflare.yml");
-  assert.match(workflow, /Sync configured web-search secrets/);
-  assert.match(workflow, /wrangler secret put/);
-  assert.match(workflow, /sync_secret GOOGLE_GEMINI_API_KEY/);
-  assert.match(workflow, /sync_secret BRAVE_SEARCH_API_KEY/);
   assert.match(workflow, /TKLABS_REQUIRE_WEB_SEARCH: "true"/);
+  assert.match(workflow, /npm run cloudflare:check-secrets/);
   assert.match(workflow, /GOOGLE_GROUNDING_MODEL/);
+  assert.doesNotMatch(workflow, /wrangler secret put/);
   assert.doesNotMatch(workflow, /--var "GOOGLE_GEMINI_API_KEY:/);
   assert.doesNotMatch(workflow, /--var "BRAVE_SEARCH_API_KEY:/);
 });
