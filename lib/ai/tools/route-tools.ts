@@ -15,15 +15,17 @@ export type ToolAugmentation = { summary?: string; traces: AiToolCallTrace[]; di
 function combineSummary(...parts: Array<string | undefined>) { return parts.filter(Boolean).join("\n\n").slice(0, 76_000) || undefined; }
 function protectedMemory(summary: string | undefined) { return summary ? wrapUntrustedExternalText("conversation-memory", summary) : undefined; }
 
-function contextDependentTurn(prompt: string, context: PreparedChatContext) {
-  if (context.originalMessageCount <= 1) return false;
-  const words = prompt.match(/[\p{L}\p{N}]+/gu) ?? [];
-  if (words.length <= 3) return true;
-  return /^(?:а|и|and|but)?\s*(?:кто|что|какой|какая|какие|где|когда|сколько|who|what|which|where|when|how many)?\s*(?:он|она|они|это|там|теперь|дальше|насч[её]т этого|про него|про неё|про них|he|she|they|it|that|there|now|next|about that)(?:\s|[?!.:,;]|$)/iu.test(prompt.trim());
+const EXPLICIT_CONTEXT_REFERENCE = /(?:предыдущ[\p{L}\p{M}]*|сообщени[\p{L}\p{M}]*\s+выше|выше\s+(?:я\s+)?(?:писал|сказал)|как\s+я\s+(?:писал|сказал)|в\s+этом\s+(?:диалоге|чате)|этот\s+(?:вопрос|запрос)|про\s+(?:него|неё|нее|них|это)|насч[её]т\s+(?:него|неё|нее|них|этого)|previous\s+(?:message|answer|turn)|message\s+above|as\s+i\s+(?:said|wrote)|in\s+this\s+(?:chat|conversation)|this\s+(?:question|request)|about\s+(?:him|her|them|that|it))/iu;
+const DEICTIC_FOLLOW_UP = /^(?:а|и|ну|and|but|so)?\s*(?:кто|что|какой|какая|какие|где|когда|сколько|почему|как|who|what|which|where|when|why|how(?:\s+many)?)?\s*(?:он|она|они|это|этот|эта|эти|там|теперь|дальше|тогда|he|she|they|it|that|this|those|there|now|next|then)(?:\s|[?!.:,;]|$)/iu;
+
+export function isContextDependentGroundingTurn(prompt: string, originalMessageCount: number) {
+  if (originalMessageCount <= 1) return false;
+  const normalized = prompt.trim();
+  return EXPLICIT_CONTEXT_REFERENCE.test(normalized) || DEICTIC_FOLLOW_UP.test(normalized);
 }
 
 function shouldUseDirectGoogleGrounding(prompt: string, documents: readonly ChatAttachment[], context: PreparedChatContext) {
-  if (documents.length || !isGoogleDirectGroundingConfigured() || contextDependentTurn(prompt, context)) return false;
+  if (documents.length || !isGoogleDirectGroundingConfigured() || isContextDependentGroundingTurn(prompt, context.originalMessageCount)) return false;
   const safety = classifyPromptSafety(prompt);
   if (safety.blocked || safety.category === "high-impact" || safety.category === "restricted") return false;
   const route = routeErmaTask(prompt);
