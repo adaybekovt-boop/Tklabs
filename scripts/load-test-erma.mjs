@@ -1,8 +1,11 @@
 #!/usr/bin/env node
 
+import { createHmac } from "node:crypto";
+
 const rawTarget = process.env.ERMA_LOAD_TEST_URL?.trim();
 const confirmation = process.env.ERMA_LOAD_TEST_CONFIRM?.trim();
 const allowProduction = process.env.ERMA_LOAD_TEST_ALLOW_PRODUCTION?.trim().toLowerCase() === "true";
+const identitySecret = process.env.ERMA_LOAD_TEST_SECRET?.trim() || "";
 
 if (!rawTarget) {
   console.error("ERMA_LOAD_TEST_URL is required. Point it at an explicit preview/staging deployment.");
@@ -27,12 +30,18 @@ function boundedInt(value, fallback, min, max) {
 
 const total = boundedInt(process.env.ERMA_LOAD_TEST_REQUESTS, 100, 1, 5_000);
 const concurrency = boundedInt(process.env.ERMA_LOAD_TEST_CONCURRENCY, Math.min(100, total), 1, Math.min(1_000, total));
+const virtualUsers = boundedInt(process.env.ERMA_LOAD_TEST_VIRTUAL_USERS, identitySecret ? concurrency : 1, 1, total);
 const timeoutMs = boundedInt(process.env.ERMA_LOAD_TEST_TIMEOUT_MS, 45_000, 1_000, 180_000);
 const model = process.env.ERMA_LOAD_TEST_MODEL?.trim() || "erma-spark-lite";
 const locale = process.env.ERMA_LOAD_TEST_LOCALE?.trim() === "en" ? "en" : "ru";
 const cookie = process.env.ERMA_LOAD_TEST_COOKIE?.trim() || "";
 const bearer = process.env.ERMA_LOAD_TEST_BEARER?.trim() || "";
 const maxFailureRate = Math.min(1, Math.max(0, Number.parseFloat(process.env.ERMA_LOAD_TEST_MAX_FAILURE_RATE ?? "0.05") || 0.05));
+
+if (virtualUsers > 1 && !identitySecret) {
+  console.error("ERMA_LOAD_TEST_SECRET is required to simulate multiple independent staging users.");
+  process.exit(2);
+}
 
 const latencies = [];
 const statuses = new Map();
@@ -54,6 +63,16 @@ function percentile(values, p) {
   return sorted[index];
 }
 
+function loadTestHeaders(index) {
+  if (!identitySecret) return {};
+  const identity = `virtual-user-${(index % virtualUsers) + 1}`;
+  const signature = createHmac("sha256", identitySecret).update(`load-test:${identity}`).digest("hex");
+  return {
+    "x-tklabs-load-test-id": identity,
+    "x-tklabs-load-test-signature": signature,
+  };
+}
+
 async function one(index) {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(new Error("load_test_timeout")), timeoutMs);
@@ -65,6 +84,7 @@ async function one(index) {
       headers: {
         accept: "application/json",
         "content-type": "application/json",
+        ...loadTestHeaders(index),
         ...(cookie ? { cookie } : {}),
         ...(bearer ? { authorization: `Bearer ${bearer}` } : {}),
       },
@@ -112,6 +132,7 @@ console.log(JSON.stringify({
   target: target.origin,
   requests: total,
   concurrency,
+  virtualUsers,
   model,
   timeoutMs,
 }, null, 2));
@@ -127,6 +148,7 @@ const result = {
   target: target.origin,
   requests: total,
   concurrency,
+  virtualUsers,
   success,
   failures,
   failureRate: Number(failureRate.toFixed(4)),
