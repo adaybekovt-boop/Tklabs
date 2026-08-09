@@ -20,11 +20,6 @@ jobs:
     env:
       CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
       CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-      GOOGLE_GEMINI_API_KEY: ${{ secrets.GOOGLE_GEMINI_API_KEY }}
-      GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-      BRAVE_SEARCH_API_KEY: ${{ secrets.BRAVE_SEARCH_API_KEY }}
-      GOOGLE_SEARCH_API_KEY: ${{ secrets.GOOGLE_SEARCH_API_KEY }}
-      GOOGLE_SEARCH_CX: ${{ secrets.GOOGLE_SEARCH_CX }}
       GOOGLE_GROUNDING_MODEL: ${{ vars.GOOGLE_GROUNDING_MODEL || 'gemini-3.5-flash-lite' }}
       TKLABS_DEPLOY_WRITER: github-actions
       AUTH_URL: https://tklabs.uk
@@ -78,24 +73,6 @@ jobs:
         run: npm run check
       - name: Audit production dependencies
         run: npm audit --omit=dev --audit-level=high
-      - name: Sync configured web-search secrets
-        shell: bash
-        run: |
-          set -euo pipefail
-          sync_secret() {
-            local name="$1"
-            local value="${!name:-}"
-            if [ -z "$value" ]; then
-              return 0
-            fi
-            echo "::add-mask::$value"
-            printf '%s' "$value" | npx wrangler secret put "$name" --config dist/server/wrangler.json >/dev/null
-          }
-          sync_secret GOOGLE_GEMINI_API_KEY
-          sync_secret GEMINI_API_KEY
-          sync_secret BRAVE_SEARCH_API_KEY
-          sync_secret GOOGLE_SEARCH_API_KEY
-          sync_secret GOOGLE_SEARCH_CX
       - name: Validate Cloudflare runtime secret names
         env:
           TKLABS_REQUIRE_WEB_SEARCH: "true"
