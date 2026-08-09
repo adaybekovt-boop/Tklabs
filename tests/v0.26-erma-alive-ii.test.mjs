@@ -100,9 +100,9 @@ test("v0.26 Erma experience layers do not replace the public Lite Core Pro model
   assert.deepEqual(
     ERMA_MODELS.map((model) => [model.name, model.nvidiaModel]),
     [
-      ["Erma Lite", "nvidia/nemotron-3-nano-30b-a3b"],
-      ["Erma Core", "nvidia/nemotron-3-super-120b-a12b"],
-      ["Erma Pro", "deepseek-ai/deepseek-v4-pro"],
+      ["Erma Celer", "nvidia/nemotron-3-nano-30b-a3b"],
+      ["Erma Nova", "nvidia/nemotron-3-super-120b-a12b"],
+      ["Erma Optima", "deepseek-ai/deepseek-v4-pro"],
     ],
   );
   assert.equal(ERMA_VISION_MODEL.nvidiaModel, "moonshotai/kimi-k2.6");

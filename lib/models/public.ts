@@ -35,9 +35,9 @@ export const PUBLIC_ERMA_AUTO_MODEL: PublicErmaModel = {
 
 /** Safe UI catalog. Provider IDs and server prompts intentionally do not live here. */
 export const PUBLIC_ERMA_MODELS: readonly PublicErmaModel[] = [
-  { key: "erma-spark-lite", name: "Erma Lite", tier: "light", status: "available", available: true, reasoning: false, vision: false, tools: READ_ONLY_TOOLS_ENABLED, toolMode: "read-only", textAttachments: true },
-  { key: "erma-nutron", name: "Erma Core", tier: "medium", status: "available", available: true, reasoning: true, vision: false, tools: READ_ONLY_TOOLS_ENABLED, toolMode: "read-only", textAttachments: true },
-  { key: "erma-apolon", name: "Erma Pro", tier: "heavy", status: "available", available: true, reasoning: true, vision: false, tools: READ_ONLY_TOOLS_ENABLED, toolMode: "read-only", textAttachments: true },
+  { key: "erma-spark-lite", name: "Erma Celer", tier: "light", status: "available", available: true, reasoning: false, vision: false, tools: READ_ONLY_TOOLS_ENABLED, toolMode: "read-only", textAttachments: true },
+  { key: "erma-nutron", name: "Erma Nova", tier: "medium", status: "available", available: true, reasoning: true, vision: false, tools: READ_ONLY_TOOLS_ENABLED, toolMode: "read-only", textAttachments: true },
+  { key: "erma-apolon", name: "Erma Optima", tier: "heavy", status: "available", available: true, reasoning: true, vision: false, tools: READ_ONLY_TOOLS_ENABLED, toolMode: "read-only", textAttachments: true },
 ] as const;
 
 export function resolveAutoErmaModelKey(prompt: string, options: { reasoning?: boolean; effort?: PublicReasoningEffort } = {}) {

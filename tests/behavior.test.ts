@@ -346,7 +346,7 @@ test("public and server model catalogs are separated and capabilities stay hones
   assert.equal(ERMA_MODELS.length, 3);
   assert.ok(ERMA_MODELS.every((model) => model.nvidiaModel && model.tools === true && model.vision === false));
   assert.ok(PUBLIC_ERMA_MODELS.every((model) => !("nvidiaModel" in model) && model.tools === true && model.toolMode === "read-only" && model.vision === false));
-  assert.equal(getClodexModel("clodex:pro")?.providerModel, "gpt-5.6-sol");
+  assert.equal(getClodexModel("clodex:pro")?.providerModel, "kimi-k3");
   assert.equal(getClodexModel("clodex:pro")?.maxTokens, 8192);
   const configured = { CLODEX_MODEL_FAST: "provider/fast", CLODEX_MODEL_REASONING: "provider/reasoning", CLODEX_MODEL_PRO: "provider/pro" };
   assert.equal(areClodexModelIdsConfigured(configured), true);

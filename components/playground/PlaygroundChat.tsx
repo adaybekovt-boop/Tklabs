@@ -4,7 +4,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { ArrowDown, FolderKanban, GitBranch, Menu, PanelRightOpen, SquarePen, X } from "lucide-react";
 
@@ -14,7 +14,7 @@ import { MobileChatDrawer } from "@/components/playground/MobileChatDrawer";
 import { ResponsiveChatComposer } from "@/components/playground/ResponsiveChatComposer";
 import { ResponsiveMessageList, type ResponsiveMessageListProps } from "@/components/playground/ResponsiveMessageList";
 import type { ChatMessage } from "@/components/playground/MessageList";
-import type { ChatInputAttachment, ChatInputSubmitMeta } from "@/components/ui/ai-chat-input";
+import type { ChatInputAttachment, ChatInputModel, ChatInputSubmitMeta } from "@/components/ui/ai-chat-input";
 import { SiteLogo } from "@/components/site/SiteLogo";
 import { useChatRequest } from "@/hooks/use-chat-request";
 import { useConversationArchive } from "@/hooks/use-conversation-archive";
@@ -26,8 +26,11 @@ import { isNearBottom } from "@/lib/chat-scroll";
 import { getDictionary, type Locale } from "@/lib/i18n";
 import { branchSession, getSession, setSessionProject } from "@/lib/local-archive";
 import { isClientLocalPreviewEnabled } from "@/lib/local-preview";
-import { DEFAULT_ERMA_MODEL_KEY, PRIVILEGED_MAX_PROMPT_LENGTH, PUBLIC_MAX_PROMPT_LENGTH } from "@/lib/models/public";
+import { CLODEX_MODELS } from "@/lib/models/clodex-public";
+import { DEFAULT_ERMA_MODEL_KEY, PRIVILEGED_MAX_PROMPT_LENGTH, PUBLIC_ERMA_AUTO_MODEL, PUBLIC_ERMA_MODELS, PUBLIC_MAX_PROMPT_LENGTH } from "@/lib/models/public";
 import { cn } from "@/lib/utils";
+
+type ProfileAccess = ClodexAccessStatus & { isAdmin?: boolean; clodexEnabled?: boolean };
 
 type DrawerTab = "activity" | "context";
 type PromptEditBranchState = {
@@ -49,7 +52,8 @@ export function PlaygroundChat({
   const router = useRouter();
   const searchParams = useSearchParams();
   const [input, setInput] = useState("");
-  const [access, setAccess] = useState<ClodexAccessStatus | null>(null);
+  const [access, setAccess] = useState<ProfileAccess | null>(null);
+  const [selectedModelId, setSelectedModelId] = useState(DEFAULT_ERMA_MODEL_KEY);
   const [ttsAvailable, setTtsAvailable] = useState(false);
   const [showJumpLatest, setShowJumpLatest] = useState(false);
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -68,6 +72,22 @@ export function PlaygroundChat({
   const localPreview = isClientLocalPreviewEnabled();
   const modelMark = "/images/models/model-mark.png";
   const promptLimit = access?.unlimited || localPreview ? PRIVILEGED_MAX_PROMPT_LENGTH : PUBLIC_MAX_PROMPT_LENGTH;
+  const showPremiumModels = Boolean(access?.isAdmin && access?.clodexEnabled);
+  const chatModels = useMemo<ChatInputModel[]>(() => {
+    const base = [PUBLIC_ERMA_AUTO_MODEL, ...PUBLIC_ERMA_MODELS].map((model) => ({
+      id: model.key,
+      name: model.name,
+      tierLabel: "",
+      available: model.available,
+    }));
+    if (!showPremiumModels) return base;
+    return [...base, ...CLODEX_MODELS.map((model) => ({ id: model.key, name: model.name, tierLabel: "", available: true }))];
+  }, [showPremiumModels]);
+
+  useEffect(() => {
+    if (!chatModels.some((model) => model.id === selectedModelId)) setSelectedModelId(DEFAULT_ERMA_MODEL_KEY);
+  }, [chatModels, selectedModelId]);
+
   const archive = useConversationArchive();
   const chat = useChatRequest({
     locale,
@@ -75,7 +95,7 @@ export function PlaygroundChat({
     reasonEnabled: false,
     responseMode: "normal",
     promptLimit,
-    currentModel: DEFAULT_ERMA_MODEL_KEY,
+    currentModel: selectedModelId,
     saveConversation: archive.save,
   });
   const speech = useSpeech(locale, ttsAvailable, {
@@ -99,7 +119,7 @@ export function PlaygroundChat({
     fetch("/api/profile/access", { cache: "no-store" })
       .then(async (response) => {
         if (!response.ok) return;
-        const payload = (await response.json()) as ClodexAccessStatus;
+        const payload = (await response.json()) as ProfileAccess;
         if (!cancelled) setAccess(payload);
       })
       .catch(() => undefined);
@@ -389,6 +409,9 @@ export function PlaygroundChat({
             value={input}
             onChange={setInput}
             onSubmit={handlePromptSubmit}
+            models={chatModels}
+            selectedModelId={selectedModelId}
+            onModelChange={setSelectedModelId}
             onAttachmentsChange={handleAttachmentsChange}
             busy={chat.isPending}
             onStop={chat.stopGeneration}

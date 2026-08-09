@@ -21,9 +21,9 @@ export const AUTO_ERMA_MODEL_KEY = "erma-auto";
 
 /** Server-only text execution catalog. Never import this module from a client component. */
 export const ERMA_MODELS: readonly ErmaModel[] = [
-  { key: "erma-spark-lite", name: "Erma Lite", tier: "light", nvidiaModel: "nvidia/nemotron-3-nano-30b-a3b", status: "available", available: true, reasoning: false, vision: false, tools: true },
-  { key: "erma-nutron", name: "Erma Core", tier: "medium", nvidiaModel: "nvidia/nemotron-3-super-120b-a12b", status: "available", available: true, reasoning: true, vision: false, tools: true },
-  { key: "erma-apolon", name: "Erma Pro", tier: "heavy", nvidiaModel: "deepseek-ai/deepseek-v4-pro", status: "available", available: true, reasoning: true, vision: false, tools: true },
+  { key: "erma-spark-lite", name: "Erma Celer", tier: "light", nvidiaModel: "nvidia/nemotron-3-nano-30b-a3b", status: "available", available: true, reasoning: false, vision: false, tools: true },
+  { key: "erma-nutron", name: "Erma Nova", tier: "medium", nvidiaModel: "nvidia/nemotron-3-super-120b-a12b", status: "available", available: true, reasoning: true, vision: false, tools: true },
+  { key: "erma-apolon", name: "Erma Optima", tier: "heavy", nvidiaModel: "deepseek-ai/deepseek-v4-pro", status: "available", available: true, reasoning: true, vision: false, tools: true },
 ] as const;
 
 /** Hidden multimodal execution route. It is not a user-selectable product model. */

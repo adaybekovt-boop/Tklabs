@@ -4,6 +4,13 @@ import * as React from "react";
 import { ArrowUp, Camera, FileText, ImageIcon, Mic, Plus, Square, Upload, WifiOff, X } from "lucide-react";
 
 import { ChatOverlay } from "@/components/playground/ChatOverlay";
+import {
+  type AiModel,
+  ModelSelector,
+  ModelSelectorContent,
+  ModelSelectorTrigger,
+  ModelSelectorValue,
+} from "@/components/ui/ai-model-select";
 import { DOCUMENT_ACCEPT, extractDocumentFile } from "@/lib/documents/extract";
 import { AUTO_ERMA_MODEL_KEY } from "@/lib/models/public";
 import { cn } from "@/lib/utils";
@@ -169,7 +176,9 @@ export const PromptInput = React.forwardRef<HTMLDivElement, PromptInputProps>(fu
     value,
     onChange,
     onSubmit,
+    models,
     selectedModelId = AUTO_ERMA_MODEL_KEY,
+    onModelChange,
     onAttachmentsChange,
     disabled = false,
     busy = false,
@@ -204,6 +213,10 @@ export const PromptInput = React.forwardRef<HTMLDivElement, PromptInputProps>(fu
   const speechFinalByIndexRef = React.useRef(new Map<number, string>());
   const hasAttachment = attachments.length > 0;
   const canSubmit = Boolean(value.trim() || hasAttachment) && value.length <= maxLength && !disabled && !busy && !recording && online;
+  const aiModels = React.useMemo<AiModel[]>(
+    () => (models ?? []).map((model) => ({ id: model.id, label: model.name, disabled: !model.available })),
+    [models],
+  );
 
   React.useEffect(() => {
     attachmentsRef.current = attachments;
@@ -463,6 +476,22 @@ export const PromptInput = React.forwardRef<HTMLDivElement, PromptInputProps>(fu
       )}
 
       <div className="overflow-hidden rounded-[1.55rem] border border-outline-variant bg-surface-container-lowest shadow-[0_10px_30px_color-mix(in_srgb,var(--color-primary)_7%,transparent)] focus-within:border-primary">
+        {aiModels.length > 0 && (
+          <div className="flex items-center px-2 pt-2 sm:px-3">
+            <ModelSelector
+              models={aiModels}
+              value={{ id: selectedModelId }}
+              onValueChange={(next) => onModelChange?.(next.id)}
+              disabled={disabled}
+              aria-label={labels.model}
+            >
+              <ModelSelectorTrigger>
+                <ModelSelectorValue />
+              </ModelSelectorTrigger>
+              <ModelSelectorContent side="top" />
+            </ModelSelector>
+          </div>
+        )}
         {attachments.length > 0 && (
           <div className="flex gap-2 overflow-x-auto px-3 pt-3 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
             {attachments.map((attachment) => (
