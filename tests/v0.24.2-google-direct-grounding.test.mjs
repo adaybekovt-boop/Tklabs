@@ -4,7 +4,7 @@ import test from "node:test";
 
 import { buildAnswerDirective } from "../lib/ai/intelligence/answer.ts";
 import { routeErmaTask } from "../lib/ai/intelligence/router.ts";
-import { isContextDependentGroundingTurn } from "../lib/ai/tools/route-tools.ts";
+import { buildKazakhstanVerificationGuard, isContextDependentGroundingTurn } from "../lib/ai/tools/route-tools.ts";
 import { getGoogleDirectGrounding } from "../lib/ai/web/google-direct.ts";
 
 async function source(path) { return readFile(path, "utf8"); }
@@ -175,16 +175,22 @@ test("v0.24.2 keeps real conversation follow-ups context-aware without penalizin
   assert.equal(isContextDependentGroundingTurn("А кто сейчас?", 1), false);
 });
 
-test("v0.24.2 Kazakhstan exact facts use the strict no-guess fallback policy", () => {
+test("v0.24.2 Kazakhstan exact facts use deterministic no-guess fallback when verification fails", () => {
   const route = routeErmaTask("Какие племена входят в Старший жуз Казахстана?");
   assert.match(route.reasonCode, /KAZAKHSTAN/);
   const directive = buildAnswerDirective(route, { status: "unverified", code: "WEB_EVIDENCE_MISSING", evidenceCount: 0 }, "ru");
   assert.match(directive, /Kazakhstan exactness guard/);
   assert.match(directive, /do not guess or reconstruct clan\/tribe\/zhuz membership/);
   assert.match(directive, /Never replace a requested Kazakh entity/);
+
+  const guard = buildKazakhstanVerificationGuard("ru", route, { status: "unverified", code: "FACT_EVIDENCE_REQUIRED", evidenceCount: 0 });
+  assert.equal(guard?.reason, "kazakhstan_external_verification_unavailable");
+  assert.match(guard?.answer ?? "", /не буду угадывать/i);
+  assert.equal(buildKazakhstanVerificationGuard("ru", route, { status: "verified", code: "FACT_SOURCE_VERIFIED", evidenceCount: 1 }), undefined);
+  assert.equal(buildKazakhstanVerificationGuard("ru", routeErmaTask("What is the capital of France?"), { status: "unverified", code: "FACT_EVIDENCE_REQUIRED", evidenceCount: 0 }), undefined);
 });
 
-test("v0.24.2 bypasses NVIDIA rewriting for both SSE and JSON API responses", async () => {
+test("v0.24.2 bypasses NVIDIA rewriting for Google answers and bypasses NVIDIA guessing for guarded Kazakhstan failures", async () => {
   const routeTools = await source("lib/ai/tools/route-tools.ts");
   const session = await source("app/api/demo/stream-session.ts");
   const jsonResponder = await source("app/api/demo/json-responder.ts");
@@ -193,13 +199,18 @@ test("v0.24.2 bypasses NVIDIA rewriting for both SSE and JSON API responses", as
   assert.match(routeTools, /route\.toolClass === "web"/);
   assert.match(routeTools, /getGoogleDirectGrounding\(input\.prompt/);
   assert.match(routeTools, /isContextDependentGroundingTurn/);
+  assert.match(routeTools, /buildKazakhstanVerificationGuard/);
   assert.match(routeTools, /fallback_to_erma_search/);
   assert.match(session, /if \(toolAugmentation\.directGrounding\)/);
   assert.match(session, /provider: "google-grounding"/);
   assert.match(session, /text: direct\.answer/);
+  assert.match(session, /if \(toolAugmentation\.guardedAnswer\)/);
+  assert.match(session, /kazakhstan-verification-guard/);
   assert.match(jsonResponder, /if \(toolAugmentation\.directGrounding\)/);
   assert.match(jsonResponder, /provider: "google-grounding"/);
   assert.match(jsonResponder, /answer: direct\.answer/);
+  assert.match(jsonResponder, /if \(toolAugmentation\.guardedAnswer\)/);
+  assert.match(jsonResponder, /kazakhstan-verification-guard/);
   assert.match(transport, /meta\.actualProvider === "google-grounding"/);
 });
 
