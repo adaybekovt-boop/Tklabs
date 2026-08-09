@@ -76,6 +76,33 @@ export class DemoStreamSession {
         return;
       }
 
+      if (toolAugmentation.guardedAnswer) {
+        const guarded = toolAugmentation.guardedAnswer;
+        const delivered = this.send("delta", { text: guarded.answer });
+        if (!delivered) {
+          if (!this.providerController.signal.aborted) this.providerController.abort("response_closed");
+          throw new DOMException("Response closed", "AbortError");
+        }
+        this.firstTokenAt = Date.now();
+        this.partialAnswer = guarded.answer;
+        await quota.commit();
+        const guardedResult = withContextMetadata(withToolCalls({
+          answer: guarded.answer,
+          provider: "edge-fallback",
+          actualModel: "kazakhstan-verification-guard",
+          fallbackReason: guarded.reason,
+          inputTokens: estimateTextTokens(prompt),
+          outputTokens: estimateTextTokens(guarded.answer),
+          timeToFirstTokenMs: this.firstTokenAt - startedAt,
+        }, this.toolCalls), context);
+        const meta = createAiResponseMeta(guardedResult, requestedModel, requestId, startedAt);
+        logAiRequest(meta);
+        this.send("meta", meta);
+        this.send("done", { requestId, stopped: false });
+        this.close();
+        return;
+      }
+
       const result = await streamWithNvidia({ messages: context.messages, summary: this.augmentedSummary, language, model, requestedReasoning, effort, allowCode: privilegedAccount, tone, images, signal: this.providerController.signal }, async (delta) => {
         const delivered = this.send("delta", { text: delta });
         if (!delivered) { if (!this.providerController.signal.aborted) this.providerController.abort("response_closed"); return; }
