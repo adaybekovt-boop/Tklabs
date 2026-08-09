@@ -15,6 +15,8 @@ export const REQUIRED_RUNTIME_SECRETS = [
 export const CLODEX_RUNTIME_SECRETS = ["CLODEX_API_KEY", "CLODEX_ACCESS_CODE"];
 export const ELEVENLABS_RUNTIME_SECRETS = ["ELEVENLABS_API_KEY", "ELEVENLABS_VOICE_ID"];
 export const CODE_SANDBOX_RUNTIME_SECRETS = ["CODE_SANDBOX_URL", "CODE_SANDBOX_TOKEN"];
+export const WEB_SEARCH_SINGLE_SECRETS = ["GOOGLE_GEMINI_API_KEY", "GEMINI_API_KEY", "BRAVE_SEARCH_API_KEY"];
+export const WEB_SEARCH_GOOGLE_CUSTOM_SECRETS = ["GOOGLE_SEARCH_API_KEY", "GOOGLE_SEARCH_CX"];
 
 export function buildSecretListArgs(config) {
   return ["wrangler", "secret", "list", "--config", config, "--format", "json"];
@@ -36,6 +38,12 @@ export function requiredSecretNames(env = process.env) {
   const required = [...REQUIRED_RUNTIME_SECRETS];
   if (env.CLODEX_ENABLED?.trim().toLowerCase() === "true") required.push(...CLODEX_RUNTIME_SECRETS);
   return required;
+}
+
+/** @param {Set<string>} names */
+export function hasConfiguredWebSearchProvider(names) {
+  if (WEB_SEARCH_SINGLE_SECRETS.some((name) => names.has(name))) return true;
+  return WEB_SEARCH_GOOGLE_CUSTOM_SECRETS.every((name) => names.has(name));
 }
 
 /** @param {Set<string>} names @param {Record<string, string | undefined>} [env] */
@@ -66,6 +74,10 @@ export function readCloudflareSecretNames({ config, root, run = execFileSync }) 
 export function validateCloudflareSecretNames(names, env = process.env) {
   const missing = missingSecretNames(names, env);
   if (missing.length) throw new Error(`Missing Cloudflare runtime secret names: ${missing.join(", ")}`);
+  const requireWebSearch = env.TKLABS_REQUIRE_WEB_SEARCH?.trim().toLowerCase() === "true";
+  if (requireWebSearch && !hasConfiguredWebSearchProvider(names)) {
+    throw new Error("Missing Cloudflare web-search provider secret: configure GOOGLE_GEMINI_API_KEY/GEMINI_API_KEY, BRAVE_SEARCH_API_KEY, or both GOOGLE_SEARCH_API_KEY and GOOGLE_SEARCH_CX.");
+  }
 }
 
 export function safePreflightError(error) {
@@ -75,7 +87,7 @@ export function safePreflightError(error) {
   const message = error instanceof Error ? error.message : "";
   const detail = `${stderr} ${message}`
     .replace(/(authorization\s*[:=]\s*(?:bearer\s+)?|api[_ -]?token\s*[:=]\s*)\S+/gi, "$1[redacted]")
-    .replace(/("?(?:value|secret|token|api[_ -]?key)"?\s*[:=]\s*"?)[^,}\s"]+("?)/gi, "$1[redacted]$2")
+    .replace(/("?(?:value|secret|token|api[_ -]?key)"?\s*[:=]\s*"?)[^,}\s\"]+("?)/gi, "$1[redacted]$2")
     .replace(/\s+/g, " ")
     .trim()
     .slice(0, 360);
@@ -93,7 +105,7 @@ function main() {
     console.log("Cloudflare runtime secret names validated.");
   } catch (error) {
     const message = error instanceof Error ? error.message : "";
-    console.error(message.startsWith("Missing Cloudflare runtime secret names:") ? message : safePreflightError(error));
+    console.error(message.startsWith("Missing Cloudflare runtime secret") || message.startsWith("Missing Cloudflare web-search provider secret") ? message : safePreflightError(error));
     process.exitCode = 1;
   }
 }

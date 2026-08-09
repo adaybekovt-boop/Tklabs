@@ -4,6 +4,20 @@ import type { PublicReleaseNote } from "@/lib/releases/types";
 const RU: PublicReleaseNote[] = [
   {
     date: "09 авг. 2026",
+    version: "v0.24.1",
+    title: "Grounding Reliability Hotfix",
+    summary: "Исправлена реальная production-проблема v0.24.0: factual-router запускал web verification, но production мог быть развернут без настроенного search provider, после чего Erma дважды повторяла неудачный поиск и отвечала слишком длинным отказом.",
+    changes: [
+      "Production preflight теперь требует хотя бы один полный web-search provider, уже настроенный как encrypted Cloudflare Worker secret; deploy не изменяет secret state сам.",
+      "Поддерживаются Gemini Google Search grounding, Brave Search либо полный legacy Google Custom Search pair.",
+      "Если первый search_web завершается terminal failure, planner больше не повторяет тот же бесполезный поиск во втором раунде.",
+      "Для статических низкорисковых фактических вопросов при временно недоступном web Erma может дать короткий best-effort фон с явной пометкой, что внешняя проверка не выполнена, вместо просьбы пользователю самому принести источники.",
+      "Текущие, правовые, медицинские, финансовые, safety-critical и официально-статистические утверждения по-прежнему требуют внешнего evidence и не переводятся в уверенный memory-only fallback.",
+      "Добавлены regression-тесты production search readiness, Cloudflare secret ownership, fallback-поведения и остановки повторных failed-search попыток.",
+    ],
+  },
+  {
+    date: "09 авг. 2026",
     version: "v0.24.0",
     title: "Erma Grounded Search & Kazakhstan Intelligence",
     summary: "Точные и актуальные вопросы теперь проходят отдельный factual-routing: Erma автоматически ищет подтверждение в интернете, разрешает казахстанские сущности и не должна уверенно угадывать при отсутствии evidence.",
@@ -22,6 +36,20 @@ const RU: PublicReleaseNote[] = [
 ];
 
 const EN: PublicReleaseNote[] = [
+  {
+    date: "09 Aug 2026",
+    version: "v0.24.1",
+    title: "Grounding Reliability Hotfix",
+    summary: "Fixes the production failure reproduced after v0.24.0: factual routing attempted web verification, but production could deploy without a configured search provider, causing duplicate failed searches followed by an overly long refusal.",
+    changes: [
+      "Production preflight now requires at least one complete web-search provider already configured as an encrypted Cloudflare Worker secret; deployment does not mutate secret state itself.",
+      "Supported providers are Gemini Google Search grounding, Brave Search, or the complete legacy Google Custom Search pair.",
+      "A terminal search_web failure now stops the planner from repeating the same useless search in the next tool round.",
+      "For static low-risk factual questions during a temporary web outage, Erma may provide concise best-effort background explicitly marked as not externally verified instead of asking the user to bring their own sources.",
+      "Current, legal, medical, financial, safety-critical, and official-statistical claims remain evidence-bound and do not become confident memory-only fallbacks.",
+      "Added regressions for production search readiness, Cloudflare secret ownership, fallback behavior, and stopping duplicate failed-search attempts.",
+    ],
+  },
   {
     date: "09 Aug 2026",
     version: "v0.24.0",

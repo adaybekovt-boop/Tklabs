@@ -70,6 +70,7 @@ export async function runNvidiaToolLoop(input: NvidiaToolLoopInput): Promise<Nvi
   const toolData: Array<{ name: AiToolCallTrace["name"]; content: string }> = [];
   const webSession: WebSearchSession = new Map();
   let calls = 0;
+  let terminalWebFailure = false;
   const maxCalls = Math.min(MAX_AI_TOOL_CALLS, capabilities.toolCalling.maxCalls, route.maxToolCalls || capabilities.toolCalling.maxCalls);
   const maxRounds = Math.min(MAX_AI_TOOL_ROUNDS, capabilities.toolCalling.maxRounds, route.maxToolRounds || capabilities.toolCalling.maxRounds);
 
@@ -83,7 +84,9 @@ export async function runNvidiaToolLoop(input: NvidiaToolLoopInput): Promise<Nvi
     for (const call of boundedCalls) {
       const executed = await executeIntelligenceTool(call, { language: input.language, requestId: input.requestId, localArchive: input.localArchive, documents: input.documents, allowCodeSandbox: input.allowCodeSandbox, signal: input.signal, getServiceStatus: input.getServiceStatus }, webSession);
       calls += 1; traces.push(executed.trace); toolData.push({ name: executed.name, content: executed.content }); messages.push({ role: "tool", content: executed.content, tool_call_id: executed.toolCallId });
+      if (executed.name === "search_web" && executed.trace.status !== "success") terminalWebFailure = true;
     }
+    if (terminalWebFailure) break;
     const interimEvidence = collectErmaEvidence(toolData);
     const interimVerification = verifyErmaEvidence(route, traces, interimEvidence);
     if (interimVerification.status === "verified") break;
