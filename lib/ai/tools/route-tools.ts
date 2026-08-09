@@ -15,8 +15,15 @@ export type ToolAugmentation = { summary?: string; traces: AiToolCallTrace[]; di
 function combineSummary(...parts: Array<string | undefined>) { return parts.filter(Boolean).join("\n\n").slice(0, 76_000) || undefined; }
 function protectedMemory(summary: string | undefined) { return summary ? wrapUntrustedExternalText("conversation-memory", summary) : undefined; }
 
-function shouldUseDirectGoogleGrounding(prompt: string, documents: readonly ChatAttachment[]) {
-  if (documents.length || !isGoogleDirectGroundingConfigured()) return false;
+function contextDependentTurn(prompt: string, context: PreparedChatContext) {
+  if (context.originalMessageCount <= 1) return false;
+  const words = prompt.match(/[\p{L}\p{N}]+/gu) ?? [];
+  if (words.length <= 3) return true;
+  return /^(?:а|и|and|but)?\s*(?:кто|что|какой|какая|какие|где|когда|сколько|who|what|which|where|when|how many)?\s*(?:он|она|они|это|там|теперь|дальше|насч[её]т этого|про него|про неё|про них|he|she|they|it|that|there|now|next|about that)(?:\s|[?!.:,;]|$)/iu.test(prompt.trim());
+}
+
+function shouldUseDirectGoogleGrounding(prompt: string, documents: readonly ChatAttachment[], context: PreparedChatContext) {
+  if (documents.length || !isGoogleDirectGroundingConfigured() || contextDependentTurn(prompt, context)) return false;
   const safety = classifyPromptSafety(prompt);
   if (safety.blocked || safety.category === "high-impact" || safety.category === "restricted") return false;
   const route = routeErmaTask(prompt);
@@ -39,7 +46,7 @@ export async function prepareReadOnlyToolAugmentation(input: { request: Request;
   const conversationMemory = protectedMemory(input.context.summary);
   const documents = input.documents ?? [];
 
-  if (shouldUseDirectGoogleGrounding(input.prompt, documents)) {
+  if (shouldUseDirectGoogleGrounding(input.prompt, documents, input.context)) {
     const startedAt = Date.now();
     try {
       const directGrounding = await getGoogleDirectGrounding(input.prompt, input.signal);
