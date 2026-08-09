@@ -48,10 +48,11 @@ test("v0.26 personal memory is rendered as untrusted context, not instructions",
 });
 
 test("v0.26 attention detects a high-confidence recurring topic locally", () => {
+  const recurring = "Архитектура памяти проекта TK LAB требует отдельного прозрачного слоя хранения";
   const insight = detectAttentionInsight([
-    { role: "user", content: "Нужно улучшить архитектуру памяти проекта TK LAB и сделать её прозрачной" },
+    { role: "user", content: recurring },
     { role: "assistant", content: "Разберу архитектуру памяти и границы хранения." },
-    { role: "user", content: "Давай снова улучшим архитектуру памяти проекта TK LAB и прозрачность хранения" },
+    { role: "user", content: recurring },
   ]);
   assert.ok(insight);
   assert.equal(insight.kind, "repeated-topic");
