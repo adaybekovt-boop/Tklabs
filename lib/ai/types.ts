@@ -1,4 +1,4 @@
-export type AiProvider = "nvidia" | "clodex" | "edge-fallback";
+export type AiProvider = "nvidia" | "google-grounding" | "clodex" | "edge-fallback";
 
 export type AiToolName =
   | "search_documentation"
@@ -17,6 +17,21 @@ export type AiToolCallStatus = "success" | "error" | "timeout" | "blocked";
 export type AiToolCallLink = { label: string; href: string };
 export type AiToolCallTrace = { id: string; name: AiToolName; status: AiToolCallStatus; durationMs: number; summary: string; links?: AiToolCallLink[] };
 
+export type AiGroundingCitation = {
+  title: string;
+  url: string;
+  startIndex?: number;
+  endIndex?: number;
+};
+
+export type AiGroundingMeta = {
+  provider: "google-search";
+  directPassThrough: true;
+  searchQueries: string[];
+  citations: AiGroundingCitation[];
+  searchSuggestionsHtml?: string;
+};
+
 export type AiProvenance = {
   schemaVersion: 1;
   aiGenerated: true;
@@ -29,5 +44,5 @@ export type AiProvenance = {
   humanEdited: false;
 };
 
-export type AiGenerationResult = { answer: string; reasoningUsed?: boolean; provider: AiProvider; actualModel: string; fallbackReason?: string; inputTokens?: number; outputTokens?: number; timeToFirstTokenMs?: number; contextMessageCount?: number; contextAttachmentCount?: number; contextLimit?: number; contextCompacted?: boolean; toolCalls?: AiToolCallTrace[] };
-export type AiResponseMeta = { requestId: string; requestedModel: string; actualProvider: AiProvider; actualModel: string; latencyMs: number; httpStatus: number; reasoningUsed?: boolean; fallbackReason?: string; inputTokens?: number; outputTokens?: number; timeToFirstTokenMs?: number; contextMessageCount?: number; contextAttachmentCount?: number; contextLimit?: number; contextCompacted?: boolean; toolCalls?: AiToolCallTrace[]; provenance?: AiProvenance };
+export type AiGenerationResult = { answer: string; reasoningUsed?: boolean; provider: AiProvider; actualModel: string; fallbackReason?: string; inputTokens?: number; outputTokens?: number; timeToFirstTokenMs?: number; contextMessageCount?: number; contextAttachmentCount?: number; contextLimit?: number; contextCompacted?: boolean; toolCalls?: AiToolCallTrace[]; grounding?: AiGroundingMeta };
+export type AiResponseMeta = { requestId: string; requestedModel: string; actualProvider: AiProvider; actualModel: string; latencyMs: number; httpStatus: number; reasoningUsed?: boolean; fallbackReason?: string; inputTokens?: number; outputTokens?: number; timeToFirstTokenMs?: number; contextMessageCount?: number; contextAttachmentCount?: number; contextLimit?: number; contextCompacted?: boolean; toolCalls?: AiToolCallTrace[]; grounding?: AiGroundingMeta; provenance?: AiProvenance };
