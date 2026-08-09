@@ -155,7 +155,7 @@ async function buildHealth(env: HealthStatusEnv): Promise<StoredHealth> {
       Boolean(googleKey),
       false,
     ),
-    await providerCheck("clodex", "https://clodex.xyz/v1/models", clodexKey ? { "anthropic-version": "2023-06-01", "x-api-key": clodexKey } : {}, clodexEnabled && clodexModelsConfigured && Boolean(clodexKey), false),
+    await providerCheck("clodex", "https://clodex.xyz/v1/models", clodexKey ? { authorization: `Bearer ${clodexKey}` } : {}, clodexEnabled && clodexModelsConfigured && Boolean(clodexKey), false),
     { id: "auth", status: authConfigured ? "operational" : "not_configured", latencyMs: null },
     { id: "access", status: rateLimitConfigured ? "operational" : "not_configured", latencyMs: null },
   ];

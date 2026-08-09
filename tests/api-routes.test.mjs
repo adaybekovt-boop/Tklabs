@@ -206,9 +206,9 @@ test("POST /api/demo commits only after a successful Clodex fallback", async () 
   globalThis.fetch = async (input) => {
     const url = String(input);
     if (url.includes("integrate.api.nvidia.com")) return new Response("upstream failed", { status: 503 });
-    if (url.includes("clodex.xyz/v1/messages")) {
+    if (url.includes("clodex.xyz/v1/chat/completions")) {
       assert.equal(stub.released, 0, "the reservation remains held until fallback succeeds");
-      return new Response(JSON.stringify({ content: [{ type: "text", text: "A fallback answer." }] }), { status: 200, headers: { "content-type": "application/json" } });
+      return new Response(JSON.stringify({ choices: [{ message: { content: "A fallback answer." } }] }), { status: 200, headers: { "content-type": "application/json" } });
     }
     return new Response("not found", { status: 404 });
   };

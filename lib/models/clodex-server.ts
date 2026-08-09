@@ -9,9 +9,9 @@ export type ClodexServerModel = {
 export type ClodexModelEnvironment = Record<string, string | undefined>;
 
 const CLODEX_SERVER_MODELS: readonly ClodexServerModel[] = [
-  { key: "clodex:fast", name: "External API · Fast", providerModel: "gemini-3.6-flash", maxTokens: 2048, envKey: "CLODEX_MODEL_FAST" },
-  { key: "clodex:reasoning", name: "External API · Reasoning", providerModel: "glm-5.2", maxTokens: 6144, envKey: "CLODEX_MODEL_REASONING" },
-  { key: "clodex:pro", name: "External API · Pro", providerModel: "gpt-5.6-sol", maxTokens: 8192, envKey: "CLODEX_MODEL_PRO" },
+  { key: "clodex:fast", name: "External API · Fast", providerModel: "gpt-5.6-luna", maxTokens: 2048, envKey: "CLODEX_MODEL_FAST" },
+  { key: "clodex:reasoning", name: "External API · Reasoning", providerModel: "gpt-5.6-luna", maxTokens: 6144, envKey: "CLODEX_MODEL_REASONING" },
+  { key: "clodex:pro", name: "External API · Pro", providerModel: "gpt-5.6-luna", maxTokens: 8192, envKey: "CLODEX_MODEL_PRO" },
 ];
 
 const MODEL_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._:/-]{1,127}$/;

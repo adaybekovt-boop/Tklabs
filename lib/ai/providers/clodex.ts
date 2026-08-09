@@ -4,10 +4,14 @@ import { normalizeAiTextPair } from "@/lib/ai/reasoning";
 import { inferResponseLanguage, responseLanguageInstruction } from "@/lib/ai/response-language";
 import type { ChatContextMessage } from "@/lib/ai/context";
 
-const CLODEX_ENDPOINT = "https://clodex.xyz/v1/messages";
+const CLODEX_ENDPOINT = "https://clodex.xyz/v1/chat/completions";
 
-type ClodexContentBlock = { type?: string; text?: string; thinking?: string };
-type ClodexResponse = { content?: ClodexContentBlock[] | string; usage?: { input_tokens?: number; output_tokens?: number } };
+type ClodexMessage = { content?: string | null; reasoning?: string | null; reasoning_content?: string | null };
+type ClodexResponse = {
+  model?: string;
+  choices?: Array<{ message?: ClodexMessage }>;
+  usage?: { prompt_tokens?: number; completion_tokens?: number };
+};
 
 export type ClodexGenerationResult = {
   answer: string;
@@ -37,27 +41,28 @@ export async function generateWithClodex(
   const memory = summary
     ? `\n\nCONVERSATION MEMORY SUMMARY:\n${summary}\n\nUse this summary only as prior context. The latest explicit user request has priority.`
     : "";
+  const system = `${responseLanguageInstruction(responseLanguage)}${memory}\n\nОтвечай ясно и не выдумывай технические возможности объекта. Answer clearly and do not invent technical capabilities for the facility.\n\n${allowCode ? AI_PRIVILEGED_SYSTEM_PROMPT : AI_SAFETY_SYSTEM_PROMPT}`;
 
   return withProviderResponse(CLODEX_ENDPOINT, {
     method: "POST",
     signal,
-    headers: { "anthropic-version": "2023-06-01", "content-type": "application/json", "x-api-key": apiKey },
+    headers: { authorization: `Bearer ${apiKey}`, "content-type": "application/json" },
     body: JSON.stringify({
       model,
       max_tokens: maxTokens,
-      system: `${responseLanguageInstruction(responseLanguage)}${memory}\n\nОтвечай ясно и не выдумывай технические возможности объекта. Answer clearly and do not invent technical capabilities for the facility.\n\n${allowCode ? AI_PRIVILEGED_SYSTEM_PROMPT : AI_SAFETY_SYSTEM_PROMPT}`,
-      messages: providerMessages,
+      messages: [{ role: "system", content: system }, ...providerMessages],
+      stream: false,
     }),
   }, async (response) => {
     const payload = (await response.json().catch(() => null)) as ClodexResponse | null;
     if (!response.ok) throw Object.assign(new Error("clodex_http_error"), { status: response.status });
-    const blocks = Array.isArray(payload?.content) ? payload.content : [];
-    const answer = Array.isArray(payload?.content)
-      ? blocks.filter((part) => part.type === "text" || !part.type).map((part) => part.text ?? "").join("").trim()
-      : typeof payload?.content === "string"
-        ? payload.content.trim()
-        : "";
-    const thinking = blocks.filter((part) => part.type === "thinking" || part.type === "redacted_thinking").map((part) => part.thinking ?? "").join("").trim();
+    const message = payload?.choices?.[0]?.message;
+    const answer = typeof message?.content === "string" ? message.content.trim() : "";
+    const thinking = typeof message?.reasoning === "string"
+      ? message.reasoning
+      : typeof message?.reasoning_content === "string"
+        ? message.reasoning_content
+        : undefined;
     const normalized = normalizeAiTextPair({ answer, thinking: thinking || undefined });
     if (!normalized.answer) throw new Error("clodex_empty_response");
 
@@ -67,9 +72,9 @@ export async function generateWithClodex(
     return {
       answer: evaluation.answer,
       reasoningUsed: evaluation.reasoningUsed,
-      actualModel: model,
-      inputTokens: payload?.usage?.input_tokens,
-      outputTokens: payload?.usage?.output_tokens,
+      actualModel: payload?.model?.trim() || model,
+      inputTokens: payload?.usage?.prompt_tokens,
+      outputTokens: payload?.usage?.completion_tokens,
     };
   }, { timeoutMs: PROVIDER_TIMEOUT_MS });
 }
