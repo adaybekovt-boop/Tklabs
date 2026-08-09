@@ -36,7 +36,7 @@ export function ResponsiveChatComposer(props: Props) {
   }
 
   return (
-    <div className="w-full">
+    <div className="w-full [&_[role=menu]]:!bottom-[calc(100%+8px)] [&_[role=menu]]:!top-auto">
       <div className="mb-2 flex items-center justify-end px-1">
         <button
           type="button"
@@ -54,9 +54,7 @@ export function ResponsiveChatComposer(props: Props) {
           {locale === "ru" ? (voiceMode ? "Voice включён" : "Voice") : (voiceMode ? "Voice on" : "Voice")}
         </button>
       </div>
-      <div className="w-full [&_[role=menu]]:!bottom-[calc(100%+8px)] [&_[role=menu]]:!top-auto">
-        <PromptInput {...props} />
-      </div>
+      <PromptInput {...props} />
     </div>
   );
 }
