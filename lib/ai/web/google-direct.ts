@@ -92,6 +92,7 @@ export async function getGoogleDirectGrounding(query: string, signal?: AbortSign
     body: JSON.stringify({
       model,
       input: sanitized,
+      store: false,
       tools: [{ type: "google_search", search_types: ["web_search"] }],
     }),
   });
