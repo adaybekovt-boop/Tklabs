@@ -8,6 +8,7 @@ export type InferenceAcquireInput = {
   candidates: ErmaProviderLane[];
   fairnessKey: string;
   requestId: string;
+  estimatedTokens: number;
 };
 
 export type InferenceSchedulerStub = {
