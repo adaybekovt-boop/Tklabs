@@ -3,8 +3,8 @@ import type { AiGroundingCitation, AiGroundingMeta } from "@/lib/ai/types";
 import { validatePublicWebUrl } from "@/lib/ai/web/gateway";
 
 const GOOGLE_GROUNDING_ENDPOINT = "https://generativelanguage.googleapis.com/v1beta/interactions";
-const DEFAULT_DIRECT_GROUNDING_MODEL = "gemini-3.6-flash";
-const DEFAULT_RETRIEVAL_GROUNDING_MODEL = "gemini-3.5-flash-lite";
+const DEFAULT_DIRECT_GROUNDING_MODEL = "gemini-2.5-flash";
+const DEFAULT_RETRIEVAL_GROUNDING_MODEL = "gemini-2.5-flash-lite";
 const MAX_SEARCH_SUGGESTIONS_HTML = 60_000;
 
 export type GoogleDirectGroundingResult = {
