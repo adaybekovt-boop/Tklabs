@@ -1,8 +1,8 @@
 /* global self, caches, Request, Response, fetch, URL */
 
 const CACHE_PREFIX = "tklabs";
-const CACHE_VERSION = "v0.24.1";
-const CACHE_REVISION = "grounding-reliability-r1";
+const CACHE_VERSION = "v0.24.2";
+const CACHE_REVISION = "google-direct-grounding-r1";
 const STATIC_CACHE = `${CACHE_PREFIX}-${CACHE_VERSION}-${CACHE_REVISION}-static`;
 const OFFLINE_URL = "/offline";
 const PRECACHE_URLS = [OFFLINE_URL, "/manifest.webmanifest", "/images/brand/tk-app-icon.svg", "/images/brand/tk-logo.png", "/images/home/hero-lab.svg", "/images/home/lab-cluster.svg"];
@@ -78,16 +78,10 @@ self.addEventListener("fetch", (event) => {
   const request = event.request;
   if (request.method !== "GET") return;
   const url = new URL(request.url);
-
-  if (isProtectedOrDynamicPath(url)) {
-    event.respondWith(fetch(request));
-    return;
-  }
+  if (url.origin !== self.location.origin || isProtectedOrDynamicPath(url)) return;
   if (isNavigation(request)) {
     event.respondWith(navigationNetworkOnly(request));
     return;
   }
-  if (isStaticAsset(request, url)) {
-    event.respondWith(staleWhileRevalidate(request));
-  }
+  if (isStaticAsset(request, url)) event.respondWith(staleWhileRevalidate(request));
 });
