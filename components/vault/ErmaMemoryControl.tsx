@@ -37,6 +37,7 @@ export function ErmaMemoryControl({ locale }: { locale: Locale }) {
   const [editing, setEditing] = useState<PersonalMemoryEntry | null>(null);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- localStorage is client-only; hydrate after mount to keep the server render deterministic.
     setStore(readPersonalMemory());
     const listener = () => setStore(readPersonalMemory());
     window.addEventListener("tklabs:personal-memory", listener);
