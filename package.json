@@ -23,6 +23,7 @@
     "trust:check": "node scripts/check-trust-consistency.mjs",
     "perf:budget": "node scripts/check-performance-budget.mjs",
     "smoke:production": "node scripts/smoke-test-production.mjs",
+    "load:erma": "node scripts/load-test-erma.mjs",
     "check": "npm run typecheck && npm run lint && npm run security:secrets && npm run migration:safety && npm run trust:legal && npm run trust:policy && npm run trust:check && npm run release:check && npm test && npm run build && npm run perf:budget",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "node scripts/migrate-d1.mjs",
