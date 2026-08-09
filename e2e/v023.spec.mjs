@@ -111,3 +111,30 @@ test("image-only composer submission sends a bounded multimodal attachment", asy
   expect(submittedBody.attachments[0].content).toMatch(/^data:image\/jpeg;base64,/);
   expect(Buffer.byteLength(submittedBody.attachments[0].content, "utf8")).toBeLessThan(900 * 1024);
 });
+
+test("mobile attachment plus opens a visible tappable menu above the composer", async ({ page }, testInfo) => {
+  test.skip(!testInfo.project.name.includes("mobile"), "This regression is specific to the mobile composer stack.");
+
+  await page.goto(PLAYGROUND_HARNESS);
+  await waitForClientShell(page);
+
+  const composer = page.getByTestId("prompt-input");
+  const attachmentButton = composer.locator('button[aria-expanded="false"]').first();
+  await expect(attachmentButton).toBeVisible();
+  await expect(attachmentButton).toBeEnabled();
+  await attachmentButton.tap();
+
+  const menu = composer.getByRole("menu");
+  await expect(menu).toBeVisible();
+  const menuBox = await menu.boundingBox();
+  const composerBox = await composer.boundingBox();
+  expect(menuBox).toBeTruthy();
+  expect(composerBox).toBeTruthy();
+  expect(menuBox.y + menuBox.height).toBeLessThanOrEqual(composerBox.y + 12);
+
+  const hitTest = await page.evaluate(({ x, y }) => {
+    const node = document.elementFromPoint(x, y);
+    return Boolean(node?.closest('[role="menu"]'));
+  }, { x: menuBox.x + menuBox.width / 2, y: menuBox.y + menuBox.height / 2 });
+  expect(hitTest).toBe(true);
+});
