@@ -67,11 +67,11 @@ test("v0.24.2 sends the minimized user query directly to Gemini Google Search an
   try {
     const result = await getGoogleDirectGrounding("Самый многочисленный казахский род?", new AbortController().signal);
     assert.equal(requestBody.input, "Самый многочисленный казахский род?");
-    assert.equal(requestBody.model, "gemini-3.6-flash");
+    assert.equal(requestBody.model, "gemini-2.5-flash");
     assert.equal(requestBody.store, false);
     assert.deepEqual(requestBody.tools, [{ type: "google_search" }]);
     assert.equal(result.answer, "Самым многочисленным казахским родом часто называют аргын.");
-    assert.equal(result.model, "gemini-3.6-flash");
+    assert.equal(result.model, "gemini-2.5-flash");
     assert.equal(result.grounding.directPassThrough, true);
     assert.equal(result.grounding.searchSuggestionsHtml, "<div class=\"google-search\">Google Search</div>");
     assert.equal(result.grounding.citations[0].url, "https://example.com/source");
@@ -214,12 +214,16 @@ test("v0.24.2 bypasses NVIDIA rewriting for Google answers and bypasses NVIDIA g
   assert.match(transport, /meta\.actualProvider === "google-grounding"/);
 });
 
-test("v0.24.2 deploys the high-quality direct grounding model separately and exposes provider health", async () => {
+test("v0.25.1 keeps free-tier grounding separate from Gemini 3 inference and exposes provider health", async () => {
   const envExample = await source(".env.example");
   const deploy = await source(".github/workflows/deploy-cloudflare.yml");
   const health = await source("worker/health-status.ts");
-  assert.match(envExample, /GOOGLE_DIRECT_GROUNDING_MODEL=gemini-3\.6-flash/);
-  assert.match(deploy, /GOOGLE_DIRECT_GROUNDING_MODEL:.*gemini-3\.6-flash/);
+  assert.match(envExample, /GOOGLE_FAST_INFERENCE_MODEL=gemini-3\.5-flash-lite/);
+  assert.match(envExample, /GOOGLE_INFERENCE_MODEL=gemini-3\.6-flash/);
+  assert.match(envExample, /GOOGLE_GROUNDING_MODEL=gemini-2\.5-flash-lite/);
+  assert.match(envExample, /GOOGLE_DIRECT_GROUNDING_MODEL=gemini-2\.5-flash/);
+  assert.match(deploy, /GOOGLE_GROUNDING_MODEL:\s*gemini-2\.5-flash-lite/);
+  assert.match(deploy, /GOOGLE_DIRECT_GROUNDING_MODEL:\s*gemini-2\.5-flash/);
   assert.match(deploy, /GOOGLE_DIRECT_GROUNDING_MODEL:\$GOOGLE_DIRECT_GROUNDING_MODEL/);
   assert.match(health, /"google_grounding"/);
   assert.match(health, /generativelanguage\.googleapis\.com\/v1beta\/models/);

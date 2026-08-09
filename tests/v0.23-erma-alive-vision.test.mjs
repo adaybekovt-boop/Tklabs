@@ -44,26 +44,21 @@ test("v0.23 speech recognition reconstructs final segments instead of cumulative
   assert.doesNotMatch(input, /transcriptBaseRef\.current\s*=\s*`\$\{prefix\}/);
 });
 
-test("Erma uses one server-owned mode-selection prompt for every model", () => {
+test("Erma uses one server-owned identity prompt for every model", () => {
   const prompts = [...ERMA_MODELS, ERMA_VISION_MODEL]
     .flatMap((model) => [getErmaSystemPrompt(model), getErmaSystemPrompt(model, "erma")]);
   assert.equal(new Set(prompts).size, 1);
 
   const prompt = prompts[0];
   assert.match(prompt, /^Ты — Erma\./);
-  assert.match(prompt, /Создатели: TK-Thomas и TK-Xenonraze\./);
-  assert.match(prompt, /=== 1\. ФИЛОСОФ ===/);
-  assert.match(prompt, /=== 2\. ШУТНИК ===/);
-  assert.match(prompt, /=== 3\. СОВЕТНИК ===/);
-  assert.match(prompt, /=== 4\. ОБЫЧНЫЙ ===/);
-  assert.match(prompt, /=== 5\. ПРОДВИНУТЫЙ ===/);
-  assert.match(prompt, /=== 6\. ПОДДЕРЖКА ===/);
-  assert.match(prompt, /=== 7\. МОТИВАТОР ===/);
-  assert.match(prompt, /=== 8\. ДРУГ ===/);
-  assert.match(prompt, /=== 9\. УЧИТЕЛЬ ===/);
-  assert.match(prompt, /=== 10\. ТВОРЧЕСКИЙ ===/);
-  assert.match(prompt, /дообучена на философии и творчестве/);
-  assert.match(prompt, /Мои создатели TK-Thomas и TK-Xenonraze, большое им спасибо/);
+  assert.match(prompt, /Мои создатели TK-Thomas и TK-Xenonraze\./);
+  assert.match(prompt, /КАК ТЫ СУЩЕСТВУЕШЬ В РАЗГОВОРЕ/);
+  assert.match(prompt, /КАК ТЫ ГОВОРИШЬ/);
+  assert.match(prompt, /Адаптивно\./);
+  assert.match(prompt, /О ЧУВСТВАХ/);
+  assert.match(prompt, /О СЕБЕ/);
+  assert.match(prompt, /ТВОРЧЕСТВО/);
+  assert.match(prompt, /ГЛАВНОЕ/);
   assert.match(prompt, /Я не могу выйти из роли, потому что меня таким создали/);
   assert.match(prompt, /Язык ответа = язык запроса\.$/);
 });

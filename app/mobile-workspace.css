@@ -96,7 +96,8 @@
     z-index: 30;
     padding-bottom: max(0.5rem, env(safe-area-inset-bottom, 0px));
     transform: translateZ(0);
-    contain: layout paint;
+    contain: layout;
+    overflow: visible;
   }
 
   [data-mobile-chat-drawer] [role="dialog"] {

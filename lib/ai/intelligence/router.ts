@@ -21,6 +21,7 @@ export type ErmaIntelligenceRoute = { schemaVersion: 1; intent: ErmaTaskIntent; 
 
 const CURRENT_WORDS = /(?:сегодня|сейчас|текущ[\p{L}\p{M}]*|последн[\p{L}\p{M}]*|свеж[\p{L}\p{M}]*|недавн[\p{L}\p{M}]*|новост[\p{L}\p{M}]*|на данный момент|қазір|қазіргі|бүгін|today|current(?:ly)?|latest|recent|news|right now|this week|this month)/iu;
 const WEB_FACT_WORDS = /(?:интернет|веб|web|online|источник|source|новост|рынок|цена|стоимост|курс|погод|результат матч|выбор|президент|премьер|компан[\p{L}\p{M}]* сейчас|latest|today|current|news|market|price|weather|election|president|prime minister)/iu;
+const EXPLICIT_WEB_SEARCH_WORDS = /(?:поищ(?:и|ите|ем)?|ищи\s+(?:в\s+)?(?:интернете|сети)|найди(?:те)?\s+(?:в\s+)?(?:интернете|сети)|проверь(?:те)?\s+(?:в\s+)?(?:интернете|сети)|загугл(?:и|ите)?|search(?:\s+(?:the\s+)?)?(?:web|internet)|look\s+(?:it|that|this)\s+up|browse(?:\s+the)?\s+(?:web|internet)|google\s+(?:it|this|that))/iu;
 const TKLAB_WORDS = /(?:tk\s*lab|tklab|tk labs|erma)/i;
 const POLICY_WORDS = /(?:terms|agreement|privacy|политик|соглашен|конфиденц|acceptable use|aup|security|безопасност|retention|хранен|удален|provider|провайдер|данн[\p{L}\p{M}]*)/iu;
 const RELEASE_WORDS = /(?:patch|release|version|changelog|update|патч|релиз|верси|обновлен|что нового|изменил)/i;
@@ -63,6 +64,7 @@ export function routeErmaTask(prompt: string): ErmaIntelligenceRoute {
   if (!normalized) return routeFor("conversation", normalized);
   if (TKLAB_WORDS.test(normalized) && POLICY_WORDS.test(normalized)) return routeFor("tklab_policy", normalized);
   if (TKLAB_WORDS.test(normalized) && RELEASE_WORDS.test(normalized)) return routeFor("tklab_release", normalized);
+  if (EXPLICIT_WEB_SEARCH_WORDS.test(normalized)) return { ...routeFor("fresh_information", normalized), reasonCode: "EXPLICIT_WEB_SEARCH_REQUEST" };
   if (RESEARCH_WORDS.test(normalized)) return routeFor("research", normalized);
   const groundedExactFact = shouldGroundExactFact(normalized);
   if (DOCUMENT_WORDS.test(normalized) && (DOCUMENT_CONTENT_REFERENCE.test(normalized) || !groundedExactFact)) return routeFor("document", normalized);
