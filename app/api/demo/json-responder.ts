@@ -30,6 +30,22 @@ export async function respondWithDemoJson(input: PreparedDemoRequest) {
     return jsonResponse({ answer: direct.answer, meta }, requestId, 200, rateLimitCookie);
   }
 
+  if (toolAugmentation.guardedAnswer) {
+    const guarded = toolAugmentation.guardedAnswer;
+    const guardedResult = withContextMetadata(withToolCalls({
+      answer: guarded.answer,
+      provider: "edge-fallback",
+      actualModel: "kazakhstan-verification-guard",
+      fallbackReason: guarded.reason,
+      inputTokens: estimateTextTokens(prompt),
+      outputTokens: estimateTextTokens(guarded.answer),
+    }, toolAugmentation.traces), context);
+    await quota.commit();
+    const meta = createAiResponseMeta(guardedResult, requestedModel, requestId, startedAt);
+    logAiRequest(meta);
+    return jsonResponse({ answer: guarded.answer, meta }, requestId, 200, rateLimitCookie);
+  }
+
   const fallbackPrompt = contextualFallbackPrompt(context, toolAugmentation.summary);
 
   try {
