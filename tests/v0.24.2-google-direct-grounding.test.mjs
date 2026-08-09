@@ -43,6 +43,7 @@ test("v0.24.2 sends the minimized user query directly to Gemini Google Search an
   try {
     const result = await getGoogleDirectGrounding("Самый многочисленный казахский род?", new AbortController().signal);
     assert.equal(requestBody.input, "Самый многочисленный казахский род?");
+    assert.equal(requestBody.store, false);
     assert.deepEqual(requestBody.tools, [{ type: "google_search", search_types: ["web_search"] }]);
     assert.equal(result.answer, "Самым многочисленным казахским родом часто называют аргын.");
     assert.equal(result.grounding.directPassThrough, true);
