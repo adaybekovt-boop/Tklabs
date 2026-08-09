@@ -1,8 +1,8 @@
 /* global self, caches, Request, Response, fetch, URL */
 
 const CACHE_PREFIX = "tklabs";
-const CACHE_VERSION = "v0.24.0";
-const CACHE_REVISION = "grounded-search-kazakhstan-r1";
+const CACHE_VERSION = "v0.24.1";
+const CACHE_REVISION = "grounding-reliability-r1";
 const STATIC_CACHE = `${CACHE_PREFIX}-${CACHE_VERSION}-${CACHE_REVISION}-static`;
 const OFFLINE_URL = "/offline";
 const PRECACHE_URLS = [OFFLINE_URL, "/manifest.webmanifest", "/images/brand/tk-app-icon.svg", "/images/brand/tk-logo.png", "/images/home/hero-lab.svg", "/images/home/lab-cluster.svg"];
