@@ -66,3 +66,10 @@ test("v0.24.1 deployment syncs search keys as Cloudflare secrets and then enforc
   assert.doesNotMatch(workflow, /--var "GOOGLE_GEMINI_API_KEY:/);
   assert.doesNotMatch(workflow, /--var "BRAVE_SEARCH_API_KEY:/);
 });
+
+test("v0.24.1 stops repeating a terminal web-search failure in the next planner round", async () => {
+  const planner = await source("lib/ai/providers/nvidia-tools.ts");
+  assert.match(planner, /let terminalWebFailure = false/);
+  assert.match(planner, /executed\.name === "search_web" && executed\.trace\.status !== "success"/);
+  assert.match(planner, /if \(terminalWebFailure\) break/);
+});
