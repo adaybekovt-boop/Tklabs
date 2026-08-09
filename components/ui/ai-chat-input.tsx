@@ -85,6 +85,7 @@ const MAX_IMAGE_TOTAL_BYTES = 1_700 * 1024;
 const MAX_IMAGE_COUNT = 2;
 const MAX_IMAGE_DIMENSION = 1536;
 const ATTACHMENT_MENU_GAP = 8;
+const ATTACHMENT_MENU_FALLBACK_HEIGHT = 104;
 
 function normalizeSpeechSegment(value: string) {
   return value.trim().replace(/\s+/g, " ");
@@ -236,6 +237,7 @@ export const PromptInput = React.forwardRef<HTMLDivElement, PromptInputProps>(fu
   React.useLayoutEffect(() => {
     if (!attachmentMenuOpen) return;
 
+    let frame = 0;
     const updatePlacement = () => {
       const menu = attachmentMenuRef.current;
       if (!menu) return;
@@ -243,25 +245,41 @@ export const PromptInput = React.forwardRef<HTMLDivElement, PromptInputProps>(fu
       if (!anchor) return;
 
       const anchorRect = anchor.getBoundingClientRect();
-      const menuHeight = menu.getBoundingClientRect().height;
+      const menuRect = menu.getBoundingClientRect();
+      const menuHeight = Math.max(menuRect.height, menu.scrollHeight, ATTACHMENT_MENU_FALLBACK_HEIGHT);
       const visualViewport = window.visualViewport;
       const viewportTop = visualViewport?.offsetTop ?? 0;
       const viewportBottom = viewportTop + (visualViewport?.height ?? window.innerHeight);
       const availableAbove = anchorRect.top - viewportTop - ATTACHMENT_MENU_GAP;
       const availableBelow = viewportBottom - anchorRect.bottom - ATTACHMENT_MENU_GAP;
-      const placement: AttachmentMenuPlacement = menuHeight <= availableAbove || availableAbove >= availableBelow ? "above" : "below";
+      const canFitAbove = anchorRect.top - ATTACHMENT_MENU_GAP - menuHeight >= viewportTop;
+      const canFitBelow = anchorRect.bottom + ATTACHMENT_MENU_GAP + menuHeight <= viewportBottom;
+      const placement: AttachmentMenuPlacement = canFitAbove
+        ? "above"
+        : canFitBelow
+          ? "below"
+          : availableAbove >= availableBelow
+            ? "above"
+            : "below";
       setAttachmentMenuPlacement((current) => current === placement ? current : placement);
     };
 
+    const schedulePlacement = () => {
+      window.cancelAnimationFrame(frame);
+      frame = window.requestAnimationFrame(updatePlacement);
+    };
+
     updatePlacement();
+    schedulePlacement();
     const visualViewport = window.visualViewport;
-    window.addEventListener("resize", updatePlacement);
-    visualViewport?.addEventListener("resize", updatePlacement);
-    visualViewport?.addEventListener("scroll", updatePlacement);
+    window.addEventListener("resize", schedulePlacement);
+    visualViewport?.addEventListener("resize", schedulePlacement);
+    visualViewport?.addEventListener("scroll", schedulePlacement);
     return () => {
-      window.removeEventListener("resize", updatePlacement);
-      visualViewport?.removeEventListener("resize", updatePlacement);
-      visualViewport?.removeEventListener("scroll", updatePlacement);
+      window.cancelAnimationFrame(frame);
+      window.removeEventListener("resize", schedulePlacement);
+      visualViewport?.removeEventListener("resize", schedulePlacement);
+      visualViewport?.removeEventListener("scroll", schedulePlacement);
     };
   }, [attachmentMenuOpen]);
 
