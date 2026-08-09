@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Banknote, Check, Copy, Heart, Landmark, LockKeyhole, ShieldCheck } from "lucide-react";
+import { Banknote, Check, Copy, ExternalLink, Heart, Landmark, LockKeyhole, ShieldCheck } from "lucide-react";
 
 import type { Locale } from "@/lib/i18n";
 import type { PublicSupportAvailability, RevealedSupportMethod, SupportMethod } from "@/lib/support-config";
@@ -13,9 +13,16 @@ function formatKzt(value: number, locale: Locale) {
   return new Intl.NumberFormat(locale === "ru" ? "ru-KZ" : "en-KZ", { maximumFractionDigits: 0 }).format(value) + " ₸";
 }
 
+const FALLBACK_AVAILABILITY: PublicSupportAvailability = {
+  enabled: true,
+  donationAlertsUrl: "https://www.donationalerts.com/r/xenonraze",
+  methods: [],
+  verification: "provider-or-manual",
+};
+
 export function SupportPanel({ locale }: { locale: Locale }) {
   const ru = locale === "ru";
-  const [availability, setAvailability] = useState<PublicSupportAvailability | null>(null);
+  const [availability, setAvailability] = useState<PublicSupportAvailability>(FALLBACK_AVAILABILITY);
   const [selected, setSelected] = useState<number>(1000);
   const [custom, setCustom] = useState("");
   const [alias, setAlias] = useState("");
@@ -32,7 +39,7 @@ export function SupportPanel({ locale }: { locale: Locale }) {
         const payload = (await response.json()) as PublicSupportAvailability;
         if (!cancelled) setAvailability(payload);
       })
-      .catch(() => { if (!cancelled) setAvailability({ enabled: false, methods: [], verification: "manual-unverified" }); });
+      .catch(() => { if (!cancelled) setAvailability(FALLBACK_AVAILABILITY); });
     return () => { cancelled = true; };
   }, []);
 
@@ -75,7 +82,7 @@ export function SupportPanel({ locale }: { locale: Locale }) {
     }
   }
 
-  const methods = availability?.methods ?? [];
+  const methods = availability.methods ?? [];
 
   return (
     <div className="grid gap-5 lg:grid-cols-[minmax(0,1.15fr)_minmax(320px,0.85fr)]">
@@ -89,7 +96,7 @@ export function SupportPanel({ locale }: { locale: Locale }) {
         </div>
 
         <p className="mt-4 max-w-2xl text-sm leading-6 text-on-surface-variant">
-          {ru ? "Как DonationAlerts по ощущению, но без платёжного профиля внутри TK LAB: выберите сумму, при желании сделайте приватную карточку поддержки и откройте реквизиты только перед переводом." : "DonationAlerts-like in feel, without a payment profile inside TK LAB: choose an amount, optionally prepare a private support card, then reveal payment details only when you are ready to transfer."}
+          {ru ? "Основной способ поддержки — DonationAlerts. TK LAB не принимает карту, CVV, банковский логин или данные транзакции: платёж и подтверждение происходят на стороне DonationAlerts." : "The primary support path is DonationAlerts. TK LAB never receives card details, CVV, banking credentials, or transaction data: payment and confirmation happen on DonationAlerts."}
         </p>
 
         <div className="mt-6 grid grid-cols-2 gap-2 sm:grid-cols-4">
@@ -104,20 +111,26 @@ export function SupportPanel({ locale }: { locale: Locale }) {
         </label>
 
         <div className="mt-6 border-t border-outline-variant/30 pt-5">
-          <p className="text-sm font-semibold text-primary">{ru ? "Приватная карточка поддержки" : "Private support card"}</p>
-          <p className="mt-1 text-xs leading-5 text-on-surface-variant">{ru ? "Имя и сообщение существуют только в этой вкладке. TK LAB не отправляет и не сохраняет их на сервере." : "The name and message exist only in this tab. TK LAB does not send or save them on the server."}</p>
+          <p className="text-sm font-semibold text-primary">{ru ? "Приватный предпросмотр" : "Private preview"}</p>
+          <p className="mt-1 text-xs leading-5 text-on-surface-variant">{ru ? "Имя, сообщение и выбранная сумма существуют только в этой вкладке. Мы не отправляем их на сервер. На DonationAlerts вы введёте итоговые данные уже непосредственно перед переводом." : "Name, message, and selected amount exist only in this tab. We do not send them to the server. You enter the final details on DonationAlerts immediately before payment."}</p>
           <div className="mt-3 grid gap-3 sm:grid-cols-2">
             <label className="text-xs font-medium text-on-surface-variant">{ru ? "Имя / ник (необязательно)" : "Name / alias (optional)"}<input value={alias} onChange={(event) => setAlias(event.target.value.slice(0, 48))} className="mt-2 min-h-11 w-full border border-outline-variant/50 bg-surface px-3 text-sm text-primary outline-none focus:border-primary" placeholder={ru ? "Аноним" : "Anonymous"} /></label>
             <label className="text-xs font-medium text-on-surface-variant">{ru ? "Сообщение (необязательно)" : "Message (optional)"}<input value={message} onChange={(event) => setMessage(event.target.value.slice(0, 120))} className="mt-2 min-h-11 w-full border border-outline-variant/50 bg-surface px-3 text-sm text-primary outline-none focus:border-primary" placeholder={ru ? "Спасибо за проект" : "Thanks for the project"} /></label>
           </div>
         </div>
 
-        <div className="mt-6 grid gap-2 sm:grid-cols-2">
-          <button type="button" disabled={!methods.includes("kaspi") || loadingMethod !== null} onClick={() => void reveal("kaspi")} className="flex min-h-12 items-center justify-center gap-2 bg-primary px-4 text-sm font-semibold text-on-primary disabled:cursor-not-allowed disabled:opacity-40"><Banknote size={17} />{loadingMethod === "kaspi" ? (ru ? "Открываю…" : "Revealing…") : "Kaspi Gold"}</button>
-          <button type="button" disabled={!methods.includes("bank") || loadingMethod !== null} onClick={() => void reveal("bank")} className="flex min-h-12 items-center justify-center gap-2 border border-outline-variant/60 bg-surface px-4 text-sm font-semibold text-primary disabled:cursor-not-allowed disabled:opacity-40"><Landmark size={17} />{loadingMethod === "bank" ? (ru ? "Открываю…" : "Revealing…") : (ru ? "По IBAN" : "Bank / IBAN")}</button>
-        </div>
+        <a href={availability.donationAlertsUrl} target="_blank" rel="noreferrer noopener" className="mt-6 flex min-h-12 w-full items-center justify-center gap-2 bg-primary px-4 text-sm font-semibold text-on-primary transition hover:opacity-90"><Heart size={17} />{ru ? "Перейти к донату через DonationAlerts" : "Donate via DonationAlerts"}<ExternalLink size={15} /></a>
+        <p className="mt-2 text-center text-[11px] leading-5 text-on-surface-variant">{ru ? `Выбранная здесь сумма: ${formatKzt(amount, locale)}. Она не передаётся автоматически — это сделано специально, чтобы TK LAB не был посредником платежа.` : `Selected here: ${formatKzt(amount, locale)}. It is intentionally not transferred automatically, so TK LAB never becomes a payment intermediary.`}</p>
 
-        {availability && !availability.enabled ? <p className="mt-4 border border-outline-variant/40 bg-surface p-3 text-xs leading-5 text-on-surface-variant">{ru ? "Поддержка подготовлена технически, но реквизиты ещё не настроены на сервере. До настройки SUPPORT_* переменных ничего пользователю не раскрывается." : "Support is implemented, but server-side payment details have not been configured yet. Nothing is exposed until SUPPORT_* variables are set."}</p> : null}
+        {methods.length ? (
+          <div className="mt-6 border-t border-outline-variant/30 pt-5">
+            <p className="text-xs font-semibold uppercase tracking-[0.12em] text-secondary">{ru ? "Резервный перевод" : "Fallback transfer"}</p>
+            <div className="mt-3 grid gap-2 sm:grid-cols-2">
+              <button type="button" disabled={!methods.includes("kaspi") || loadingMethod !== null} onClick={() => void reveal("kaspi")} className="flex min-h-12 items-center justify-center gap-2 border border-outline-variant/60 bg-surface px-4 text-sm font-semibold text-primary disabled:cursor-not-allowed disabled:opacity-40"><Banknote size={17} />{loadingMethod === "kaspi" ? (ru ? "Открываю…" : "Revealing…") : "Kaspi Gold"}</button>
+              <button type="button" disabled={!methods.includes("bank") || loadingMethod !== null} onClick={() => void reveal("bank")} className="flex min-h-12 items-center justify-center gap-2 border border-outline-variant/60 bg-surface px-4 text-sm font-semibold text-primary disabled:cursor-not-allowed disabled:opacity-40"><Landmark size={17} />{loadingMethod === "bank" ? (ru ? "Открываю…" : "Revealing…") : (ru ? "По IBAN" : "Bank / IBAN")}</button>
+            </div>
+          </div>
+        ) : null}
       </section>
 
       <aside className="space-y-4">
@@ -133,12 +146,12 @@ export function SupportPanel({ locale }: { locale: Locale }) {
             <div className="flex items-center justify-between gap-3"><div><p className="text-sm font-semibold text-primary">{details.label}</p><p className="mt-1 text-xs text-on-surface-variant">{ru ? "Реквизиты раскрыты только в этой сессии" : "Details revealed for this session only"}</p></div><LockKeyhole size={18} className="text-secondary" /></div>
             <dl className="mt-4 space-y-3 text-sm"><div><dt className="text-xs text-on-surface-variant">{ru ? "Получатель" : "Recipient"}</dt><dd className="mt-1 break-all font-medium text-primary">{details.recipient}</dd></div><div><dt className="text-xs text-on-surface-variant">{details.method === "kaspi" ? (ru ? "Телефон Kaspi" : "Kaspi phone") : "IBAN"}</dt><dd className="mt-1 break-all font-mono text-primary">{details.value}</dd></div><div><dt className="text-xs text-on-surface-variant">{ru ? "Выбранная сумма" : "Selected amount"}</dt><dd className="mt-1 font-semibold text-primary">{formatKzt(amount, locale)}</dd></div></dl>
             <button type="button" onClick={() => void copyDetails()} className="mt-5 flex min-h-11 w-full items-center justify-center gap-2 border border-outline-variant/60 bg-surface-container-low px-4 text-sm font-semibold text-primary hover:bg-surface-container">{copied ? <Check size={17} /> : <Copy size={17} />}{copied ? (ru ? "Скопировано" : "Copied") : (ru ? "Скопировать реквизиты" : "Copy details")}</button>
-            <p className="mt-4 text-xs leading-5 text-on-surface-variant">{ru ? "TK LAB не получает банковский webhook и поэтому не показывает фальшивое «Оплачено». Факт перевода проверяется получателем в банковском приложении." : "TK LAB has no bank webhook, so it never displays a fake “Paid” state. The recipient verifies the transfer in the banking app."}</p>
+            <p className="mt-4 text-xs leading-5 text-on-surface-variant">{ru ? "Ручной перевод не подтверждается сайтом автоматически. Факт операции проверяется получателем в банковском приложении." : "Manual transfers are not automatically verified by the site. The recipient verifies them in the banking app."}</p>
           </div>
         ) : null}
 
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2">
-          <div className="border border-outline-variant/40 bg-surface-container-low p-4"><ShieldCheck size={18} className="text-secondary" /><p className="mt-3 text-sm font-semibold text-primary">{ru ? "Без платёжной базы" : "No payment database"}</p><p className="mt-1 text-xs leading-5 text-on-surface-variant">{ru ? "Номера карт, CVV, банковские логины и история переводов не запрашиваются и не хранятся." : "Card numbers, CVV, banking logins, and transfer history are neither requested nor stored."}</p></div>
+          <div className="border border-outline-variant/40 bg-surface-container-low p-4"><ShieldCheck size={18} className="text-secondary" /><p className="mt-3 text-sm font-semibold text-primary">{ru ? "Платёж вне TK LAB" : "Payment outside TK LAB"}</p><p className="mt-1 text-xs leading-5 text-on-surface-variant">{ru ? "DonationAlerts обрабатывает форму и платёж. TK LAB не получает платёжные данные и не ведёт базу доноров." : "DonationAlerts handles the form and payment. TK LAB receives no payment data and keeps no donor database."}</p></div>
           <div className="border border-outline-variant/40 bg-surface-container-low p-4"><LockKeyhole size={18} className="text-secondary" /><p className="mt-3 text-sm font-semibold text-primary">{ru ? "Без покупки привилегий" : "No paid privileges"}</p><p className="mt-1 text-xs leading-5 text-on-surface-variant">{ru ? "Поддержка добровольная и не открывает Pro-функции, лимиты или отдельный доступ." : "Support is voluntary and does not unlock Pro features, quotas, or special access."}</p></div>
         </div>
       </aside>
