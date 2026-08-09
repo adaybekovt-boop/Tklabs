@@ -112,7 +112,7 @@ test("image-only composer submission sends a bounded multimodal attachment", asy
   expect(Buffer.byteLength(submittedBody.attachments[0].content, "utf8")).toBeLessThan(900 * 1024);
 });
 
-test("mobile attachment plus opens a visible tappable menu above the composer", async ({ page }, testInfo) => {
+test("mobile attachment plus opens a visible tappable menu inside the visual viewport", async ({ page }, testInfo) => {
   test.skip(!testInfo.project.name.includes("mobile"), "This regression is specific to the mobile composer stack.");
 
   await page.goto(PLAYGROUND_HARNESS);
@@ -127,18 +127,24 @@ test("mobile attachment plus opens a visible tappable menu above the composer", 
   await attachmentButton.tap();
   await expect(attachmentButton).toHaveAttribute("aria-expanded", "true");
 
-  const menu = composer.getByRole("menu");
+  const menu = page.locator('[data-attachment-menu]');
   await expect(menu).toBeVisible();
   const menuBox = await menu.boundingBox();
   expect(menuBox).toBeTruthy();
-  expect(menuBox.x).toBeGreaterThanOrEqual(0);
-  expect(menuBox.y).toBeGreaterThanOrEqual(0);
-  expect(menuBox.x + menuBox.width).toBeLessThanOrEqual(await page.evaluate(() => window.innerWidth));
-  expect(menuBox.y + menuBox.height).toBeLessThanOrEqual(await page.evaluate(() => window.innerHeight));
+  const visualViewport = await page.evaluate(() => ({
+    left: window.visualViewport?.offsetLeft ?? 0,
+    top: window.visualViewport?.offsetTop ?? 0,
+    width: window.visualViewport?.width ?? window.innerWidth,
+    height: window.visualViewport?.height ?? window.innerHeight,
+  }));
+  expect(menuBox.x).toBeGreaterThanOrEqual(visualViewport.left);
+  expect(menuBox.y).toBeGreaterThanOrEqual(visualViewport.top);
+  expect(menuBox.x + menuBox.width).toBeLessThanOrEqual(visualViewport.left + visualViewport.width);
+  expect(menuBox.y + menuBox.height).toBeLessThanOrEqual(visualViewport.top + visualViewport.height);
 
   const hitTest = await page.evaluate(({ x, y }) => {
     const node = document.elementFromPoint(x, y);
-    return Boolean(node?.closest('[role="menu"]'));
+    return Boolean(node?.closest('[data-attachment-menu]'));
   }, { x: menuBox.x + menuBox.width / 2, y: menuBox.y + menuBox.height / 2 });
   expect(hitTest).toBe(true);
 });
