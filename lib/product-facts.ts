@@ -36,6 +36,8 @@ export const PRODUCT_FACTS = {
     directGoogleGroundedAnswers: true,
     directGoogleAnswerRewrittenByErma: false,
     googleSearchSuggestionsDisplayedWhenReturned: true,
+    googleGroundingRetentionDays: 30,
+    googleGroundingRetentionCanBeDisabled: false,
     openedPagesTreatedAsUntrustedData: true,
   },
   reasoning: {
@@ -94,8 +96,8 @@ export const PRODUCT_DATA_ROUTES = [
     storageMode: "ephemeral" as const,
     route: ["device", "TK LAB Worker", "Google Search grounding or fallback search provider", "public web sources"],
     note: {
-      ru: "Для подходящих фактических веб-запросов Worker отправляет Google минимизированную текущую реплику, а не полную историю чата. Если Google возвращает полноценный grounded-ответ с атрибуцией, Erma показывает этот текст напрямую без повторного пересказа NVIDIA и отображает связанные Google Search Suggestions и источники. При недоступности Google используется прежний проверяемый поисковый fallback.",
-      en: "For eligible factual web requests, the Worker sends Google the minimized current turn rather than the full chat history. When Google returns a complete grounded answer with attribution, Erma displays that text directly without NVIDIA rewriting and shows the associated Google Search Suggestions and sources. The previous verifiable search fallback remains available when Google is unavailable.",
+      ru: "Для подходящих фактических веб-запросов Worker отправляет Google минимизированную текущую реплику, а не полную историю чата. Если Google возвращает полноценный grounded-ответ с атрибуцией, Erma показывает этот текст напрямую без повторного пересказа NVIDIA и отображает связанные Google Search Suggestions и источники. По действующим условиям Grounding with Google Search Google хранит prompt, contextual information и generated output 30 дней, и отключить это хранение для данной функции нельзя. При недоступности Google используется прежний проверяемый поисковый fallback.",
+      en: "For eligible factual web requests, the Worker sends Google the minimized current turn rather than the full chat history. When Google returns a complete grounded answer with attribution, Erma displays that text directly without NVIDIA rewriting and shows the associated Google Search Suggestions and sources. Under the current Grounding with Google Search terms, Google stores prompts, contextual information, and generated output for 30 days and this storage cannot be disabled for that feature. The previous verifiable search fallback remains available when Google is unavailable.",
     },
   },
 ] as const;
