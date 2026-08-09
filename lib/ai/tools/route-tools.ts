@@ -5,6 +5,7 @@ import { sanitizeLocalArchiveIndex } from "@/lib/ai/tools/executor";
 import type { AiToolCallTrace } from "@/lib/ai/types";
 import { wrapUntrustedExternalText } from "@/lib/ai/untrusted";
 import { getGoogleDirectGrounding, isGoogleDirectGroundingConfigured, type GoogleDirectGroundingResult } from "@/lib/ai/web/google-direct";
+import { classifyPromptSafety, evaluateAssistantOutput } from "@/lib/ai-safety";
 import type { ChatAttachment } from "@/lib/chat-prompt";
 import type { ErmaModel } from "@/lib/models/server";
 import type { HealthPayload } from "@/lib/provider-health";
@@ -16,6 +17,8 @@ function protectedMemory(summary: string | undefined) { return summary ? wrapUnt
 
 function shouldUseDirectGoogleGrounding(prompt: string, documents: readonly ChatAttachment[]) {
   if (documents.length || !isGoogleDirectGroundingConfigured()) return false;
+  const safety = classifyPromptSafety(prompt);
+  if (safety.blocked || safety.category === "high-impact" || safety.category === "restricted") return false;
   const route = routeErmaTask(prompt);
   return route.toolClass === "web" && ["fact_lookup", "fresh_information", "research"].includes(route.intent);
 }
@@ -40,6 +43,8 @@ export async function prepareReadOnlyToolAugmentation(input: { request: Request;
     const startedAt = Date.now();
     try {
       const directGrounding = await getGoogleDirectGrounding(input.prompt, input.signal);
+      const outputSafety = evaluateAssistantOutput(directGrounding.answer, { allowCode: input.allowCodeSandbox === true });
+      if (outputSafety.verdict !== "ok") throw new Error(`google_grounding_output_${outputSafety.verdict}`);
       return {
         summary: conversationMemory,
         traces: [directGoogleTrace(input.requestId, input.language, directGrounding, Date.now() - startedAt)],
