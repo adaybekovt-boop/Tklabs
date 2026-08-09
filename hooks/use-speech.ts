@@ -164,7 +164,9 @@ export function useSpeech(locale: Locale, ttsAvailable: boolean, labels: { voice
     }
   }
 
-  speakMessageRef.current = speakMessage;
+  useEffect(() => {
+    speakMessageRef.current = speakMessage;
+  });
 
   useEffect(() => {
     const playVoiceReply = (event: Event) => {
