@@ -1,5 +1,6 @@
 import { auth } from "@/auth";
 import { ChatContextValidationError, prepareChatContext, type PreparedChatContext } from "@/lib/ai/context";
+import { parsePersonalMemoryPacket, renderPersonalMemoryContext } from "@/lib/ai/personal-memory";
 import { newRequestId } from "@/lib/ai/provider-http";
 import { classifyPromptSafety, safetyRefusal } from "@/lib/ai-safety";
 import { PromptValidationError, validateAndBuildProviderPrompt, type ChatAttachment, type ChatImageAttachment } from "@/lib/chat-prompt";
@@ -25,6 +26,7 @@ export type PreparedDemoRequest = {
   tone: ErmaTone;
   privilegedAccount: boolean;
   context: PreparedChatContext;
+  personalMemoryContext: string;
   documents: ChatAttachment[];
   images: ChatImageAttachment[];
   quota: DemoQuota;
@@ -92,6 +94,9 @@ export async function prepareDemoRequest(request: Request): Promise<DemoRequestP
     throw error;
   }
 
+  const personalMemory = parsePersonalMemoryPacket(normalizedBody.personalMemory);
+  const personalMemoryContext = renderPersonalMemoryContext(personalMemory, validatedPrompt.prompt);
+
   const safetyInput = [
     context.summary ?? "",
     ...context.messages.filter((message) => message.role === "user").map((message) => message.content),
@@ -115,6 +120,7 @@ export async function prepareDemoRequest(request: Request): Promise<DemoRequestP
       tone,
       privilegedAccount,
       context,
+      personalMemoryContext,
       documents: validatedPrompt.attachments,
       images: validatedPrompt.images,
       quota: quotaResult.quota,
