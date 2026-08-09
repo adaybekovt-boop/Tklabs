@@ -9,6 +9,7 @@ import type {
   ProviderLeaseOutcome,
   ProviderLeaseResult,
 } from "./contracts";
+import { maxOutputTokensFor } from "./shared";
 
 const DEFAULT_ADMISSION_WAIT_MS = 1_500;
 
@@ -21,12 +22,32 @@ function admissionWaitMs() {
   return Number.isFinite(parsed) ? Math.max(0, Math.min(10_000, parsed)) : DEFAULT_ADMISSION_WAIT_MS;
 }
 
+function estimatedTokenCost(input: ErmaGenerationInput) {
+  const inputTokens = Number.isFinite(input.estimatedInputTokens)
+    ? Math.max(0, Math.round(input.estimatedInputTokens ?? 0))
+    : 0;
+  const imageReserve = (input.images?.length ?? 0) * 2_048;
+  const outputReserve = maxOutputTokensFor(input.model.tier, input.effort);
+  return Math.max(1, Math.min(250_000, inputTokens + imageReserve + outputReserve));
+}
+
 function delay(ms: number, signal?: AbortSignal) {
   if (signal?.aborted) return Promise.reject(signal.reason ?? new DOMException("Aborted", "AbortError"));
   return new Promise<void>((resolve, reject) => {
-    const timeout = setTimeout(resolve, ms);
+    let settled = false;
+    const cleanup = () => signal?.removeEventListener("abort", abort);
+    const finish = () => {
+      if (settled) return;
+      settled = true;
+      cleanup();
+      resolve();
+    };
+    const timeout = setTimeout(finish, ms);
     const abort = () => {
+      if (settled) return;
+      settled = true;
       clearTimeout(timeout);
+      cleanup();
       reject(signal?.reason ?? new DOMException("Aborted", "AbortError"));
     };
     signal?.addEventListener("abort", abort, { once: true });
@@ -47,10 +68,11 @@ export async function acquireProviderLease(
   const stub = namespace.getByName("global");
   const requestId = input.requestId?.trim() || crypto.randomUUID();
   const fairnessKey = input.fairnessKey?.trim() || `request:${requestId}`;
+  const estimatedTokens = estimatedTokenCost(input);
   const deadline = Date.now() + admissionWaitMs();
 
   while (true) {
-    const result = await stub.acquire({ candidates, fairnessKey, requestId });
+    const result = await stub.acquire({ candidates, fairnessKey, requestId, estimatedTokens });
     if (result.granted || Date.now() >= deadline || input.signal?.aborted) return result;
     const remaining = deadline - Date.now();
     await delay(Math.min(Math.max(50, result.retryAfterMs), remaining), input.signal);
