@@ -98,9 +98,10 @@ test("v0.24 web gateway is Google-first with bounded fallbacks and readable extr
   assert.match(productFacts, /fullConversationSentToSearchProvider: false/);
 });
 
-test("v0.24 preserves the friend's 10-mode Erma character layer while hardening factual accuracy", async () => {
+test("v0.24 preserves Erma character behavior while hardening factual accuracy", async () => {
   const server = await source("lib/models/server.ts");
-  assert.match(server, /=== 10\. ТВОРЧЕСКИЙ ===/);
-  assert.match(server, /ТОЧНОСТЬ И ФАКТЫ/);
+  assert.match(server, /КАК ТЫ ГОВОРИШЬ/);
+  assert.match(server, /ТВОРЧЕСТВО/);
+  assert.match(server, /Мои создатели TK-Thomas и TK-Xenonraze/);
   assert.match(server, /route\.intent === "fact_lookup"/);
 });
