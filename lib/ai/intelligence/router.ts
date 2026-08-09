@@ -36,13 +36,17 @@ const MATH_WORDS = /(?:посчитай|вычисли|уравнен|интег
 function clamp(value: number, min: number, max: number) { return Math.max(min, Math.min(max, value)); }
 
 function routeFor(intent: ErmaTaskIntent, prompt: string): ErmaIntelligenceRoute {
-  const current = CURRENT_WORDS.test(prompt); const comparison = COMPARE_WORDS.test(prompt);
+  const current = CURRENT_WORDS.test(prompt); const comparison = COMPARE_WORDS.test(prompt); const kazakhstan = isKazakhstanContext(prompt);
   if (intent === "tklab_policy") return { schemaVersion: 1, intent, freshness: "internal-current", verification: "verify-sources", toolClass: "internal", shouldPlanTools: true, shouldCiteSources: true, maxToolCalls: comparison ? 4 : 2, maxToolRounds: 2, reasonCode: "TKLAB_POLICY_SOURCE_OF_TRUTH" };
   if (intent === "tklab_release") return { schemaVersion: 1, intent, freshness: "internal-current", verification: "verify-sources", toolClass: "internal", shouldPlanTools: true, shouldCiteSources: true, maxToolCalls: comparison ? 5 : 2, maxToolRounds: 2, reasonCode: "TKLAB_RELEASE_SOURCE_OF_TRUTH" };
   if (intent === "math") return { schemaVersion: 1, intent, freshness: "none", verification: "verify-calculation", toolClass: "math", shouldPlanTools: true, shouldCiteSources: false, maxToolCalls: 4, maxToolRounds: 2, reasonCode: "DETERMINISTIC_MATH_PREFERRED" };
-  if (intent === "fresh_information" || intent === "research") return { schemaVersion: 1, intent, freshness: "web-current", verification: "verify-sources", toolClass: "web", shouldPlanTools: true, shouldCiteSources: true, maxToolCalls: intent === "research" ? 8 : 5, maxToolRounds: intent === "research" ? 3 : 2, reasonCode: intent === "research" ? "MULTI_SOURCE_RESEARCH" : "CURRENT_EXTERNAL_FACTS_REQUIRED" };
+  if (intent === "fresh_information" || intent === "research") {
+    const reasonCode = intent === "research"
+      ? (kazakhstan ? "KAZAKHSTAN_MULTI_SOURCE_RESEARCH" : "MULTI_SOURCE_RESEARCH")
+      : (kazakhstan ? "CURRENT_KAZAKHSTAN_EXTERNAL_FACTS_REQUIRED" : "CURRENT_EXTERNAL_FACTS_REQUIRED");
+    return { schemaVersion: 1, intent, freshness: "web-current", verification: "verify-sources", toolClass: "web", shouldPlanTools: true, shouldCiteSources: true, maxToolCalls: intent === "research" ? 8 : 5, maxToolRounds: intent === "research" ? 3 : 2, reasonCode };
+  }
   if (intent === "fact_lookup") {
-    const kazakhstan = isKazakhstanContext(prompt);
     const reasonCode = current
       ? (kazakhstan ? "CURRENT_KAZAKHSTAN_GROUNDED_FACT_LOOKUP" : "CURRENT_GROUNDED_FACT_LOOKUP")
       : (kazakhstan ? "KAZAKHSTAN_GROUNDED_FACT_LOOKUP" : "GROUNDED_FACT_LOOKUP");
