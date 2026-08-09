@@ -4,7 +4,7 @@ import {
   releaseDemoRequest,
   reserveDemoRequest,
 } from "@/lib/demo-rate-limit-access";
-import { getRateLimitIdentity, RateLimitConfigurationError } from "@/lib/rate-limit-identity";
+import { getRateLimitIdentity, getRateLimitSecret, hmacSha256Hex, RateLimitConfigurationError } from "@/lib/rate-limit-identity";
 
 import type { Language } from "./contracts";
 import { jsonResponse } from "./http";
@@ -14,13 +14,15 @@ type DemoAllowance = Awaited<ReturnType<typeof reserveDemoRequest>>;
 
 export type DemoQuota = {
   cookie: string | null;
+  fairnessKey: string;
   commit(): Promise<void>;
   release(): Promise<void>;
 };
 
-function noOpQuota(): DemoQuota {
+function noOpQuota(requestId: string): DemoQuota {
   return {
     cookie: null,
+    fairnessKey: `privileged:${requestId}`,
     async commit() {},
     async release() {},
   };
@@ -47,17 +49,19 @@ export async function createDemoQuota(input: {
   sessionEmail: string;
   privileged: boolean;
 }): Promise<{ quota: DemoQuota } | { response: Response }> {
-  if (input.privileged) return { quota: noOpQuota() };
+  if (input.privileged) return { quota: noOpQuota(input.requestId) };
 
   let cookie: string | null = null;
   let identifier = "";
   let reservationId = "";
+  let fairnessKey = "";
   let allowance: DemoAllowance;
 
   try {
     const identity = await getRateLimitIdentity(input.request, input.sessionEmail);
     cookie = identity.setCookie;
     identifier = identity.identifier;
+    fairnessKey = await hmacSha256Hex(identifier, getRateLimitSecret());
     allowance = await reserveDemoRequest(identity.identifier);
   } catch (error) {
     if (!(error instanceof DemoRateLimitUnavailableError || error instanceof RateLimitConfigurationError)) {
@@ -87,12 +91,13 @@ export async function createDemoQuota(input: {
   }
 
   reservationId = allowance.reservationId ?? "";
-  if (!reservationId) return { response: unavailableResponse(input.language, input.requestId, cookie) };
+  if (!reservationId || !fairnessKey) return { response: unavailableResponse(input.language, input.requestId, cookie) };
 
   let settlement: QuotaSettlement = "pending";
   return {
     quota: {
       cookie,
+      fairnessKey,
       async commit() {
         if (settlement !== "pending") return;
         settlement = "committed";

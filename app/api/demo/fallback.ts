@@ -89,11 +89,15 @@ export async function resolveFallback(input: {
 
 export function providerFailureReason(error: unknown) {
   if (error instanceof ProviderTimeoutError) return error.code;
-  if (error instanceof Error && error.message === "nvidia_not_configured") return "nvidia_not_configured";
-  if (error instanceof Error && error.message === "nvidia_output_blocked") return "safety_output_blocked";
-  if (error instanceof Error && error.message === "nvidia_output_too_large") return "nvidia_output_too_large";
-  if (error instanceof Error && error.message === "nvidia_model_has_no_vision") return "vision_model_unavailable";
-  return "nvidia_request_failed";
+  const message = error instanceof Error ? error.message : "";
+  if (message === "erma_output_blocked" || /_output_blocked$/.test(message)) return "safety_output_blocked";
+  if (message === "erma_capacity_exhausted") return "provider_capacity_exhausted";
+  if (message === "erma_mesh_exhausted") return "provider_mesh_exhausted";
+  if (message === "erma_stream_interrupted") return "provider_stream_interrupted";
+  if (message === "nvidia_not_configured") return "nvidia_not_configured";
+  if (message === "nvidia_output_too_large" || /_output_too_large$/.test(message)) return "provider_output_too_large";
+  if (message === "nvidia_model_has_no_vision" || /_vision_not_supported$/.test(message)) return "vision_model_unavailable";
+  return "provider_request_failed";
 }
 
 export function streamInterruptedText(language: Language) {

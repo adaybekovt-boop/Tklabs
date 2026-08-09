@@ -69,10 +69,12 @@ test("fallback helpers preserve bounded context metadata and tool traces", () =>
   assert.equal(withToolCalls(enriched, []), enriched);
 });
 
-test("provider failure classification remains stable", () => {
+test("provider failure classification remains stable across the provider mesh", () => {
   assert.equal(providerFailureReason(new Error("nvidia_not_configured")), "nvidia_not_configured");
   assert.equal(providerFailureReason(new Error("nvidia_output_blocked")), "safety_output_blocked");
-  assert.equal(providerFailureReason(new Error("network timeout")), "nvidia_request_failed");
+  assert.equal(providerFailureReason(new Error("erma_capacity_exhausted")), "provider_capacity_exhausted");
+  assert.equal(providerFailureReason(new Error("erma_mesh_exhausted")), "provider_mesh_exhausted");
+  assert.equal(providerFailureReason(new Error("network timeout")), "provider_request_failed");
 });
 
 test("demo route stays an orchestrator instead of absorbing infrastructure details", async () => {

@@ -1,6 +1,6 @@
 import { estimateTextTokens } from "@/lib/ai/context";
 import { logAiProviderFailure, logAiRequest } from "@/lib/ai/logging";
-import { generateWithNvidia } from "@/lib/ai/providers/nvidia";
+import { ErmaMeshError, generateWithErmaMesh } from "@/lib/ai/providers/mesh";
 import { createAiResponseMeta } from "@/lib/ai/response";
 import { prepareReadOnlyToolAugmentation } from "@/lib/ai/tools/route-tools";
 import { safetyRefusal } from "@/lib/ai-safety";
@@ -49,8 +49,30 @@ export async function respondWithDemoJson(input: PreparedDemoRequest) {
   const fallbackPrompt = contextualFallbackPrompt(context, toolAugmentation.summary);
 
   try {
-    const result = await generateWithNvidia({ messages: context.messages, summary: toolAugmentation.summary, language, model, requestedReasoning, effort, allowCode: privilegedAccount, tone, images, signal: request.signal });
-    const generationResult = withContextMetadata(withToolCalls({ answer: result.answer, reasoningUsed: result.reasoningUsed, provider: "nvidia", actualModel: result.actualModel, inputTokens: result.inputTokens, outputTokens: result.outputTokens }, toolAugmentation.traces), context);
+    const result = await generateWithErmaMesh({
+      messages: context.messages,
+      summary: toolAugmentation.summary,
+      language,
+      model,
+      requestedReasoning,
+      effort,
+      allowCode: privilegedAccount,
+      tone,
+      images,
+      signal: request.signal,
+      requestId,
+      fairnessKey: quota.fairnessKey,
+      estimatedInputTokens: context.estimatedTokens,
+    });
+    const generationResult = withContextMetadata(withToolCalls({
+      answer: result.answer,
+      reasoningUsed: result.reasoningUsed,
+      provider: result.provider,
+      actualModel: result.actualModel,
+      fallbackReason: result.fallbackReason,
+      inputTokens: result.inputTokens,
+      outputTokens: result.outputTokens,
+    }, toolAugmentation.traces), context);
     await quota.commit();
     const meta = createAiResponseMeta(generationResult, requestedModel, requestId, startedAt);
     logAiRequest(meta);
@@ -58,7 +80,13 @@ export async function respondWithDemoJson(input: PreparedDemoRequest) {
   } catch (error) {
     if (request.signal.aborted) { await quota.release(); return jsonResponse({ error: "Request cancelled.", requestId }, requestId, 499, rateLimitCookie); }
     const reason = providerFailureReason(error);
-    logAiProviderFailure({ requestId, requestedModel, provider: "nvidia", status: typeof error === "object" && error && "status" in error && typeof error.status === "number" ? error.status : undefined, reason });
+    const provider = error instanceof ErmaMeshError ? error.provider : "mesh";
+    const status = error instanceof ErmaMeshError
+      ? error.status
+      : typeof error === "object" && error && "status" in error && typeof error.status === "number"
+        ? error.status
+        : undefined;
+    logAiProviderFailure({ requestId, requestedModel, provider, status, reason });
 
     if (reason === "safety_output_blocked") {
       await quota.commit();

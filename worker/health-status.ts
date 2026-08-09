@@ -13,6 +13,9 @@ type HealthStatusEnv = {
   GOOGLE_GEMINI_API_KEY?: string;
   GEMINI_API_KEY?: string;
   GOOGLE_DIRECT_GROUNDING_MODEL?: string;
+  GOOGLE_INFERENCE_MODEL?: string;
+  CEREBRAS_API_KEY?: string;
+  GROQ_API_KEY?: string;
   AUTH_SECRET?: string;
   AUTH_GOOGLE_ID?: string;
   AUTH_GOOGLE_SECRET?: string;
@@ -98,10 +101,28 @@ async function providerCheck(id: string, url: string, headers: Record<string, st
   return { id, required, ...(await probe(url, headers)) };
 }
 
+function inferenceMeshCheck(checks: HealthCheck[]): HealthCheck {
+  const configured = checks.filter((check) => check.status !== "not_configured");
+  const operational = configured.filter((check) => check.status === "operational");
+  const degraded = configured.filter((check) => check.status === "degraded");
+  const status: HealthState = operational.length
+    ? operational.length < configured.length ? "degraded" : "operational"
+    : degraded.length
+      ? "degraded"
+      : configured.length
+        ? "down"
+        : "not_configured";
+  const latencies = operational.map((check) => check.latencyMs).filter((value): value is number => typeof value === "number");
+  return { id: "inference", status, latencyMs: latencies.length ? Math.min(...latencies) : null, required: true };
+}
+
 async function buildHealth(env: HealthStatusEnv): Promise<StoredHealth> {
   const nvidiaKey = firstEnv(env, "NVIDIA_API_KEY_PRIMARY", "NVIDIA_API_KEY_SECONDARY", "NVIDIA_API_KEY_1", "NVIDIA_API_KEY");
-  const googleGroundingKey = firstEnv(env, "GOOGLE_GEMINI_API_KEY", "GEMINI_API_KEY");
+  const googleKey = firstEnv(env, "GOOGLE_GEMINI_API_KEY", "GEMINI_API_KEY");
   const googleDirectModel = firstEnv(env, "GOOGLE_DIRECT_GROUNDING_MODEL") || "gemini-3.6-flash";
+  const googleInferenceModel = firstEnv(env, "GOOGLE_INFERENCE_MODEL") || "gemini-3.6-flash";
+  const cerebrasKey = firstEnv(env, "CEREBRAS_API_KEY");
+  const groqKey = firstEnv(env, "GROQ_API_KEY");
   const clodexKey = firstEnv(env, "CLODEX_API_KEY");
   const clodexEnabled = env.CLODEX_ENABLED?.trim().toLowerCase() === "true";
   const clodexModelsConfigured = Boolean(getClodexModelConfig({
@@ -111,23 +132,37 @@ async function buildHealth(env: HealthStatusEnv): Promise<StoredHealth> {
   const authConfigured = Boolean(firstEnv(env, "AUTH_SECRET") && firstEnv(env, "AUTH_GOOGLE_ID") && firstEnv(env, "AUTH_GOOGLE_SECRET"));
   const rateLimitConfigured = Boolean(env.CLODEX_ACCESS && firstEnv(env, "RATE_LIMIT_SECRET") && firstEnv(env, "ACCOUNT_ID_SECRET"));
 
-  const checks = await Promise.all([
-    providerCheck("inference", "https://integrate.api.nvidia.com/v1/models", nvidiaKey ? { authorization: `Bearer ${nvidiaKey}` } : {}, Boolean(nvidiaKey)),
+  const providerChecks = await Promise.all([
+    providerCheck("nvidia", "https://integrate.api.nvidia.com/v1/models", nvidiaKey ? { authorization: `Bearer ${nvidiaKey}` } : {}, Boolean(nvidiaKey), false),
     providerCheck(
-      "google_grounding",
-      `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(googleDirectModel)}`,
-      googleGroundingKey ? { "x-goog-api-key": googleGroundingKey } : {},
-      Boolean(googleGroundingKey),
+      "google",
+      `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(googleInferenceModel)}`,
+      googleKey ? { "x-goog-api-key": googleKey } : {},
+      Boolean(googleKey),
       false,
     ),
-    providerCheck("clodex", "https://clodex.xyz/v1/models", clodexKey ? { "anthropic-version": "2023-06-01", "x-api-key": clodexKey } : {}, clodexEnabled && clodexModelsConfigured && Boolean(clodexKey), false),
-    Promise.resolve<HealthCheck>({ id: "auth", status: authConfigured ? "operational" : "not_configured", latencyMs: null }),
-    Promise.resolve<HealthCheck>({ id: "access", status: rateLimitConfigured ? "operational" : "not_configured", latencyMs: null }),
+    providerCheck("cerebras", "https://api.cerebras.ai/v1/models", cerebrasKey ? { authorization: `Bearer ${cerebrasKey}` } : {}, Boolean(cerebrasKey), false),
+    providerCheck("groq", "https://api.groq.com/openai/v1/models", groqKey ? { authorization: `Bearer ${groqKey}` } : {}, Boolean(groqKey), false),
   ]);
+
+  const checks: HealthCheck[] = [
+    inferenceMeshCheck(providerChecks),
+    ...providerChecks,
+    await providerCheck(
+      "google_grounding",
+      `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(googleDirectModel)}`,
+      googleKey ? { "x-goog-api-key": googleKey } : {},
+      Boolean(googleKey),
+      false,
+    ),
+    await providerCheck("clodex", "https://clodex.xyz/v1/models", clodexKey ? { "anthropic-version": "2023-06-01", "x-api-key": clodexKey } : {}, clodexEnabled && clodexModelsConfigured && Boolean(clodexKey), false),
+    { id: "auth", status: authConfigured ? "operational" : "not_configured", latencyMs: null },
+    { id: "access", status: rateLimitConfigured ? "operational" : "not_configured", latencyMs: null },
+  ];
 
   return {
     checkedAt: new Date().toISOString(),
-    ok: checks.filter((check) => check.required !== false).every((check) => check.status === "operational"),
+    ok: checks.filter((check) => check.required !== false).every((check) => check.status === "operational" || (check.id === "inference" && check.status === "degraded")),
     services: checks,
   };
 }
