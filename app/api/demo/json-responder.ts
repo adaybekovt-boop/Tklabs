@@ -62,6 +62,7 @@ export async function respondWithDemoJson(input: PreparedDemoRequest) {
       signal: request.signal,
       requestId,
       fairnessKey: quota.fairnessKey,
+      estimatedInputTokens: context.estimatedTokens,
     });
     const generationResult = withContextMetadata(withToolCalls({
       answer: result.answer,
