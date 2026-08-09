@@ -1,5 +1,9 @@
 export const RATE_LIMIT_COOKIE_NAME = "__Host-tklab-rl";
 
+const LOAD_TEST_ID_HEADER = "x-tklabs-load-test-id";
+const LOAD_TEST_SIGNATURE_HEADER = "x-tklabs-load-test-signature";
+const PRODUCTION_HOSTS = new Set(["tklabs.uk", "www.tklabs.uk"]);
+
 export class RateLimitConfigurationError extends Error {
   constructor() {
     super("RATE_LIMIT_SECRET is not configured.");
@@ -45,10 +49,34 @@ function newCookieId() {
   return crypto.randomUUID().replaceAll("-", "");
 }
 
+async function signedLoadTestIdentity(request: Request) {
+  if (process.env.ERMA_LOAD_TEST_ENABLED?.trim().toLowerCase() !== "true") return null;
+  const secret = process.env.ERMA_LOAD_TEST_SECRET?.trim();
+  if (!secret) return null;
+
+  let hostname = "";
+  try {
+    hostname = new URL(request.url).hostname.toLowerCase();
+  } catch {
+    return null;
+  }
+  if (PRODUCTION_HOSTS.has(hostname)) return null;
+
+  const identity = request.headers.get(LOAD_TEST_ID_HEADER)?.trim() ?? "";
+  const signature = request.headers.get(LOAD_TEST_SIGNATURE_HEADER)?.trim().toLowerCase() ?? "";
+  if (!/^[A-Za-z0-9:_-]{1,96}$/.test(identity) || !/^[a-f0-9]{64}$/.test(signature)) return null;
+
+  const expected = await hmacSha256Hex(`load-test:${identity}`, secret);
+  return constantTimeEqual(expected, signature) ? `load-test:${identity}` : null;
+}
+
 export async function getRateLimitIdentity(request: Request, sessionEmail?: string | null) {
   const secret = getRateLimitSecret();
   const normalizedEmail = sessionEmail?.trim().toLowerCase();
   if (normalizedEmail) return { identifier: `account:${normalizedEmail}`, setCookie: null as string | null };
+
+  const loadTestIdentity = await signedLoadTestIdentity(request);
+  if (loadTestIdentity) return { identifier: loadTestIdentity, setCookie: null as string | null };
 
   const cloudflareRequest = request as Request & { cf?: unknown };
   const connectingIp = request.headers.get("cf-connecting-ip")?.trim();
