@@ -54,7 +54,13 @@ export function ResponsiveChatComposer(props: Props) {
           {locale === "ru" ? (voiceMode ? "Voice включён" : "Voice") : (voiceMode ? "Voice on" : "Voice")}
         </button>
       </div>
-      <PromptInput {...props} />
+      <PromptInput
+        {...props}
+        className={cn(
+          props.className,
+          "[&>[role=menu]]:!bottom-[calc(100%+8px)] [&>[role=menu]]:!top-auto",
+        )}
+      />
     </div>
   );
 }
