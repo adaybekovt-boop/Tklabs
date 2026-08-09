@@ -1,3 +1,4 @@
+import { announceErmaVoiceReply } from "@/lib/ai/voice-mode";
 import type { AiResponseMeta } from "@/lib/ai/types";
 
 import type { ActiveConversation, ChatContextStats } from "./contracts";
@@ -8,6 +9,7 @@ export type StreamOutcome = {
   receivedDone: boolean;
   receivedContent: boolean;
   streamError: string;
+  content: string;
 };
 
 export type StreamCallbacks = {
@@ -92,6 +94,7 @@ export async function consumeAiEventStream(
   let receivedDone = false;
   let receivedContent = false;
   let streamError = "";
+  let content = "";
 
   while (true) {
     const { done, value } = await reader.read();
@@ -118,6 +121,7 @@ export async function consumeAiEventStream(
         const delta = typeof parsed.payload.text === "string" ? parsed.payload.text : "";
         if (!delta) continue;
         receivedContent = true;
+        content += delta;
         callbacks.delta(delta);
         continue;
       }
@@ -138,5 +142,8 @@ export async function consumeAiEventStream(
     if (done) break;
   }
 
-  return { receivedDone, receivedContent, streamError };
+  if (receivedDone && !streamError && content.trim()) {
+    announceErmaVoiceReply({ id: conversation.assistantId, role: "assistant", content });
+  }
+  return { receivedDone, receivedContent, streamError, content };
 }

@@ -74,7 +74,9 @@ test("Erma Nova mobile chat keeps dedicated responsive surfaces without duplicat
   assert.match(drawer, /data-mobile-chat-drawer/);
   assert.match(drawer, /ConversationArchive/);
   assert.doesNotMatch(drawer, /href="\/vault"|LanguageToggle|Erma Flow/);
-  assert.match(composer, /PromptInput as ResponsiveChatComposer/);
+  assert.match(composer, /<PromptInput \{\.\.\.props\} \/>/);
+  assert.match(composer, /ERMA_VOICE_MODE_EVENT/);
+  assert.doesNotMatch(composer, /CHAT_RESPONSE_MODES|EffortBars|ModelMark|settingsOpen/);
   assert.match(input, /data-testid="prompt-input"/);
   assert.match(input, /attachments\.length > 0/);
   assert.match(input, /handlePrimaryAction/);

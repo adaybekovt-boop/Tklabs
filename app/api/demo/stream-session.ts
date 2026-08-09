@@ -11,6 +11,10 @@ import type { PreparedDemoRequest } from "./request-context";
 
 type StreamEvent = Parameters<typeof encodeAiStreamEvent>[0];
 
+function withPersonalMemory(summary: string | undefined, memory: string) {
+  return [summary, memory].filter(Boolean).join("\n\n") || undefined;
+}
+
 export class DemoStreamSession {
   private readonly providerController = new AbortController();
   private partialAnswer = "";
@@ -21,7 +25,7 @@ export class DemoStreamSession {
   private controller: ReadableStreamDefaultController<Uint8Array> | null = null;
 
   constructor(private readonly input: PreparedDemoRequest) {
-    this.augmentedSummary = input.context.summary;
+    this.augmentedSummary = withPersonalMemory(input.context.summary, input.personalMemoryContext);
     if (input.request.signal.aborted) this.abortProvider();
     else input.request.signal.addEventListener("abort", this.abortProvider, { once: true });
   }
@@ -41,12 +45,12 @@ export class DemoStreamSession {
   private startPayload() { const { context, requestId } = this.input; return { requestId, status: "connecting", context: { estimatedTokens: context.estimatedTokens, messages: context.includedMessageCount, attachments: context.attachmentCount, limit: context.contextLimit, compacted: context.compacted } }; }
 
   private async run() {
-    const { request, body, requestId, prompt, context, language, model, requestedReasoning, effort, tone, privilegedAccount, documents, images, quota, startedAt, requestedModel } = this.input;
+    const { request, body, requestId, prompt, context, personalMemoryContext, language, model, requestedReasoning, effort, tone, privilegedAccount, documents, images, quota, startedAt, requestedModel } = this.input;
     this.send("start", this.startPayload());
     try {
       const toolAugmentation = await prepareReadOnlyToolAugmentation({ request, requestId, prompt, context, language, model, localArchive: body.localArchive, documents, allowCodeSandbox: privilegedAccount, signal: this.providerController.signal });
       this.toolCalls = toolAugmentation.traces;
-      this.augmentedSummary = toolAugmentation.summary;
+      this.augmentedSummary = withPersonalMemory(toolAugmentation.summary, personalMemoryContext);
       for (const trace of this.toolCalls) this.send("tool", trace);
 
       if (toolAugmentation.directGrounding) {

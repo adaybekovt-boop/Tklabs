@@ -14,8 +14,9 @@ test("v0.22 exposes one concise Erma composer instead of model/mode/effort contr
   assert.match(input, /DOCUMENT_ACCEPT/);
   assert.match(input, /extractDocumentFile/);
   assert.match(input, /effort:\s*"medium"/);
-  assert.match(responsive, /PromptInput as ResponsiveChatComposer/);
-  assert.doesNotMatch(responsive, /quickCommands|\/search|\/code|\/document|\/plan|settingsOpen/);
+  assert.match(responsive, /<PromptInput \{\.\.\.props\} \/>/);
+  assert.match(responsive, /setErmaVoiceModeEnabled/);
+  assert.doesNotMatch(responsive, /quickCommands|\/search|\/code|\/document|\/plan|settingsOpen|CHAT_RESPONSE_MODES|EffortBars|ModelMark/);
 });
 
 test("legacy response modes no longer inject synthetic instructions into document context", async () => {

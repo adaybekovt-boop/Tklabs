@@ -9,10 +9,15 @@ import { contextualFallbackPrompt, providerFailureReason, resolveFallback, visio
 import { jsonResponse } from "./http";
 import type { PreparedDemoRequest } from "./request-context";
 
+function withPersonalMemory(summary: string | undefined, memory: string) {
+  return [summary, memory].filter(Boolean).join("\n\n") || undefined;
+}
+
 export async function respondWithDemoJson(input: PreparedDemoRequest) {
-  const { request, body, requestId, prompt, context, language, model, requestedReasoning, effort, tone, privilegedAccount, documents, images, quota, rateLimitCookie, startedAt, requestedModel } = input;
+  const { request, body, requestId, prompt, context, personalMemoryContext, language, model, requestedReasoning, effort, tone, privilegedAccount, documents, images, quota, rateLimitCookie, startedAt, requestedModel } = input;
 
   const toolAugmentation = await prepareReadOnlyToolAugmentation({ request, requestId, prompt, context, language, model, localArchive: body.localArchive, documents, allowCodeSandbox: privilegedAccount, signal: request.signal });
+  const generationSummary = withPersonalMemory(toolAugmentation.summary, personalMemoryContext);
 
   if (toolAugmentation.directGrounding) {
     const direct = toolAugmentation.directGrounding;
@@ -46,12 +51,12 @@ export async function respondWithDemoJson(input: PreparedDemoRequest) {
     return jsonResponse({ answer: guarded.answer, meta }, requestId, 200, rateLimitCookie);
   }
 
-  const fallbackPrompt = contextualFallbackPrompt(context, toolAugmentation.summary);
+  const fallbackPrompt = contextualFallbackPrompt(context, generationSummary);
 
   try {
     const result = await generateWithErmaMesh({
       messages: context.messages,
-      summary: toolAugmentation.summary,
+      summary: generationSummary,
       language,
       model,
       requestedReasoning,
