@@ -47,6 +47,12 @@ export function evaluateProviderText(
   return { answer: evaluation.answer, reasoningUsed: evaluation.reasoningUsed };
 }
 
+export function assertStreamingWindowSafe(answer: string, allowCode: boolean, providerPrefix: string) {
+  if (!answer.trim()) return;
+  const evaluation = evaluateAssistantContent({ answer }, { allowCode });
+  if (evaluation.verdict === "unsafe") throw new Error(`${providerPrefix}_output_blocked`);
+}
+
 export function parseSsePayload(block: string) {
   return block
     .split(/\r?\n/)
