@@ -14,11 +14,12 @@ test("v0.17.1 keeps the demo route as a thin orchestrator", async () => {
   assert.match(route, /prepareDemoRequest/);
   assert.match(route, /respondWithDemoJson/);
   assert.match(route, /new DemoStreamSession/);
-  assert.doesNotMatch(route, /from "\.\/quota"|from "@\/lib\/ai\/providers\/nvidia"/);
-  assert.doesNotMatch(route, /\bcreateDemoQuota\s*\(|\bgenerateWithNvidia\s*\(|\bstreamWithNvidia\s*\(/);
+  assert.doesNotMatch(route, /from "\.\/quota"|from "@\/lib\/ai\/providers\/nvidia"|from "@\/lib\/ai\/providers\/mesh"/);
+  assert.doesNotMatch(route, /\bcreateDemoQuota\s*\(|\bgenerateWithNvidia\s*\(|\bstreamWithNvidia\s*\(|\bgenerateWithErmaMesh\s*\(|\bstreamWithErmaMesh\s*\(/);
   assert.match(requestContext, /prepareChatContext/);
   assert.match(requestContext, /createDemoQuota/);
-  assert.match(jsonResponder, /generateWithNvidia/);
+  assert.match(jsonResponder, /generateWithErmaMesh/);
+  assert.match(streamSession, /streamWithErmaMesh/);
   assert.match(streamSession, /class DemoStreamSession/);
   assert.match(streamSession, /cancel: async/);
 });
