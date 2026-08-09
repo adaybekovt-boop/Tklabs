@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useReducer, useRef, useState } from "react";
 
 import { DEFAULT_CONTEXT_LIMIT_TOKENS } from "@/lib/ai/context";
+import { personalMemoryPacket } from "@/lib/ai/personal-memory-client";
 import { shouldIncludeLocalArchive } from "@/lib/ai/tools/intents";
 import type { AiResponseMeta } from "@/lib/ai/types";
 import type { ChatResponseMode } from "@/lib/chat-modes";
@@ -271,6 +272,7 @@ export function useChatRequest(options: {
 
     try {
       const endpoint = requestModel.startsWith("clodex:") ? "/api/clodex" : "/api/demo";
+      const personalMemory = endpoint === "/api/demo" ? personalMemoryPacket() : [];
       const response = await fetch(endpoint, {
         method: "POST",
         headers: {
@@ -292,6 +294,7 @@ export function useChatRequest(options: {
             options.locale,
           ),
           ...(endpoint === "/api/demo" && localArchive.length ? { localArchive } : {}),
+          ...(personalMemory.length ? { personalMemory } : {}),
         }),
       });
       armWatchdog(controller, conversation);
@@ -457,6 +460,7 @@ export function useChatRequest(options: {
 
     try {
       const endpoint = requestModel.startsWith("clodex:") ? "/api/clodex" : "/api/demo";
+      const personalMemory = endpoint === "/api/demo" ? personalMemoryPacket() : [];
       const response = await fetch(endpoint, {
         method: "POST",
         headers: { "content-type": "application/json", accept: "application/json" },
@@ -470,6 +474,7 @@ export function useChatRequest(options: {
           tone: options.tone,
           attachments: modeAttachments([], options.responseMode, options.locale),
           ...(endpoint === "/api/demo" && localArchive.length ? { localArchive } : {}),
+          ...(personalMemory.length ? { personalMemory } : {}),
         }),
       });
       const payload = await response.json().catch(() => null) as {
