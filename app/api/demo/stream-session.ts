@@ -116,6 +116,7 @@ export class DemoStreamSession {
         signal: this.providerController.signal,
         requestId,
         fairnessKey: quota.fairnessKey,
+        estimatedInputTokens: context.estimatedTokens,
       }, async (delta) => {
         const delivered = this.send("delta", { text: delta });
         if (!delivered) { if (!this.providerController.signal.aborted) this.providerController.abort("response_closed"); return; }
