@@ -16,7 +16,7 @@ type Props = ComponentProps<typeof PromptInput>;
 
 export function ResponsiveChatComposer(props: Props) {
   const [voiceMode, setVoiceMode] = useState(false);
-  const locale = props.locale === "ru" ? "ru" : "en";
+  const locale = props.voiceLanguage?.toLowerCase().startsWith("ru") ? "ru" : "en";
 
   useEffect(() => {
     setVoiceMode(isErmaVoiceModeEnabled());
