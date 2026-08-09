@@ -10,6 +10,7 @@ import {
   STREAM_ANSWER_LIMIT_CHARACTERS,
   STREAM_SAFETY_WINDOW_CHARACTERS,
   VISUAL_CONTEXT_NOTICE,
+  assertStreamingWindowSafe,
   ermaSystemPrompt,
   evaluateProviderText,
   maxOutputTokensFor,
@@ -164,7 +165,7 @@ export async function streamWithGoogle(
       if (!parts.answer) return;
       if (answer.length + parts.answer.length > STREAM_ANSWER_LIMIT_CHARACTERS) throw new Error("google_output_too_large");
       answer += parts.answer;
-      evaluateProviderText(answer.slice(-STREAM_SAFETY_WINDOW_CHARACTERS), undefined, input.allowCode, "google");
+      assertStreamingWindowSafe(answer.slice(-STREAM_SAFETY_WINDOW_CHARACTERS), input.allowCode, "google");
       await onDelta(parts.answer);
     };
 
