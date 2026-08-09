@@ -9,6 +9,7 @@ import type { ErmaGenerationInput, ErmaInferenceProvider, ErmaProviderGeneration
 import {
   STREAM_ANSWER_LIMIT_CHARACTERS,
   STREAM_SAFETY_WINDOW_CHARACTERS,
+  assertStreamingWindowSafe,
   ermaSystemPrompt,
   evaluateProviderText,
   maxOutputTokensFor,
@@ -158,7 +159,7 @@ export async function streamWithOpenAiCompatible(
       if (!text) return;
       if (answer.length + text.length > STREAM_ANSWER_LIMIT_CHARACTERS) throw new Error(`${provider}_output_too_large`);
       answer += text;
-      evaluateProviderText(answer.slice(-STREAM_SAFETY_WINDOW_CHARACTERS), undefined, input.allowCode, provider);
+      assertStreamingWindowSafe(answer.slice(-STREAM_SAFETY_WINDOW_CHARACTERS), input.allowCode, provider);
       await onDelta(text);
     };
 
