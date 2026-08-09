@@ -27,18 +27,29 @@ function toolLabel(name: AiToolName, locale: Locale) {
     search_local_archive: { ru: "Локальная история", en: "Local history" },
     get_model_capabilities: { ru: "Возможности модели", en: "Model capabilities" },
     search_web: { ru: "Поиск в интернете", en: "Web search" },
-    open_web_result: { ru: "Чтение веб-источника", en: "Read web source" },
+    open_web_result: { ru: "Проверка источника", en: "Verify source" },
     run_code_sandbox: { ru: "Проверка кода", en: "Code sandbox" },
   };
   return labels[name][locale];
 }
 
+function activityHeading(calls: AiToolCallTrace[], locale: Locale, failed: number) {
+  const webCalls = calls.filter((call) => call.name === "search_web" || call.name === "open_web_result");
+  const openedSources = webCalls.filter((call) => call.name === "open_web_result" && call.status === "success").length;
+  if (webCalls.length) {
+    if (failed) return locale === "ru" ? `Проверка в интернете · ошибок: ${failed}` : `Web verification · failed: ${failed}`;
+    if (openedSources) return locale === "ru" ? `Проверено в интернете · источников: ${openedSources}` : `Verified on the web · sources: ${openedSources}`;
+    return locale === "ru" ? "Поиск в интернете выполнен · источник ещё не подтверждён" : "Web search completed · source not yet verified";
+  }
+  return locale === "ru"
+    ? failed ? `Проверки: ${calls.length} · не удалось: ${failed}` : `Проверено инструментами: ${calls.length}`
+    : failed ? `Checks: ${calls.length} · failed: ${failed}` : `Checked with tools: ${calls.length}`;
+}
+
 export function AgentActivity({ calls, locale, open = false }: { calls?: AiToolCallTrace[]; locale: Locale; open?: boolean }) {
   if (!calls?.length) return null;
   const failed = calls.filter((call) => call.status !== "success").length;
-  const heading = locale === "ru"
-    ? failed ? `Проверки: ${calls.length} · не удалось: ${failed}` : `Проверено инструментами: ${calls.length}`
-    : failed ? `Checks: ${calls.length} · failed: ${failed}` : `Checked with tools: ${calls.length}`;
+  const heading = activityHeading(calls, locale, failed);
 
   return (
     <details className="group mt-4 rounded-2xl border border-outline-variant bg-surface-container-low" open={open} data-agent-activity>
@@ -58,7 +69,7 @@ export function AgentActivity({ calls, locale, open = false }: { calls?: AiToolC
                   {call.status !== "success" && <span className="text-[10px] font-medium text-error">{locale === "ru" ? "Не удалось" : "Unavailable"}</span>}
                 </div>
                 <p className="mt-1 text-[11px] leading-5 text-on-surface-variant">{call.summary}</p>
-                {call.links?.length ? <div className="mt-2 flex flex-wrap gap-1.5">{call.links.map((link) => <a key={`${call.id}-${link.href}`} href={link.href} className="inline-flex min-h-8 items-center gap-1 rounded-full border border-outline-variant px-2.5 text-[10px] text-primary hover:bg-surface-container-low"><ExternalLink size={11} />{link.label}</a>)}</div> : null}
+                {call.links?.length ? <div className="mt-2 flex flex-wrap gap-1.5">{call.links.map((link) => <a key={`${call.id}-${link.href}`} href={link.href} target="_blank" rel="noreferrer" className="inline-flex min-h-8 items-center gap-1 rounded-full border border-outline-variant px-2.5 text-[10px] text-primary hover:bg-surface-container-low"><ExternalLink size={11} />{link.label}</a>)}</div> : null}
               </div>
             </div>
           </article>

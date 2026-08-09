@@ -5,6 +5,7 @@ import { PatchNotesBrowser } from "@/components/site/PatchNotesBrowser";
 import { StitchFooter } from "@/components/site/StitchFooter";
 import { StitchHeader } from "@/components/site/StitchHeader";
 import { getErmaAliveReleases } from "@/lib/erma-alive-releases";
+import { getGroundedSearchReleases } from "@/lib/grounded-search-releases";
 import { getDictionary } from "@/lib/i18n";
 import { getIntelligenceEngineReleases } from "@/lib/intelligence-engine-releases";
 import { getReleaseHistory } from "@/lib/latest-release";
@@ -21,6 +22,7 @@ export default async function PatchNotesPage() {
   const locale = await getLocale();
   const text = getDictionary(locale);
   const previewRelease = getPreviewRelease(locale);
+  const grounded = getGroundedSearchReleases(locale);
   const alive = getErmaAliveReleases(locale);
   const intelligence = getIntelligenceEngineReleases(locale);
   const trust = getTrustArchitectureReleases(locale);
@@ -28,7 +30,7 @@ export default async function PatchNotesPage() {
   const history = getReleaseHistory(locale);
   const claimed = new Set([previewRelease.version]);
   const entries: PublicReleaseNote[] = [previewRelease];
-  for (const collection of [alive, intelligence, trust, evolution, history]) {
+  for (const collection of [grounded, alive, intelligence, trust, evolution, history]) {
     for (const entry of collection) {
       if (claimed.has(entry.version)) continue;
       claimed.add(entry.version);

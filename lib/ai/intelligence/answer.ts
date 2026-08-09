@@ -8,6 +8,7 @@ export function buildAnswerDirective(route: ErmaIntelligenceRoute, verification:
     "- Match depth to the task. Do not add a rigid template to simple conversation.",
     "- Separate evidence-backed facts from estimates, assumptions, and recommendations.",
     "- Never claim a tool/action/test/source was used unless it appears in supplied evidence.",
+    "- Never invent a meaning for an unfamiliar or ambiguous entity when the route requires grounding; resolve it from evidence first.",
   ];
 
   const intent: Record<ErmaIntelligenceRoute["intent"], string[]> = {
@@ -16,6 +17,12 @@ export function buildAnswerDirective(route: ErmaIntelligenceRoute, verification:
     math: ["- Show the necessary derivation, render math with $...$ inline and $$...$$ for display, and use deterministic tool output for verified results."],
     research: ["- Give a synthesis, key evidence, disagreements/uncertainty, then a compact Sources section using only supplied URLs."],
     fresh_information: ["- State the freshness/date context and cite every material current claim with supplied URLs."],
+    fact_lookup: [
+      "- Answer the exact factual question that was asked; do not substitute a different interpretation just because it is easier to answer.",
+      "- Resolve named entities and ambiguous local terms from the supplied web evidence before making factual claims.",
+      "- Prefer the most authoritative evidence supplied for the topic and cite material factual claims with supplied URLs.",
+      "- If verification is partial or unverified, say that external verification was incomplete instead of guessing.",
+    ],
     tklab_policy: ["- State the current TK LAB rule, practical meaning, boundary/exception, and canonical document version/link when supplied."],
     tklab_release: ["- State exact release versions and distinguish shipped changes from planned/preview work using canonical release evidence."],
     document: ["- Attribute claims to document names/chunk IDs and distinguish extracted text from your interpretation."],

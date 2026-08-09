@@ -1,8 +1,10 @@
 {
   "name": "tkai",
-  "version": "0.23.4",
+  "version": "0.24.0",
   "private": true,
-  "engines": { "node": ">=22.13.0" },
+  "engines": {
+    "node": ">=22.13.0"
+  },
   "scripts": {
     "dev": "vinext dev",
     "build": "vinext build",

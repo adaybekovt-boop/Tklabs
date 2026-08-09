@@ -4,7 +4,7 @@ import { searchTkLabKnowledge, tkLabKnowledgeVersions, type TkLabKnowledgeKind }
 import { MathInputError, solveMath, type MathOperation } from "@/lib/ai/math/engine";
 import { executeReadOnlyTool, type RawNvidiaToolCall, type ToolExecutionContext, type ToolExecutionResult } from "@/lib/ai/tools/executor";
 import { AI_TOOL_TIMEOUT_MS } from "@/lib/ai/tools/registry";
-import { openWebResult, searchWeb, type WebSearchSession } from "@/lib/ai/web/gateway";
+import { openWebResult, searchWeb, type WebSearchProvider, type WebSearchSession } from "@/lib/ai/web/gateway";
 import type { ChatAttachment } from "@/lib/chat-prompt";
 
 type IntelligenceToolName = "search_web" | "open_web_result" | "search_tklab_knowledge" | "search_documents" | "solve_math" | "run_code_sandbox";
@@ -20,6 +20,11 @@ function knowledgeKinds(value: unknown): TkLabKnowledgeKind[] { if (value == nul
 function mathOperation(value: unknown): MathOperation { const allowed = new Set<MathOperation>(["evaluate", "quadratic", "statistics", "determinant", "derivative", "integral"]); if (typeof value !== "string" || !allowed.has(value as MathOperation)) throw new IntelligenceToolInputError("invalid_math_operation"); return value as MathOperation; }
 function id(call: RawNvidiaToolCall) { return typeof call.id === "string" && call.id.trim() ? call.id.trim().slice(0, 120) : `tool-${crypto.randomUUID()}`; }
 function isIntelligenceTool(value: unknown): value is IntelligenceToolName { return value === "search_web" || value === "open_web_result" || value === "search_tklab_knowledge" || value === "search_documents" || value === "solve_math" || value === "run_code_sandbox"; }
+function providerLabel(provider: WebSearchProvider | undefined, language: "ru" | "en") {
+  if (provider === "google-grounding" || provider === "google-custom-search") return "Google";
+  if (provider === "brave") return "Brave";
+  return language === "ru" ? "интернет" : "web";
+}
 
 async function withTimeout<T>(operation: (signal: AbortSignal) => Promise<T>, parentSignal?: AbortSignal) {
   const controller = new AbortController();
@@ -63,12 +68,12 @@ export async function executeIntelligenceTool(call: RawNvidiaToolCall, context: 
     }
 
     if (name === "search_web") {
-      rejectUnknown(args, ["query", "count"]); const query = requiredText(args.query, "query", 400); const count = boundedInteger(args.count, 5, 1, 8); const results = await withTimeout((signal) => searchWeb(query, context.language, count, signal, webSession), context.signal);
-      return { toolCallId, name, content: JSON.stringify({ ok: true, data: { query, results, trust: "untrusted_external_web" } }).slice(0, 24_000), trace: { id: toolCallId, name, status: "success", durationMs: Date.now() - startedAt, summary: context.language === "ru" ? `Поиск в интернете: ${results.length} результатов` : `Web search: ${results.length} results`, links: results.slice(0, 5).map((result) => ({ label: result.title.slice(0, 80), href: result.url })) } };
+      rejectUnknown(args, ["query", "count"]); const query = requiredText(args.query, "query", 400); const count = boundedInteger(args.count, 5, 1, 8); const results = await withTimeout((signal) => searchWeb(query, context.language, count, signal, webSession), context.signal); const providers = [...new Set(results.map((result) => result.provider))]; const label = providerLabel(results[0]?.provider, context.language);
+      return { toolCallId, name, content: JSON.stringify({ ok: true, data: { query, providers, results, trust: "untrusted_external_web" } }).slice(0, 24_000), trace: { id: toolCallId, name, status: "success", durationMs: Date.now() - startedAt, summary: context.language === "ru" ? `Поиск ${label}: ${results.length} результатов` : `${label} search: ${results.length} results`, links: results.slice(0, 5).map((result) => ({ label: result.title.slice(0, 80), href: result.url })) } };
     }
 
-    rejectUnknown(args, ["resultId"]); const resultId = requiredText(args.resultId, "resultId", 120); const opened = await withTimeout((signal) => openWebResult(resultId, signal, webSession), context.signal);
-    return { toolCallId, name, content: JSON.stringify({ ok: true, data: { id: opened.result.id, title: opened.result.title, url: opened.finalUrl, contentType: opened.contentType, text: opened.text, trust: "untrusted_external_web" } }).slice(0, 28_000), trace: { id: toolCallId, name, status: "success", durationMs: Date.now() - startedAt, summary: (context.language === "ru" ? `Открыт веб-источник: ${opened.result.title}` : `Opened web source: ${opened.result.title}`).slice(0, 180), links: [{ label: opened.result.title.slice(0, 80), href: opened.finalUrl }] } };
+    rejectUnknown(args, ["resultId"]); const resultId = requiredText(args.resultId, "resultId", 120); const opened = await withTimeout((signal) => openWebResult(resultId, signal, webSession), context.signal); const label = providerLabel(opened.result.provider, context.language);
+    return { toolCallId, name, content: JSON.stringify({ ok: true, data: { id: opened.result.id, title: opened.result.title, url: opened.finalUrl, provider: opened.result.provider, contentType: opened.contentType, pageTitle: opened.pageTitle, publishedAt: opened.publishedAt, description: opened.description, text: opened.text, trust: "untrusted_external_web" } }).slice(0, 28_000), trace: { id: toolCallId, name, status: "success", durationMs: Date.now() - startedAt, summary: (context.language === "ru" ? `Открыт источник ${label}: ${opened.result.title}` : `Opened ${label} source: ${opened.result.title}`).slice(0, 180), links: [{ label: opened.result.title.slice(0, 80), href: opened.finalUrl }] } };
   } catch (error) {
     if (context.signal?.aborted) throw error;
     const timedOut = (error instanceof DOMException && error.name === "AbortError") || (error instanceof Error && /timeout/.test(error.message));
