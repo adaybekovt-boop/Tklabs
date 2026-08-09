@@ -26,17 +26,27 @@ export function isContextDependentGroundingTurn(prompt: string, originalMessageC
   return EXPLICIT_CONTEXT_REFERENCE.test(normalized) || DEICTIC_FOLLOW_UP.test(normalized);
 }
 
-function isKazakhstanFactRoute(route: ErmaIntelligenceRoute | undefined) {
-  return route?.intent === "fact_lookup" && route.reasonCode.includes("KAZAKHSTAN");
+function isKazakhstanVerificationRoute(route: ErmaIntelligenceRoute | undefined) {
+  return Boolean(route?.reasonCode.includes("KAZAKHSTAN") && ["fact_lookup", "fresh_information", "research"].includes(route.intent));
 }
 
 export function buildKazakhstanVerificationGuard(language: Language, route: ErmaIntelligenceRoute | undefined, verification?: ErmaVerificationResult): GroundingGuard | undefined {
-  if (!isKazakhstanFactRoute(route) || verification?.status === "verified") return undefined;
+  if (!isKazakhstanVerificationRoute(route) || verification?.status === "verified") return undefined;
+  const current = route?.intent === "fresh_information";
+  const research = route?.intent === "research";
   return {
     reason: "kazakhstan_external_verification_unavailable",
     answer: language === "ru"
-      ? "Не удалось надёжно проверить этот точный факт о Казахстане по внешним источникам. Я не буду угадывать состав жузов, родов или племён, рейтинги, даты, должностных лиц и другие точные данные по памяти модели. Повторите запрос позже — при доступном Google Search Erma вернёт проверенный grounded-ответ с источниками."
-      : "I could not reliably verify this exact Kazakhstan fact against external sources. I will not guess zhuz, clan or tribe membership, rankings, dates, officeholders, or other exact data from model memory. Try the request again later; when Google Search is available, Erma will return a grounded answer with sources.",
+      ? current
+        ? "Не удалось получить надёжное актуальное подтверждение по внешним источникам о Казахстане. Я не буду выдавать новости, текущих должностных лиц, курсы, цены или другие меняющиеся данные по памяти модели как свежие факты. Повторите запрос позже — при доступном Google Search Erma вернёт актуальный grounded-ответ с источниками."
+        : research
+          ? "Не удалось собрать и проверить внешние источники для этого исследования по Казахстану. Я не буду выдавать неподтверждённый пересказ по памяти модели за проверенное исследование. Повторите запрос позже, когда web-grounding будет доступен."
+          : "Не удалось надёжно проверить этот точный факт о Казахстане по внешним источникам. Я не буду угадывать состав жузов, родов или племён, рейтинги, даты, должностных лиц и другие точные данные по памяти модели. Повторите запрос позже — при доступном Google Search Erma вернёт проверенный grounded-ответ с источниками."
+      : current
+        ? "I could not obtain reliable current external verification for this Kazakhstan request. I will not present news, current officeholders, rates, prices, or other changing data from model memory as fresh facts. Try again later; when Google Search is available, Erma will return a current grounded answer with sources."
+        : research
+          ? "I could not collect and verify external sources for this Kazakhstan research request. I will not present an unverified memory-based summary as sourced research. Try again later when web grounding is available."
+          : "I could not reliably verify this exact Kazakhstan fact against external sources. I will not guess zhuz, clan or tribe membership, rankings, dates, officeholders, or other exact data from model memory. Try the request again later; when Google Search is available, Erma will return a grounded answer with sources.",
   };
 }
 
