@@ -49,6 +49,13 @@ async function waitForClientShell(page) {
   await expect(page.locator("html")).not.toHaveAttribute("data-route-transition", "entering", { timeout: 15_000 });
 }
 
+async function acknowledgeTrustDisclosure(page) {
+  const disclosure = page.locator('[data-trust-jit-disclosure="true"]');
+  if (!(await disclosure.isVisible().catch(() => false))) return;
+  await disclosure.locator("button").click();
+  await expect(disclosure).toBeHidden();
+}
+
 function mockedResponse(requestId, answer, attachments = 0) {
   return sseBody([
     { event: "start", data: { requestId, status: "connecting", context: { estimatedTokens: 16, messages: 1, attachments, limit: 32768, compacted: false } } },
@@ -117,6 +124,7 @@ test("mobile attachment plus opens a visible tappable menu above the composer", 
 
   await page.goto(PLAYGROUND_HARNESS);
   await waitForClientShell(page);
+  await acknowledgeTrustDisclosure(page);
 
   const composer = page.getByTestId("prompt-input");
   await expect(composer).toBeVisible({ timeout: 15_000 });
