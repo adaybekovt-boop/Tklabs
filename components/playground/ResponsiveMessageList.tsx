@@ -5,6 +5,7 @@ import { Check, Copy, Eye, EyeOff, GitBranch, GitCompareArrows, MoreHorizontal, 
 
 import { AgentActivity } from "@/components/playground/AgentActivity";
 import { ChatOverlay } from "@/components/playground/ChatOverlay";
+import { ErmaAttentionNotice } from "@/components/playground/ErmaAttentionNotice";
 import { MessageList, type ChatMessage } from "@/components/playground/MessageList";
 import AIThinkingBlock from "@/components/ui/ai-thinking-block";
 import { useMobileViewport } from "@/hooks/use-mobile-viewport";
@@ -187,5 +188,10 @@ function MobileMessageList(props: ResponsiveMessageListProps) {
 
 export function ResponsiveMessageList(props: ResponsiveMessageListProps) {
   const mobile = useMobileViewport();
-  return mobile ? <MobileMessageList {...props} /> : <MessageList {...props} />;
+  return (
+    <>
+      <ErmaAttentionNotice messages={props.messages} locale={props.locale} />
+      {mobile ? <MobileMessageList {...props} /> : <MessageList {...props} />}
+    </>
+  );
 }
