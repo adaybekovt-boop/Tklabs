@@ -1,10 +1,10 @@
 import { estimateTextTokens } from "@/lib/ai/context";
 import { logAiProviderFailure, logAiRequest } from "@/lib/ai/logging";
-import { streamWithNvidia } from "@/lib/ai/providers/nvidia";
+import { ErmaMeshError, streamWithErmaMesh } from "@/lib/ai/providers/mesh";
 import { createAiResponseMeta } from "@/lib/ai/response";
 import { aiStreamHeaders, encodeAiStreamEvent } from "@/lib/ai/sse";
 import { prepareReadOnlyToolAugmentation } from "@/lib/ai/tools/route-tools";
-import type { AiToolCallTrace } from "@/lib/ai/types";
+import type { AiProvider, AiToolCallTrace } from "@/lib/ai/types";
 import { safetyRefusal } from "@/lib/ai-safety";
 import { contextualFallbackPrompt, providerFailureReason, resolveFallback, streamInterruptedText, visionUnavailableText, withContextMetadata, withToolCalls } from "./fallback";
 import type { PreparedDemoRequest } from "./request-context";
@@ -103,7 +103,20 @@ export class DemoStreamSession {
         return;
       }
 
-      const result = await streamWithNvidia({ messages: context.messages, summary: this.augmentedSummary, language, model, requestedReasoning, effort, allowCode: privilegedAccount, tone, images, signal: this.providerController.signal }, async (delta) => {
+      const result = await streamWithErmaMesh({
+        messages: context.messages,
+        summary: this.augmentedSummary,
+        language,
+        model,
+        requestedReasoning,
+        effort,
+        allowCode: privilegedAccount,
+        tone,
+        images,
+        signal: this.providerController.signal,
+        requestId,
+        fairnessKey: quota.fairnessKey,
+      }, async (delta) => {
         const delivered = this.send("delta", { text: delta });
         if (!delivered) { if (!this.providerController.signal.aborted) this.providerController.abort("response_closed"); return; }
         if (!this.firstTokenAt) this.firstTokenAt = Date.now();
@@ -111,7 +124,16 @@ export class DemoStreamSession {
         await quota.commit();
       });
 
-      const generationResult = withContextMetadata(withToolCalls({ answer: result.answer, reasoningUsed: result.reasoningUsed, provider: "nvidia", actualModel: result.actualModel, inputTokens: result.inputTokens, outputTokens: result.outputTokens, timeToFirstTokenMs: this.firstTokenAt ? this.firstTokenAt - startedAt : undefined }, this.toolCalls), context);
+      const generationResult = withContextMetadata(withToolCalls({
+        answer: result.answer,
+        reasoningUsed: result.reasoningUsed,
+        provider: result.provider,
+        actualModel: result.actualModel,
+        fallbackReason: result.fallbackReason,
+        inputTokens: result.inputTokens,
+        outputTokens: result.outputTokens,
+        timeToFirstTokenMs: this.firstTokenAt ? this.firstTokenAt - startedAt : undefined,
+      }, this.toolCalls), context);
       const meta = createAiResponseMeta(generationResult, requestedModel, requestId, startedAt);
       await quota.commit(); logAiRequest(meta); this.send("meta", meta); this.send("done", { requestId, stopped: false }); this.close();
     } catch (error) { await this.handleFailure(error); }
@@ -120,21 +142,29 @@ export class DemoStreamSession {
   private async handleFailure(error: unknown) {
     const { requestId, language, model, privilegedAccount, context, images, quota, startedAt, requestedModel } = this.input;
     const aborted = this.providerController.signal.aborted || (error instanceof DOMException && error.name === "AbortError");
+    const meshProvider = error instanceof ErmaMeshError && error.provider !== "mesh" ? error.provider : undefined;
+    const failureProvider: AiProvider = meshProvider ?? "nvidia";
+    const failureModel = error instanceof ErmaMeshError && error.lane ? error.lane : model.nvidiaModel ?? model.name;
     if (aborted) {
       if (this.partialAnswer) await quota.commit(); else await quota.release();
       if (this.partialAnswer) {
-        const stoppedResult = withContextMetadata(withToolCalls({ answer: this.partialAnswer, provider: "nvidia", actualModel: model.nvidiaModel ?? model.name, outputTokens: estimateTextTokens(this.partialAnswer), timeToFirstTokenMs: this.firstTokenAt ? this.firstTokenAt - startedAt : undefined, fallbackReason: "generation_stopped" }, this.toolCalls), context);
+        const stoppedResult = withContextMetadata(withToolCalls({ answer: this.partialAnswer, provider: failureProvider, actualModel: failureModel, outputTokens: estimateTextTokens(this.partialAnswer), timeToFirstTokenMs: this.firstTokenAt ? this.firstTokenAt - startedAt : undefined, fallbackReason: "generation_stopped" }, this.toolCalls), context);
         const meta = createAiResponseMeta(stoppedResult, requestedModel, requestId, startedAt, 499); logAiRequest(meta); this.send("meta", meta);
       }
       this.send("done", { requestId, stopped: true, partial: Boolean(this.partialAnswer) }); this.close(); return;
     }
 
     const reason = providerFailureReason(error);
-    logAiProviderFailure({ requestId, requestedModel, provider: "nvidia", status: typeof error === "object" && error && "status" in error && typeof error.status === "number" ? error.status : undefined, reason });
+    const status = error instanceof ErmaMeshError
+      ? error.status
+      : typeof error === "object" && error && "status" in error && typeof error.status === "number"
+        ? error.status
+        : undefined;
+    logAiProviderFailure({ requestId, requestedModel, provider: error instanceof ErmaMeshError ? error.provider : failureProvider, status, reason });
 
     if (this.partialAnswer) {
       await quota.commit();
-      const partialResult = withContextMetadata(withToolCalls({ answer: this.partialAnswer, provider: "nvidia", actualModel: model.nvidiaModel ?? model.name, fallbackReason: reason === "safety_output_blocked" ? reason : "nvidia_stream_interrupted", outputTokens: estimateTextTokens(this.partialAnswer), timeToFirstTokenMs: this.firstTokenAt ? this.firstTokenAt - startedAt : undefined }, this.toolCalls), context);
+      const partialResult = withContextMetadata(withToolCalls({ answer: this.partialAnswer, provider: failureProvider, actualModel: failureModel, fallbackReason: reason === "safety_output_blocked" ? reason : "provider_stream_interrupted", outputTokens: estimateTextTokens(this.partialAnswer), timeToFirstTokenMs: this.firstTokenAt ? this.firstTokenAt - startedAt : undefined }, this.toolCalls), context);
       const meta = createAiResponseMeta(partialResult, requestedModel, requestId, startedAt, reason === "safety_output_blocked" ? 200 : 502);
       logAiRequest(meta); this.send("meta", meta); this.send("error", { error: streamInterruptedText(language), requestId, partial: true }); this.send("done", { requestId, stopped: false, partial: true }); this.close(); return;
     }
