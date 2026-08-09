@@ -14,37 +14,83 @@ type SchedulerEnv = {
   ERMA_CEREBRAS_RPM?: string;
   ERMA_GROQ_RPM?: string;
   ERMA_NVIDIA_RPM?: string;
+  ERMA_GOOGLE_FAST_TPM?: string;
+  ERMA_GOOGLE_CORE_TPM?: string;
+  ERMA_CEREBRAS_TPM?: string;
+  ERMA_GROQ_TPM?: string;
+  ERMA_NVIDIA_TPM?: string;
   ERMA_MAX_ACTIVE_PER_USER?: string;
 };
 
-type LaneConfig = { concurrency: number; rpm: number };
-type LaneSnapshot = { lane: ErmaProviderLane; active: number; recent: number; cooldownUntil: number; latencyEwma: number; score: number };
+type LaneConfig = { concurrency: number; rpm: number; tpm: number };
+type LaneUsage = { active: number; recent: number; tokens: number };
+type LaneState = { cooldownUntil: number; latencyEwma: number; failures: number };
+type CandidateSnapshot = { lane: ErmaProviderLane; score: number };
 type CountRow = { count: number };
-type TimeRow = { value: number };
-type LeaseRow = { lane: ErmaProviderLane };
-type StateRow = { cooldown_until: number; latency_ewma: number; failures: number };
+type TimeRow = { value: number | null };
+type LeaseRow = { lane: string };
+type ActiveRow = { lane: string; count: number };
+type HistoryRow = { lane: string; count: number; tokens: number };
+type StateRow = { lane: string; cooldown_until: number; latency_ewma: number; failures: number };
+
+type SchedulerSnapshot = {
+  usage: Map<ErmaProviderLane, LaneUsage>;
+  state: Map<ErmaProviderLane, LaneState>;
+};
 
 const LANES: readonly ErmaProviderLane[] = ["google-fast", "google-core", "cerebras", "groq", "nvidia"];
 const WINDOW_MS = 60_000;
 const LEASE_TTL_MS = 135_000;
 
-function boundedInt(raw: string | undefined, fallback: number, min = 1, max = 10_000) {
+function boundedInt(raw: string | undefined, fallback: number, min = 1, max = 10_000_000) {
   const parsed = Number.parseInt(raw ?? "", 10);
   return Number.isFinite(parsed) ? Math.min(max, Math.max(min, parsed)) : fallback;
 }
 
 function laneConfig(env: SchedulerEnv, lane: ErmaProviderLane): LaneConfig {
   switch (lane) {
-    case "google-fast": return { concurrency: boundedInt(env.ERMA_GOOGLE_FAST_CONCURRENCY, 24), rpm: boundedInt(env.ERMA_GOOGLE_FAST_RPM, 30) };
-    case "google-core": return { concurrency: boundedInt(env.ERMA_GOOGLE_CORE_CONCURRENCY, 16), rpm: boundedInt(env.ERMA_GOOGLE_CORE_RPM, 30) };
-    case "cerebras": return { concurrency: boundedInt(env.ERMA_CEREBRAS_CONCURRENCY, 4), rpm: boundedInt(env.ERMA_CEREBRAS_RPM, 30) };
-    case "groq": return { concurrency: boundedInt(env.ERMA_GROQ_CONCURRENCY, 4), rpm: boundedInt(env.ERMA_GROQ_RPM, 30) };
-    case "nvidia": return { concurrency: boundedInt(env.ERMA_NVIDIA_CONCURRENCY, 8), rpm: boundedInt(env.ERMA_NVIDIA_RPM, 30) };
+    case "google-fast": return {
+      concurrency: boundedInt(env.ERMA_GOOGLE_FAST_CONCURRENCY, 24),
+      rpm: boundedInt(env.ERMA_GOOGLE_FAST_RPM, 30),
+      tpm: boundedInt(env.ERMA_GOOGLE_FAST_TPM, 64_000),
+    };
+    case "google-core": return {
+      concurrency: boundedInt(env.ERMA_GOOGLE_CORE_CONCURRENCY, 16),
+      rpm: boundedInt(env.ERMA_GOOGLE_CORE_RPM, 30),
+      tpm: boundedInt(env.ERMA_GOOGLE_CORE_TPM, 64_000),
+    };
+    case "cerebras": return {
+      concurrency: boundedInt(env.ERMA_CEREBRAS_CONCURRENCY, 4),
+      rpm: boundedInt(env.ERMA_CEREBRAS_RPM, 30),
+      tpm: boundedInt(env.ERMA_CEREBRAS_TPM, 64_000),
+    };
+    case "groq": return {
+      concurrency: boundedInt(env.ERMA_GROQ_CONCURRENCY, 4),
+      rpm: boundedInt(env.ERMA_GROQ_RPM, 30),
+      tpm: boundedInt(env.ERMA_GROQ_TPM, 8_000),
+    };
+    case "nvidia": return {
+      concurrency: boundedInt(env.ERMA_NVIDIA_CONCURRENCY, 8),
+      rpm: boundedInt(env.ERMA_NVIDIA_RPM, 30),
+      tpm: boundedInt(env.ERMA_NVIDIA_TPM, 64_000),
+    };
   }
+}
+
+function isLane(value: string): value is ErmaProviderLane {
+  return LANES.includes(value as ErmaProviderLane);
 }
 
 function uniqueLanes(values: readonly ErmaProviderLane[]) {
   return values.filter((lane, index) => LANES.includes(lane) && values.indexOf(lane) === index);
+}
+
+function emptyUsage(): LaneUsage {
+  return { active: 0, recent: 0, tokens: 0 };
+}
+
+function emptyState(): LaneState {
+  return { cooldownUntil: 0, latencyEwma: 0, failures: 0 };
 }
 
 export class InferenceScheduler extends DurableObject<SchedulerEnv> {
@@ -54,7 +100,7 @@ export class InferenceScheduler extends DurableObject<SchedulerEnv> {
       this.ctx.storage.sql.exec("CREATE TABLE IF NOT EXISTS inference_leases (lease_id TEXT PRIMARY KEY, lane TEXT NOT NULL, fairness_key TEXT NOT NULL, expires_at INTEGER NOT NULL)");
       this.ctx.storage.sql.exec("CREATE INDEX IF NOT EXISTS inference_leases_lane_idx ON inference_leases(lane, expires_at)");
       this.ctx.storage.sql.exec("CREATE INDEX IF NOT EXISTS inference_leases_user_idx ON inference_leases(fairness_key, expires_at)");
-      this.ctx.storage.sql.exec("CREATE TABLE IF NOT EXISTS inference_history (id INTEGER PRIMARY KEY AUTOINCREMENT, lane TEXT NOT NULL, granted_at INTEGER NOT NULL)");
+      this.ctx.storage.sql.exec("CREATE TABLE IF NOT EXISTS inference_history (id INTEGER PRIMARY KEY AUTOINCREMENT, lane TEXT NOT NULL, granted_at INTEGER NOT NULL, token_cost INTEGER NOT NULL DEFAULT 0)");
       this.ctx.storage.sql.exec("CREATE INDEX IF NOT EXISTS inference_history_lane_idx ON inference_history(lane, granted_at)");
       this.ctx.storage.sql.exec("CREATE TABLE IF NOT EXISTS inference_lane_state (lane TEXT PRIMARY KEY, cooldown_until INTEGER NOT NULL DEFAULT 0, latency_ewma REAL NOT NULL DEFAULT 0, failures INTEGER NOT NULL DEFAULT 0)");
     });
@@ -65,30 +111,77 @@ export class InferenceScheduler extends DurableObject<SchedulerEnv> {
     this.ctx.storage.sql.exec("DELETE FROM inference_history WHERE granted_at < ?", now - WINDOW_MS);
   }
 
-  private count(query: string, ...params: unknown[]) {
-    return this.ctx.storage.sql.exec<CountRow>(query, ...params).toArray()[0]?.count ?? 0;
-  }
-
-  private state(lane: ErmaProviderLane) {
-    return this.ctx.storage.sql.exec<StateRow>("SELECT cooldown_until, latency_ewma, failures FROM inference_lane_state WHERE lane = ?", lane).toArray()[0]
-      ?? { cooldown_until: 0, latency_ewma: 0, failures: 0 };
-  }
-
-  private loadMode(now: number) {
-    let active = 0;
-    let concurrencyCapacity = 0;
-    let recent = 0;
-    let rpmCapacity = 0;
+  private snapshot(now: number): SchedulerSnapshot {
+    const usage = new Map<ErmaProviderLane, LaneUsage>();
+    const state = new Map<ErmaProviderLane, LaneState>();
     for (const lane of LANES) {
+      usage.set(lane, emptyUsage());
+      state.set(lane, emptyState());
+    }
+
+    const activeRows = this.ctx.storage.sql.exec<ActiveRow>(
+      "SELECT lane, COUNT(*) AS count FROM inference_leases WHERE expires_at > ? GROUP BY lane",
+      now,
+    ).toArray();
+    for (const row of activeRows) {
+      if (!isLane(row.lane)) continue;
+      usage.set(row.lane, { ...usage.get(row.lane)!, active: row.count });
+    }
+
+    const historyRows = this.ctx.storage.sql.exec<HistoryRow>(
+      "SELECT lane, COUNT(*) AS count, COALESCE(SUM(token_cost), 0) AS tokens FROM inference_history WHERE granted_at >= ? GROUP BY lane",
+      now - WINDOW_MS,
+    ).toArray();
+    for (const row of historyRows) {
+      if (!isLane(row.lane)) continue;
+      usage.set(row.lane, { ...usage.get(row.lane)!, recent: row.count, tokens: row.tokens });
+    }
+
+    const stateRows = this.ctx.storage.sql.exec<StateRow>(
+      "SELECT lane, cooldown_until, latency_ewma, failures FROM inference_lane_state",
+    ).toArray();
+    for (const row of stateRows) {
+      if (!isLane(row.lane)) continue;
+      state.set(row.lane, {
+        cooldownUntil: row.cooldown_until,
+        latencyEwma: row.latency_ewma,
+        failures: row.failures,
+      });
+    }
+    return { usage, state };
+  }
+
+  private stateFor(lane: ErmaProviderLane) {
+    const row = this.ctx.storage.sql.exec<StateRow>(
+      "SELECT lane, cooldown_until, latency_ewma, failures FROM inference_lane_state WHERE lane = ?",
+      lane,
+    ).toArray()[0];
+    return row
+      ? { cooldownUntil: row.cooldown_until, latencyEwma: row.latency_ewma, failures: row.failures }
+      : emptyState();
+  }
+
+  private loadMode(snapshot: SchedulerSnapshot, candidates: readonly ErmaProviderLane[]) {
+    let active = 0;
+    let recent = 0;
+    let tokens = 0;
+    let concurrencyCapacity = 0;
+    let rpmCapacity = 0;
+    let tpmCapacity = 0;
+    for (const lane of candidates) {
       const config = laneConfig(this.env, lane);
-      active += this.count("SELECT COUNT(*) AS count FROM inference_leases WHERE lane = ? AND expires_at > ?", lane, now);
-      recent += this.count("SELECT COUNT(*) AS count FROM inference_history WHERE lane = ? AND granted_at >= ?", lane, now - WINDOW_MS);
+      const usage = snapshot.usage.get(lane) ?? emptyUsage();
+      active += usage.active;
+      recent += usage.recent;
+      tokens += usage.tokens;
       concurrencyCapacity += config.concurrency;
       rpmCapacity += config.rpm;
+      tpmCapacity += config.tpm;
     }
     const pressure = Math.max(
       concurrencyCapacity ? active / concurrencyCapacity : 1,
       rpmCapacity ? recent / rpmCapacity : 1,
+      tpmCapacity ? tokens / tpmCapacity : 1,
     );
     return pressure >= 0.85 ? "survival" as const : pressure >= 0.6 ? "high" as const : "normal" as const;
   }
@@ -97,38 +190,61 @@ export class InferenceScheduler extends DurableObject<SchedulerEnv> {
     const now = Date.now();
     this.cleanup(now);
     const candidates = uniqueLanes(input.candidates);
-    const mode = this.loadMode(now);
+    const snapshot = this.snapshot(now);
+    const mode = candidates.length ? this.loadMode(snapshot, candidates) : "survival" as const;
     if (!candidates.length) return { granted: false, mode, retryAfterMs: 1_000 };
 
     const maxActivePerUser = boundedInt(this.env.ERMA_MAX_ACTIVE_PER_USER, 2, 1, 20);
-    const userActive = this.count("SELECT COUNT(*) AS count FROM inference_leases WHERE fairness_key = ? AND expires_at > ?", input.fairnessKey, now);
+    const userActive = this.ctx.storage.sql.exec<CountRow>(
+      "SELECT COUNT(*) AS count FROM inference_leases WHERE fairness_key = ? AND expires_at > ?",
+      input.fairnessKey,
+      now,
+    ).toArray()[0]?.count ?? 0;
     if (userActive >= maxActivePerUser) {
-      const nextExpiry = this.ctx.storage.sql.exec<TimeRow>("SELECT MIN(expires_at) AS value FROM inference_leases WHERE fairness_key = ? AND expires_at > ?", input.fairnessKey, now).toArray()[0]?.value;
+      const nextExpiry = this.ctx.storage.sql.exec<TimeRow>(
+        "SELECT MIN(expires_at) AS value FROM inference_leases WHERE fairness_key = ? AND expires_at > ?",
+        input.fairnessKey,
+        now,
+      ).toArray()[0]?.value;
       return { granted: false, mode, retryAfterMs: Math.max(100, Math.min(2_000, (nextExpiry ?? now + 500) - now)) };
     }
 
-    const snapshots: LaneSnapshot[] = [];
+    const estimatedTokens = Math.max(1, Math.min(250_000, Math.round(input.estimatedTokens)));
+    const eligible: CandidateSnapshot[] = [];
     for (const [priority, lane] of candidates.entries()) {
       const config = laneConfig(this.env, lane);
-      const state = this.state(lane);
-      const active = this.count("SELECT COUNT(*) AS count FROM inference_leases WHERE lane = ? AND expires_at > ?", lane, now);
-      const recent = this.count("SELECT COUNT(*) AS count FROM inference_history WHERE lane = ? AND granted_at >= ?", lane, now - WINDOW_MS);
-      if (state.cooldown_until > now || active >= config.concurrency || recent >= config.rpm) continue;
-      const score = priority * 18 + (active / config.concurrency) * 14 + (recent / config.rpm) * 12 + Math.min(12, state.latency_ewma / 1_000) + Math.min(20, state.failures * 4);
-      snapshots.push({ lane, active, recent, cooldownUntil: state.cooldown_until, latencyEwma: state.latency_ewma, score });
+      const usage = snapshot.usage.get(lane) ?? emptyUsage();
+      const laneState = snapshot.state.get(lane) ?? emptyState();
+      if (
+        laneState.cooldownUntil > now
+        || usage.active >= config.concurrency
+        || usage.recent >= config.rpm
+        || usage.tokens + estimatedTokens > config.tpm
+      ) continue;
+      const score = priority * 18
+        + (usage.active / config.concurrency) * 14
+        + (usage.recent / config.rpm) * 12
+        + (usage.tokens / config.tpm) * 12
+        + Math.min(12, laneState.latencyEwma / 1_000)
+        + Math.min(20, laneState.failures * 4);
+      eligible.push({ lane, score });
     }
 
-    snapshots.sort((left, right) => left.score - right.score);
-    const selected = snapshots[0];
+    eligible.sort((left, right) => left.score - right.score);
+    const selected = eligible[0];
     if (!selected) {
       let retryAfterMs = 1_000;
       for (const lane of candidates) {
         const config = laneConfig(this.env, lane);
-        const state = this.state(lane);
-        if (state.cooldown_until > now) retryAfterMs = Math.min(retryAfterMs, Math.max(100, state.cooldown_until - now));
-        const recent = this.count("SELECT COUNT(*) AS count FROM inference_history WHERE lane = ? AND granted_at >= ?", lane, now - WINDOW_MS);
-        if (recent >= config.rpm) {
-          const oldest = this.ctx.storage.sql.exec<TimeRow>("SELECT MIN(granted_at) AS value FROM inference_history WHERE lane = ? AND granted_at >= ?", lane, now - WINDOW_MS).toArray()[0]?.value;
+        const usage = snapshot.usage.get(lane) ?? emptyUsage();
+        const laneState = snapshot.state.get(lane) ?? emptyState();
+        if (laneState.cooldownUntil > now) retryAfterMs = Math.min(retryAfterMs, Math.max(100, laneState.cooldownUntil - now));
+        if (usage.recent >= config.rpm || usage.tokens + estimatedTokens > config.tpm) {
+          const oldest = this.ctx.storage.sql.exec<TimeRow>(
+            "SELECT MIN(granted_at) AS value FROM inference_history WHERE lane = ? AND granted_at >= ?",
+            lane,
+            now - WINDOW_MS,
+          ).toArray()[0]?.value;
           if (oldest) retryAfterMs = Math.min(retryAfterMs, Math.max(100, oldest + WINDOW_MS - now));
         }
       }
@@ -143,23 +259,38 @@ export class InferenceScheduler extends DurableObject<SchedulerEnv> {
       input.fairnessKey,
       now + LEASE_TTL_MS,
     );
-    this.ctx.storage.sql.exec("INSERT INTO inference_history (lane, granted_at) VALUES (?, ?)", selected.lane, now);
-    return { granted: true, lease: { leaseId, lane: selected.lane, mode: this.loadMode(now) } };
+    this.ctx.storage.sql.exec(
+      "INSERT INTO inference_history (lane, granted_at, token_cost) VALUES (?, ?, ?)",
+      selected.lane,
+      now,
+      estimatedTokens,
+    );
+
+    const selectedUsage = snapshot.usage.get(selected.lane) ?? emptyUsage();
+    snapshot.usage.set(selected.lane, {
+      active: selectedUsage.active + 1,
+      recent: selectedUsage.recent + 1,
+      tokens: selectedUsage.tokens + estimatedTokens,
+    });
+    return { granted: true, lease: { leaseId, lane: selected.lane, mode: this.loadMode(snapshot, candidates) } };
   }
 
   async release(outcome: ProviderLeaseOutcome) {
     const now = Date.now();
     this.cleanup(now);
-    const lease = this.ctx.storage.sql.exec<LeaseRow>("SELECT lane FROM inference_leases WHERE lease_id = ?", outcome.leaseId).toArray()[0];
-    if (!lease || !LANES.includes(lease.lane)) return;
+    const lease = this.ctx.storage.sql.exec<LeaseRow>(
+      "SELECT lane FROM inference_leases WHERE lease_id = ?",
+      outcome.leaseId,
+    ).toArray()[0];
+    if (!lease || !isLane(lease.lane)) return;
     this.ctx.storage.sql.exec("DELETE FROM inference_leases WHERE lease_id = ?", outcome.leaseId);
 
-    const previous = this.state(lease.lane);
+    const previous = this.stateFor(lease.lane);
     const latency = Math.max(0, Math.min(120_000, Math.round(outcome.latencyMs)));
-    const latencyEwma = previous.latency_ewma > 0 ? previous.latency_ewma * 0.72 + latency * 0.28 : latency;
+    const latencyEwma = previous.latencyEwma > 0 ? previous.latencyEwma * 0.72 + latency * 0.28 : latency;
     const status = outcome.status ?? 0;
     const failures = outcome.ok ? Math.max(0, previous.failures - 1) : Math.min(10, previous.failures + 1);
-    let cooldownUntil = outcome.ok ? Math.min(previous.cooldown_until, now) : previous.cooldown_until;
+    let cooldownUntil = outcome.ok ? Math.min(previous.cooldownUntil, now) : previous.cooldownUntil;
     if (!outcome.ok) {
       if (status === 429) cooldownUntil = Math.max(cooldownUntil, now + 60_000);
       else if (status === 401 || status === 402 || status === 403) cooldownUntil = Math.max(cooldownUntil, now + 5 * 60_000);
