@@ -1,5 +1,6 @@
 import type { PreparedChatContext } from "@/lib/ai/context";
-import { routeErmaTask } from "@/lib/ai/intelligence/router";
+import { routeErmaTask, type ErmaIntelligenceRoute } from "@/lib/ai/intelligence/router";
+import type { ErmaVerificationResult } from "@/lib/ai/intelligence/verifier";
 import { runNvidiaToolLoop } from "@/lib/ai/providers/nvidia-tools";
 import { sanitizeLocalArchiveIndex } from "@/lib/ai/tools/executor";
 import type { AiToolCallTrace } from "@/lib/ai/types";
@@ -11,7 +12,8 @@ import type { ErmaModel } from "@/lib/models/server";
 import type { HealthPayload } from "@/lib/provider-health";
 
 type Language = "ru" | "en";
-export type ToolAugmentation = { summary?: string; traces: AiToolCallTrace[]; directGrounding?: GoogleDirectGroundingResult };
+export type GroundingGuard = { answer: string; reason: "kazakhstan_external_verification_unavailable" };
+export type ToolAugmentation = { summary?: string; traces: AiToolCallTrace[]; directGrounding?: GoogleDirectGroundingResult; guardedAnswer?: GroundingGuard };
 function combineSummary(...parts: Array<string | undefined>) { return parts.filter(Boolean).join("\n\n").slice(0, 76_000) || undefined; }
 function protectedMemory(summary: string | undefined) { return summary ? wrapUntrustedExternalText("conversation-memory", summary) : undefined; }
 
@@ -22,6 +24,20 @@ export function isContextDependentGroundingTurn(prompt: string, originalMessageC
   if (originalMessageCount <= 1) return false;
   const normalized = prompt.trim();
   return EXPLICIT_CONTEXT_REFERENCE.test(normalized) || DEICTIC_FOLLOW_UP.test(normalized);
+}
+
+function isKazakhstanFactRoute(route: ErmaIntelligenceRoute | undefined) {
+  return route?.intent === "fact_lookup" && route.reasonCode.includes("KAZAKHSTAN");
+}
+
+export function buildKazakhstanVerificationGuard(language: Language, route: ErmaIntelligenceRoute | undefined, verification?: ErmaVerificationResult): GroundingGuard | undefined {
+  if (!isKazakhstanFactRoute(route) || verification?.status === "verified") return undefined;
+  return {
+    reason: "kazakhstan_external_verification_unavailable",
+    answer: language === "ru"
+      ? "Не удалось надёжно проверить этот точный факт о Казахстане по внешним источникам. Я не буду угадывать состав жузов, родов или племён, рейтинги, даты, должностных лиц и другие точные данные по памяти модели. Повторите запрос позже — при доступном Google Search Erma вернёт проверенный grounded-ответ с источниками."
+      : "I could not reliably verify this exact Kazakhstan fact against external sources. I will not guess zhuz, clan or tribe membership, rankings, dates, officeholders, or other exact data from model memory. Try the request again later; when Google Search is available, Erma will return a grounded answer with sources.",
+  };
 }
 
 function shouldUseDirectGoogleGrounding(prompt: string, documents: readonly ChatAttachment[], context: PreparedChatContext) {
@@ -72,10 +88,15 @@ export async function prepareReadOnlyToolAugmentation(input: { request: Request;
   try {
     const result = await runNvidiaToolLoop({ prompt: input.prompt, messages: input.context.messages, summary: input.context.summary, language: input.language, model: input.model, requestId: input.requestId, localArchive: sanitizeLocalArchiveIndex(input.localArchive), documents, allowCodeSandbox: input.allowCodeSandbox === true, signal: input.signal, getServiceStatus: async (signal) => { const statusUrl = new URL("/api/status", input.request.url); const response = await fetch(statusUrl, { method: "GET", signal, headers: { accept: "application/json" }, cache: "no-store" }); if (!response.ok) throw new Error("service_status_unavailable"); return await response.json() as HealthPayload; } });
     const untrustedEvidence = result.untrustedContextBlock ? wrapUntrustedExternalText("intelligence-evidence", result.untrustedContextBlock) : undefined;
-    return { summary: combineSummary(conversationMemory, result.controlBlock, untrustedEvidence), traces: result.traces };
+    return {
+      summary: combineSummary(conversationMemory, result.controlBlock, untrustedEvidence),
+      traces: result.traces,
+      guardedAnswer: buildKazakhstanVerificationGuard(input.language, result.route, result.verification),
+    };
   } catch (error) {
     if (input.signal?.aborted) throw error;
     console.info("ai.tool_loop", { requestId: input.requestId, status: "skipped_after_error", reason: error instanceof Error ? error.message.slice(0, 80) : "unknown" });
-    return { summary: conversationMemory, traces: [] };
+    const route = routeErmaTask(input.prompt);
+    return { summary: conversationMemory, traces: [], guardedAnswer: buildKazakhstanVerificationGuard(input.language, route) };
   }
 }
