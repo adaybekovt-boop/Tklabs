@@ -127,7 +127,7 @@ test("the public Erma catalog exposes one model per working tier", async () => {
   const publicModels = await text("lib/models/public.ts");
   const serverModels = await text("lib/models/server.ts");
 
-  for (const model of ["Erma Lite", "Erma Core", "Erma Pro"]) {
+  for (const model of ["Erma Celer", "Erma Nova", "Erma Optima"]) {
     assert.match(publicModels, new RegExp(`name: "${model}"`));
     assert.match(serverModels, new RegExp(`name: "${model}"`));
   }

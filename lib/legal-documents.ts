@@ -1,8 +1,8 @@
 import type { Locale } from "@/lib/i18n";
 import { CURRENT_TERMS_VERSION } from "@/lib/terms";
 
-export const CURRENT_LEGAL_BUNDLE_VERSION = "2026-08-09.1";
-export const CURRENT_LEGAL_BUNDLE_DIGEST = "2fb7d1dbd31bda63213b39fc56115862ded3be37bdc98e06baaa5973d113aae1";
+export const CURRENT_LEGAL_BUNDLE_VERSION = "2026-08-09.2";
+export const CURRENT_LEGAL_BUNDLE_DIGEST = "ef8e591cbaebbdc9d29d407e16967bb515f08d619bdb0f308d91231d9ab7bacd";
 
 export type LegalDocumentSlug = "privacy" | "acceptable-use" | "ai-transparency" | "subprocessors" | "security";
 
@@ -65,7 +65,7 @@ const ru: Record<LegalDocumentSlug, LegalDocument> = {
   "ai-transparency": {
     slug: "ai-transparency", version: CURRENT_LEGAL_BUNDLE_VERSION, label: "Прозрачность AI", title: "AI Transparency Notice", intro: "Что в TK LAB является AI, откуда берётся ответ и какие ограничения нужно учитывать.",
     sections: [
-      { title: "Что такое Erma", paragraphs: ["Erma Lite, Erma Core и Erma Pro являются продуктовыми режимами TK LAB. Эти названия не означают, что TK LAB обучил отдельную foundation model.", "Фактическая генерация выполняется через provider mesh из настроенных внешних модельных провайдеров. Маршрут может меняться между запросами из-за возможностей модели, доступности, квот и нагрузки; безопасные metadata ответа позволяют показать фактический provider/model или fallback без раскрытия секретной конфигурации."] },
+      { title: "Что такое Erma", paragraphs: ["Erma Celer, Erma Nova и Erma Optima являются продуктовыми режимами TK LAB. Эти названия не означают, что TK LAB обучил отдельную foundation model.", "Фактическая генерация выполняется через provider mesh из настроенных внешних модельных провайдеров. Маршрут может меняться между запросами из-за возможностей модели, доступности, квот и нагрузки; безопасные metadata ответа позволяют показать фактический provider/model или fallback без раскрытия секретной конфигурации."] },
       { title: "Взаимодействие с AI", paragraphs: ["Ответы в Playground генерируются AI. Система не должна создавать впечатление, что пользователь общается с человеком, когда это не так."] },
       { title: "Reasoning", paragraphs: ["Внутренние reasoning traces провайдера не публикуются, не архивируются и не используются как пользовательский audit trail. Интерфейс может показать только общий факт использования reasoning mode."] },
       { title: "Ошибки и проверка", paragraphs: ["AI может ошибаться, галлюцинировать, пропускать контекст и создавать неуникальный результат. Факты, лицензии, безопасность кода и высокозначимые решения требуют независимой проверки."] },
@@ -114,7 +114,7 @@ const en: Record<LegalDocumentSlug, LegalDocument> = {
     { title: "Infrastructure", paragraphs: ["Load testing, scanning, and exploitation of production infrastructure require prior written permission except good-faith research that stays within the published security policy."] },
   ] },
   "ai-transparency": { ...ru["ai-transparency"], title: "AI Transparency Notice", label: "AI Transparency", intro: "What is AI in TK LAB, where responses come from, and which limitations apply.", sections: [
-    { title: "What Erma means", paragraphs: ["Erma Lite, Erma Core, and Erma Pro are TK LAB product modes; the names do not claim that TK LAB trained a separate foundation model.", "Generation is performed through a provider mesh of configured external model providers. The route may change between requests because of model capabilities, availability, quotas, and load; safe response metadata can disclose the actual provider/model or fallback without exposing secret configuration."] },
+    { title: "What Erma means", paragraphs: ["Erma Celer, Erma Nova, and Erma Optima are TK LAB product modes; the names do not claim that TK LAB trained a separate foundation model.", "Generation is performed through a provider mesh of configured external model providers. The route may change between requests because of model capabilities, availability, quotas, and load; safe response metadata can disclose the actual provider/model or fallback without exposing secret configuration."] },
     { title: "AI interaction", paragraphs: ["Playground responses are AI-generated. The product must not imply that a user is interacting with a human when that is not the case."] },
     { title: "Reasoning", paragraphs: ["Provider reasoning traces are not published, archived, or treated as a user audit trail. The interface may expose only a generic indication that a reasoning mode was used."] },
     { title: "Errors and verification", paragraphs: ["AI can be wrong, incomplete, outdated, or non-unique. Facts, licenses, code safety, and consequential decisions require independent verification."] },

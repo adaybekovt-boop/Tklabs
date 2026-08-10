@@ -16,7 +16,7 @@ test("legacy provider copy is neutralized for product surfaces", () => {
 test("public provider model labels no longer expose the legacy name", () => {
   assert.equal(CLODEX_MODELS.length, 3);
   for (const model of CLODEX_MODELS) {
-    assert.match(model.name, /^External API/);
+    assert.match(model.name, /^(ErmaPro|ProximaPro)/);
     assert.doesNotMatch(model.name, /clodex/i);
   }
 });
@@ -34,5 +34,5 @@ test("neutral API route exists and product branding is applied globally", async 
   assert.match(guard, /MutationObserver/);
   assert.match(guard, /neutralizeNode\(document\.documentElement\)/);
   assert.doesNotMatch(serverModels, /name:\s*"Clodex/i);
-  assert.match(serverModels, /name:\s*"External API/);
+  assert.match(serverModels, /name:\s*"(ErmaPro|ProximaPro)/);
 });

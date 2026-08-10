@@ -51,7 +51,7 @@ export const PRODUCT_FACTS = {
     imageUnderstanding: "external-multimodal-model-provider",
   },
   ai: {
-    productModels: ["Erma Lite", "Erma Core", "Erma Pro"] as const,
+    productModels: ["Erma Celer", "Erma Nova", "Erma Optima"] as const,
     outputsRequireVerification: true,
     fallbacksAreDisclosed: true,
     imageRouting: "automatic-hidden-vision-tier",

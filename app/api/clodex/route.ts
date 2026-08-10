@@ -14,7 +14,7 @@ import { classifyPromptSafety, safetyRefusal } from "@/lib/ai-safety";
 import { promptValidationMessage, PromptValidationError, validateAndBuildProviderPrompt } from "@/lib/chat-prompt";
 import { getClodexModel, getClodexModelConfig } from "@/lib/models/clodex-server";
 import { isClodexEnabled } from "@/lib/feature-flags";
-import { isPrivilegedAiEmail } from "@/lib/privileged-access";
+import { isAdminEmail, isPrivilegedAiEmail } from "@/lib/privileged-access";
 import { parseJsonBody, RequestBodyTooLargeError } from "@/lib/request-body";
 import { isTrustedRequestOrigin } from "@/lib/request-security";
 
@@ -62,6 +62,7 @@ export async function POST(request: Request) {
   }
   const email = session?.user?.email?.trim().toLowerCase() ?? "";
   if (!email) return jsonResponse({ error: "Authentication required.", requestId }, requestId, 401);
+  if (!isAdminEmail(email)) return jsonResponse({ error: "Premium models are available to administrators only.", requestId }, requestId, 403);
   const privilegedAccount = isPrivilegedAiEmail(email);
 
   let body: ChatRequest | null;
