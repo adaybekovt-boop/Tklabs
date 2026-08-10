@@ -33,7 +33,7 @@ const SPRING_PRESS = { type: "spring" as const, stiffness: 500, damping: 28 }
 const SPRING_ICON = { type: "spring" as const, duration: 0.3, bounce: 0 }
 
 const MENU_PANEL_CLASS = cn(
-  "bg-surface-container-lowest text-primary overflow-hidden rounded-2xl border border-outline-variant p-1.5",
+  "bg-surface-container-lowest text-primary rounded-2xl border border-outline-variant p-1.5",
   "shadow-[0_8px_30px_-8px_rgba(8,8,8,0.18),0_2px_8px_-2px_rgba(8,8,8,0.08)]",
   "dark:shadow-[0_8px_30px_-8px_rgba(0,0,0,0.45),0_2px_8px_-2px_rgba(0,0,0,0.3)]"
 )
@@ -673,7 +673,7 @@ function ModelSelectorDefaultItems() {
         variants={listVariants}
         initial={reduceMotion ? false : "hidden"}
         animate="show"
-        className={cn(MENU_PANEL_CLASS, "flex min-w-56 flex-col gap-0.5")}
+        className={cn(MENU_PANEL_CLASS, "flex min-w-56 max-h-[min(60vh,22rem)] flex-col gap-0.5 overflow-y-auto overscroll-contain")}
       >
         {models.map((model) => (
           <li key={model.id} role="none">
