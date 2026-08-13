@@ -7,6 +7,16 @@
 - Scope: desktop chat, desktop workspace, history navigation, popovers, and desktop E2E coverage. No worker, API, legal, deployment, or mobile-product layout code was changed.
 - Result: desktop chat navigation is client-side and swaps the active transcript without a browser reload; desktop popovers calculate their own viewport-safe geometry; the desktop workspace has a real **Runs** tab.
 
+## Production incident follow-up — 13 August 2026
+
+- Cloudflare Builds showed the `main` release `a7fff01` succeeding. The red build in the dashboard belonged to Dependabot branch `dependabot/npm_and_yarn/development-dependencies-7762d1c3ad`, not to the release.
+- The failed bot build stopped during `npm clean-install`: its grouped update selected `react-server-dom-webpack@19.2.8` while the branch still had `react@19.2.6`, producing `ERESOLVE`.
+- Cloudflare had a `Deploy non-production branches` trigger with `branch_includes: ["*"]`, so every Dependabot and feature branch consumed a Workers Build and uploaded a Worker version even though previews were disabled. Trigger `2bc46bcb-e61c-4af9-a7cb-349dc870fdc2` was removed through the Cloudflare API. Only the `main` trigger remains.
+- There are still two production writers for `main`: Cloudflare Git Integration and `.github/workflows/deploy-cloudflare.yml`. The release produced two 100% deployments less than a minute apart. The broad Git-integration removal was not performed because the API safety review required separate owner approval; the repository contract still recommends GitHub Actions as the sole writer.
+- Google accepted the configured origin and exact callback URI and returned to `/api/auth/callback/google`. Worker observability identified the real failure as `InvalidCheck: pkceCodeVerifier value could not be parsed` on active version `8a550609-bbd2-4ff8-86d8-a0969a6ef2ac`.
+- The v0.25.0 change had removed the explicit `secret: process.env.AUTH_SECRET?.trim()` passed to `NextAuth`. In the vinext RSC/Worker split this let the sign-in action and callback resolve an inconsistent PKCE sealing context. Explicit runtime-secret wiring was restored in `auth.ts`, with a regression contract in `tests/security-reliability-patch.test.mjs`.
+- Incident-fix validation: typecheck passed; lint passed with the same six pre-existing warnings; 22 unit and 289 integration tests passed; production dependency audit found zero vulnerabilities; production build, performance budget, and Wrangler dry-run passed.
+
 ## Implemented fixes
 
 ### History and active chat

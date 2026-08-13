@@ -214,6 +214,7 @@ test("security hardening removes known preview secrets and unsafe eval while bou
   assert.doesNotMatch(authSource, /tklabs-browser-assurance-local-secret-2026/);
   assert.match(authSource, /isLocalPreviewEnabled/);
   assert.match(authSource, /process\.env\.NODE_ENV === "development"/);
+  assert.match(authSource, /secret:\s*process\.env\.AUTH_SECRET\?\.trim\(\)/);
   assert.doesNotMatch(headersSource, /unsafe-eval/);
   assert.match(headersSource, /CONTENT_SECURITY_POLICY_REPORT_ONLY[\s\S]*script-src 'self'/);
   assert.match(workerSource, /DELETE FROM clodex_reservations WHERE window_start < \? LIMIT \?/);

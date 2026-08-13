@@ -4,6 +4,10 @@ import Google from "next-auth/providers/google";
 import { isLocalPreviewEnabled } from "@/lib/local-preview";
 
 const nextAuth = NextAuth({
+  // Pass the runtime Worker binding explicitly. Relying on Auth.js env
+  // inference here can produce a different PKCE sealing context between the
+  // RSC sign-in action and the OAuth callback in the vinext Worker runtime.
+  secret: process.env.AUTH_SECRET?.trim(),
   providers: [
     Google({
       authorization: {
