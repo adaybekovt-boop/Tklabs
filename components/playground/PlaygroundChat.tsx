@@ -6,13 +6,14 @@ import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { ArrowDown, FolderKanban, GitBranch, Menu, PanelRightOpen, SquarePen, X } from "lucide-react";
+import { ArrowDown, FolderKanban, Gift, GitBranch, Menu, PanelRightOpen, SquarePen, X } from "lucide-react";
 
 import { ChatContextDrawer } from "@/components/playground/ChatContextDrawer";
 import { ConversationArchive } from "@/components/playground/ConversationArchive";
 import { MobileChatDrawer } from "@/components/playground/MobileChatDrawer";
 import { ResponsiveChatComposer } from "@/components/playground/ResponsiveChatComposer";
 import { ResponsiveMessageList, type ResponsiveMessageListProps } from "@/components/playground/ResponsiveMessageList";
+import { RewardedAdGate } from "@/components/playground/RewardedAdGate";
 import type { ChatMessage } from "@/components/playground/MessageList";
 import type { ChatInputAttachment, ChatInputModel, ChatInputSubmitMeta } from "@/components/ui/ai-chat-input";
 import { SiteLogo } from "@/components/site/SiteLogo";
@@ -23,7 +24,8 @@ import { useVisualViewport } from "@/hooks/use-visual-viewport";
 import type { ClodexAccessStatus } from "@/lib/clodex-access";
 import { readChatDraft, writeChatDraft } from "@/lib/chat-draft";
 import { isNearBottom } from "@/lib/chat-scroll";
-import { getDictionary, type Locale } from "@/lib/i18n";
+import { getChatDictionary } from "@/lib/chat-i18n";
+import type { Locale } from "@/lib/i18n";
 import { branchSession, getSession, setSessionProject } from "@/lib/local-archive";
 import { isClientLocalPreviewEnabled } from "@/lib/local-preview";
 import { CLODEX_MODELS } from "@/lib/models/clodex-public";
@@ -39,6 +41,17 @@ type PromptEditBranchState = {
   submitted: boolean;
 };
 
+function latestRewardQuotaError(messages: ChatMessage[]) {
+  for (let index = messages.length - 1; index >= 0; index -= 1) {
+    const message = messages[index];
+    if (message?.role !== "assistant") continue;
+    return message.errorCode === "demo_quota_exhausted" && message.rewardAdsAvailable === true
+      ? message
+      : null;
+  }
+  return null;
+}
+
 export function PlaygroundChat({
   locale,
   onOpenArtifacts,
@@ -48,9 +61,10 @@ export function PlaygroundChat({
   onOpenArtifacts?: () => void;
   onOpenRuns?: () => void;
 }) {
-  const text = getDictionary(locale);
+  const text = getChatDictionary(locale);
   const router = useRouter();
   const searchParams = useSearchParams();
+  const sessionParam = searchParams.get("session");
   const [input, setInput] = useState("");
   const [access, setAccess] = useState<ProfileAccess | null>(null);
   const [selectedModelId, setSelectedModelId] = useState(DEFAULT_ERMA_MODEL_KEY);
@@ -62,14 +76,18 @@ export function PlaygroundChat({
   const [currentProject, setCurrentProject] = useState("");
   const [mobileHistoryOpen, setMobileHistoryOpen] = useState(false);
   const [promptEditBranch, setPromptEditBranch] = useState<PromptEditBranchState | null>(null);
+  const [rewardGateOpen, setRewardGateOpen] = useState(false);
+  const [localPreview, setLocalPreview] = useState(false);
+  const [draftLoadedSessionId, setDraftLoadedSessionId] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const shouldFollowRef = useRef(true);
   const promptRef = useRef<HTMLDivElement>(null);
   const swipeStartRef = useRef<{ x: number; y: number } | null>(null);
+  const autoOpenedRewardMessageIdRef = useRef<string | null>(null);
+  const restoredSessionParamRef = useRef<string | null | undefined>(undefined);
 
   useVisualViewport();
 
-  const localPreview = isClientLocalPreviewEnabled();
   const modelMark = "/images/models/model-mark.png";
   const promptLimit = access?.unlimited || localPreview ? PRIVILEGED_MAX_PROMPT_LENGTH : PUBLIC_MAX_PROMPT_LENGTH;
   const showPremiumModels = Boolean(access?.isAdmin && access?.clodexEnabled);
@@ -105,6 +123,7 @@ export function PlaygroundChat({
   });
   const contextRatio = chat.contextStats.estimatedTokens / Math.max(1, chat.contextStats.limit);
   const contextWarning = contextRatio >= 0.8;
+  const rewardQuotaError = latestRewardQuotaError(chat.messages);
   const conversationTitle = currentProject || (locale === "ru" ? "Новый диалог" : "New conversation");
   const statusLabel = chat.requestStatus === "connecting"
     ? locale === "ru" ? "Начинаю" : "Starting"
@@ -113,6 +132,19 @@ export function PlaygroundChat({
       : chat.requestStatus === "generating"
         ? locale === "ru" ? "Готовлю ответ" : "Preparing answer"
         : "Erma";
+  const liveStatusLabel = chat.requestStatus === "completed"
+    ? locale === "ru" ? "Ответ готов" : "Answer ready"
+    : chat.requestStatus === "error"
+      ? locale === "ru" ? "Ошибка ответа" : "Response error"
+      : chat.requestStatus === "stopped"
+        ? locale === "ru" ? "Ответ остановлен" : "Response stopped"
+        : chat.isPending
+          ? statusLabel
+          : "";
+
+  useEffect(() => {
+    setLocalPreview(isClientLocalPreviewEnabled());
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -127,6 +159,12 @@ export function PlaygroundChat({
   }, []);
 
   useEffect(() => {
+    if (!rewardQuotaError || autoOpenedRewardMessageIdRef.current === rewardQuotaError.id) return;
+    autoOpenedRewardMessageIdRef.current = rewardQuotaError.id;
+    setRewardGateOpen(true);
+  }, [rewardQuotaError]);
+
+  useEffect(() => {
     let cancelled = false;
     fetch("/api/tts", { cache: "no-store" })
       .then(async (response) => {
@@ -139,24 +177,17 @@ export function PlaygroundChat({
   }, []);
 
   useEffect(() => {
-    const sessionParam = searchParams.get("session");
-    if (sessionParam) {
-      const saved = getSession(sessionParam);
-      if (saved) {
-        archive.setSessionId(saved.id);
-        setCurrentProject(saved.project ?? "");
-        chat.setMessages(saved.messages);
-        shouldFollowRef.current = true;
-        setShowJumpLatest(false);
-        return;
-      }
-    }
-    setCurrentProject("");
+    if (restoredSessionParamRef.current === sessionParam) return;
+    const previousSessionParam = restoredSessionParamRef.current;
+    restoredSessionParamRef.current = sessionParam;
+    if (previousSessionParam === undefined && sessionParam === null) return;
+    restoreArchivedSession(sessionParam);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [searchParams]);
+  }, [sessionParam]);
 
   useLayoutEffect(() => {
     setInput(readChatDraft(archive.sessionId));
+    setDraftLoadedSessionId(archive.sessionId);
   }, [archive.sessionId]);
 
   useEffect(() => {
@@ -200,10 +231,29 @@ export function PlaygroundChat({
     setDrawerOpen(false);
     setMobileHistoryOpen(false);
     setPromptEditBranch(null);
+    setRewardGateOpen(false);
     shouldFollowRef.current = true;
     speech.stopSpeech();
     router.replace("/playground");
     focusComposer();
+  }
+
+  function restoreArchivedSession(sessionId: string | null) {
+    if (sessionId) {
+      const saved = getSession(sessionId);
+      if (saved) {
+        archive.setSessionId(saved.id);
+        chat.replaceMessages(saved.messages);
+        setCurrentProject(saved.project ?? "");
+        shouldFollowRef.current = true;
+        setShowJumpLatest(false);
+        return;
+      }
+    }
+    archive.reset();
+    chat.replaceMessages([]);
+    setCurrentProject("");
+    setShowJumpLatest(false);
   }
 
   function openWorkspace(_message?: ChatMessage, tab: DrawerTab = "context") {
@@ -225,7 +275,7 @@ export function PlaygroundChat({
     const branch = branchSession(archive.sessionId, message.id, `${title} · ${locale === "ru" ? "ветка" : "branch"}`);
     if (!branch) return;
     archive.setSessionId(branch.id);
-    chat.setMessages(branch.messages);
+    chat.replaceMessages(branch.messages);
     setCurrentProject(branch.project ?? "");
     setPromptEditBranch(null);
     router.push(`/playground?session=${encodeURIComponent(branch.id)}`);
@@ -254,7 +304,7 @@ export function PlaygroundChat({
       if (!branch) return;
       branchId = branch.id;
       archive.setSessionId(branch.id);
-      chat.setMessages(branch.messages);
+      chat.replaceMessages(branch.messages);
       setCurrentProject(branch.project ?? "");
       router.push(`/playground?session=${encodeURIComponent(branch.id)}`);
     } else {
@@ -283,7 +333,7 @@ export function PlaygroundChat({
     }
     archive.setSessionId(source.id);
     setCurrentProject(source.project ?? "");
-    chat.setMessages(source.messages);
+    chat.replaceMessages(source.messages);
     setComposerAttachments([]);
     setInput(readChatDraft(source.id));
     setPromptEditBranch(null);
@@ -296,6 +346,12 @@ export function PlaygroundChat({
     const accepted = chat.handleSubmit(prompt, submitMeta);
     if (accepted) setPromptEditBranch((current) => current ? { ...current, submitted: true } : current);
     return accepted;
+  }
+
+  function useRewardRequest() {
+    if (!rewardQuotaError || chat.isPending) return;
+    setRewardGateOpen(false);
+    chat.retryMessage(rewardQuotaError);
   }
 
   function updateProject(project: string) {
@@ -323,13 +379,13 @@ export function PlaygroundChat({
   };
 
   return (
-    <div className="chat-workspace flex h-full min-h-0 flex-1 overflow-hidden" data-calm-chat-workspace>
-      <aside className="chat-desktop-sidebar hidden w-[268px] shrink-0 flex-col border-r border-outline-variant bg-surface/70 p-4 lg:flex" aria-label={text.chat.history}>
+    <div className="chat-workspace flex h-full min-h-0 flex-1 overflow-hidden" data-calm-chat-workspace data-chat-hydrated={draftLoadedSessionId === archive.sessionId ? "true" : undefined}>
+      <aside className="chat-desktop-sidebar hidden w-[232px] shrink-0 flex-col border-r border-outline-variant bg-surface/70 p-3 md:flex lg:w-[268px] lg:p-4" aria-label={text.chat.history}>
         <div className="mb-3 flex items-center gap-2 px-2">
           <Image src={modelMark} alt="" width={28} height={28} className="size-7 object-contain" />
-          <div><span className="label-caps block text-on-secondary-container">{text.chat.history}</span><span className="mt-1 block text-[11px] text-on-secondary-container">{locale === "ru" ? "Диалоги" : "Conversations"}</span></div>
+          <div><span className="label-caps block text-on-secondary-container">{text.chat.history}</span></div>
         </div>
-        <ConversationArchive locale={locale} headingId="desktop-chat-history-title" compact />
+        <ConversationArchive locale={locale} onSessionSelect={(session) => restoreArchivedSession(session.id)} basePath={localPreview ? "/browser-assurance/playground" : "/playground"} headingId="desktop-chat-history-title" compact />
       </aside>
 
       <section
@@ -367,11 +423,13 @@ export function PlaygroundChat({
               </div>
             </div>
             <div className="flex shrink-0 items-center gap-2">
-              <button type="button" onClick={() => openWorkspace(undefined, "activity")} className={cn("hidden size-10 place-items-center rounded-full border border-outline-variant text-on-secondary-container hover:border-primary hover:bg-surface-container-low hover:text-primary xl:grid", drawerOpen && "border-primary bg-surface-container-low text-primary")} aria-label={locale === "ru" ? "Что делает Erma" : "What Erma is doing"} aria-pressed={drawerOpen}><PanelRightOpen size={15} /></button>
-              <button type="button" onClick={startNewDialog} disabled={chat.messages.length === 0} className="grid size-10 place-items-center rounded-full border border-outline-variant text-on-secondary-container hover:border-primary hover:bg-surface-container-low hover:text-primary disabled:pointer-events-none disabled:opacity-30" aria-label={text.chat.newDialog}><SquarePen size={15} /></button>
+              <button type="button" onClick={() => openWorkspace(undefined, "activity")} className={cn("hidden size-9 place-items-center rounded-xl border border-outline-variant text-on-secondary-container hover:border-primary hover:bg-surface-container-low hover:text-primary xl:grid", drawerOpen && "border-primary bg-surface-container-low text-primary")} aria-label={locale === "ru" ? "Что делает Erma" : "What Erma is doing"} aria-pressed={drawerOpen}><PanelRightOpen size={15} /></button>
+              <button type="button" onClick={startNewDialog} disabled={chat.messages.length === 0} className="grid size-9 place-items-center rounded-xl border border-outline-variant text-on-secondary-container hover:border-primary hover:bg-surface-container-low hover:text-primary disabled:pointer-events-none disabled:opacity-30" aria-label={text.chat.newDialog}><SquarePen size={15} /></button>
             </div>
           </div>
         </header>
+
+        <div className="sr-only" aria-live="polite" aria-atomic="true">{liveStatusLabel}</div>
 
         <div className="relative min-h-0 flex-1">
           <div ref={scrollRef} onScroll={handleTranscriptScroll} className="playground-transcript absolute inset-0 overflow-y-auto overscroll-contain px-4 py-4 sm:px-6 sm:py-8 md:px-10" role="region" aria-label={text.chat.currentSession}>
@@ -392,6 +450,15 @@ export function PlaygroundChat({
         </div>
 
         <div className="chat-composer-area safe-area-bottom w-full shrink-0 border-t border-outline-variant bg-surface/96 px-3 pb-2 pt-2 backdrop-blur-md sm:px-5 sm:pb-3 sm:pt-3 md:px-8">
+          {rewardQuotaError && (
+            <div className="mx-auto mb-2 flex w-full max-w-[780px] items-center gap-3 rounded-2xl border border-secondary/30 bg-secondary/10 px-3 py-2.5 text-primary shadow-sm">
+              <span className="grid size-9 shrink-0 place-items-center rounded-full bg-secondary text-on-secondary"><Gift size={15} /></span>
+              <div className="min-w-0 flex-1">
+                <p className="text-[12px] font-semibold">{locale === "ru" ? "Получить ещё один запрос" : "Unlock one more request"}</p>
+              </div>
+              <button type="button" onClick={() => setRewardGateOpen(true)} disabled={chat.isPending} className="min-h-9 shrink-0 rounded-full border border-secondary/40 px-3 text-[10px] font-medium hover:bg-secondary/10 disabled:opacity-40">{locale === "ru" ? "Открыть" : "Open"}</button>
+            </div>
+          )}
           {promptEditBranch && (
             <div data-branch-preserving-edit className="mx-auto mb-2 flex w-full max-w-[780px] items-center gap-3 rounded-2xl border border-primary/30 bg-primary/5 px-3 py-2.5 text-primary shadow-sm">
               <span className="grid size-9 shrink-0 place-items-center rounded-full bg-primary text-on-primary"><GitBranch size={15} /></span>
@@ -446,6 +513,13 @@ export function PlaygroundChat({
         onNewChat={startNewDialog}
         onOpenArtifacts={onOpenArtifacts}
         onOpenRuns={onOpenRuns}
+      />
+
+      <RewardedAdGate
+        open={rewardGateOpen && Boolean(rewardQuotaError)}
+        locale={locale}
+        onClose={() => setRewardGateOpen(false)}
+        onUseReward={useRewardRequest}
       />
     </div>
   );

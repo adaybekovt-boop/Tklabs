@@ -1,0 +1,22 @@
+﻿{
+  "name": "tklab-telegram-bot",
+  "version": "2.0.0",
+  "private": true,
+  "description": "TKlab Telegram monitor on Cloudflare Workers",
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev",
+    "typecheck": "wrangler types && tsc --noEmit",
+    "check": "npm run typecheck && wrangler deploy --config wrangler.jsonc --dry-run",
+    "deploy": "wrangler deploy --config wrangler.jsonc"
+  },
+  "dependencies": {
+    "grammy": "^1.37.0"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^5.20260804.1",
+    "typescript": "^5.9.0",
+    "wrangler": "^4.92.0"
+  }
+}
+

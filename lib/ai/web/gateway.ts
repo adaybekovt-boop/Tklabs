@@ -99,7 +99,7 @@ async function searchGoogleGrounding(query: string, count: number, signal: Abort
     }),
   });
   if (!response.ok) throw new Error(`google_grounding_http_${response.status}`);
-  const payload = await response.json().catch(() => null) as GoogleInteractionPayload | null;
+  const payload = await readJsonBounded<GoogleInteractionPayload>(response, MAX_WEB_RESPONSE_BYTES);
   const results: WebSearchResult[] = [];
   for (const step of Array.isArray(payload?.steps) ? payload.steps : []) {
     if (step?.type !== "model_output" || !Array.isArray(step.content)) continue;
@@ -132,7 +132,7 @@ async function searchGoogleCustom(query: string, count: number, signal: AbortSig
   const params = new URLSearchParams({ key: apiKey, cx, q: query, num: String(Math.max(1, Math.min(10, count))), safe: "active" });
   const response = await fetch(`${GOOGLE_CUSTOM_SEARCH_ENDPOINT}?${params}`, { method: "GET", signal, cache: "no-store", headers: { accept: "application/json" } });
   if (!response.ok) throw new Error(`google_custom_search_http_${response.status}`);
-  const payload = await response.json().catch(() => null) as GoogleCustomPayload | null;
+  const payload = await readJsonBounded<GoogleCustomPayload>(response, 180_000);
   return (Array.isArray(payload?.items) ? payload.items : []).map((item) => safeResult("google-custom-search", item.title, item.link, item.snippet)).filter((item): item is WebSearchResult => Boolean(item));
 }
 
@@ -142,7 +142,7 @@ async function searchBrave(query: string, count: number, language: GroundingLang
   const params = new URLSearchParams({ q: query, count: String(Math.max(1, Math.min(8, count))), search_lang: language, safesearch: "moderate" });
   const response = await fetch(`${BRAVE_WEB_SEARCH_ENDPOINT}?${params}`, { method: "GET", signal, cache: "no-store", headers: { accept: "application/json", "x-subscription-token": apiKey } });
   if (!response.ok) throw new Error(`brave_search_http_${response.status}`);
-  const payload = await response.json().catch(() => null) as BravePayload | null;
+  const payload = await readJsonBounded<BravePayload>(response, 180_000);
   const rawResults = Array.isArray(payload?.web?.results) ? payload.web.results : [];
   return rawResults.map((item) => safeResult("brave", item.title, item.url, item.description, item.age)).filter((item): item is WebSearchResult => Boolean(item));
 }
@@ -200,6 +200,37 @@ async function readTextBounded(response: Response) {
   }
   try { await reader.cancel(); } catch { /* no-op */ }
   return text;
+}
+
+async function readJsonBounded<T>(response: Response, maxBytes: number): Promise<T | null> {
+  const body = response.body;
+  if (!body) return null;
+  const reader = body.getReader();
+  const decoder = new TextDecoder();
+  const chunks: Uint8Array[] = [];
+  let bytes = 0;
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      bytes += value.byteLength;
+      if (bytes > maxBytes) throw new Error("web_response_too_large");
+      chunks.push(value);
+    }
+  } finally {
+    try { await reader.cancel(); } catch { /* no-op */ }
+  }
+  const merged = new Uint8Array(chunks.reduce((total, chunk) => total + chunk.length, 0));
+  let offset = 0;
+  for (const chunk of chunks) {
+    merged.set(chunk, offset);
+    offset += chunk.length;
+  }
+  try {
+    return JSON.parse(decoder.decode(merged)) as T;
+  } catch {
+    return null;
+  }
 }
 
 function decodeHtmlEntities(value: string) {

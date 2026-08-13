@@ -5,7 +5,8 @@ import { personalMemoryPacket } from "@/lib/ai/personal-memory-client";
 import { shouldIncludeLocalArchive } from "@/lib/ai/tools/intents";
 import type { AiResponseMeta } from "@/lib/ai/types";
 import type { ChatResponseMode } from "@/lib/chat-modes";
-import { getDictionary, type Locale } from "@/lib/i18n";
+import { getChatDictionary } from "@/lib/chat-i18n";
+import type { Locale } from "@/lib/i18n";
 import type { ArchivedMessage } from "@/lib/local-archive";
 import { buildLocalArchiveSearchIndex } from "@/lib/local-archive-search";
 import type { ChatInputSubmitMeta } from "@/components/ui/ai-chat-input";
@@ -48,7 +49,7 @@ export function useChatRequest(options: {
   currentModel: string;
   saveConversation: (prompt: string, model: string, messages: ArchivedMessage[]) => void;
 }) {
-  const text = getDictionary(options.locale);
+  const text = getChatDictionary(options.locale);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [serverContextStats, setServerContextStats] = useState<ChatContextStats | null>(null);
   const [requestState, dispatch] = useReducer(requestReducer, INITIAL_REQUEST_STATE);
@@ -81,6 +82,7 @@ export function useChatRequest(options: {
   ) {
     setMessages((current) => {
       const next = update(current);
+      messagesRef.current = next;
       options.saveConversation(conversation.prompt, conversation.model, next as ArchivedMessage[]);
       return next;
     });
@@ -92,9 +94,13 @@ export function useChatRequest(options: {
   }
 
   function appendAssistant(assistantId: string, update: (message: ChatMessage) => ChatMessage) {
-    setMessages((current) => current.map((message) => (
-      message.id === assistantId ? update(message) : message
-    )));
+    setMessages((current) => {
+      const next = current.map((message) => (
+        message.id === assistantId ? update(message) : message
+      ));
+      messagesRef.current = next;
+      return next;
+    });
   }
 
   function armWatchdog(controller: AbortController, conversation: ActiveConversation) {
@@ -200,6 +206,10 @@ export function useChatRequest(options: {
             }
           : message
       )));
+    } else {
+      // Streaming deltas update React state incrementally. Persist one final
+      // snapshot after the done event so a successful response survives reload.
+      saveUpdatedMessages(conversation, (current) => current);
     }
     dispatch({ type: !outcome.receivedDone || outcome.streamError ? "error" : "completed" });
   }
@@ -229,40 +239,50 @@ export function useChatRequest(options: {
 
     setServerContextStats(null);
     if (configuration.reuseAssistantId) {
-      setMessages((current) => current.map((message) => (
-        message.id === assistantId
-          ? {
-              ...message,
-              content: "",
-              error: false,
-              stopped: false,
-              requestId,
-              retryPrompt: prompt,
-              retryModel: submitMeta.model,
-              versions: configuration.previousVersions,
-              comparison: undefined,
-              meta: undefined,
-            }
-          : message
-      )));
+      setMessages((current) => {
+        const next = current.map((message) => (
+          message.id === assistantId
+            ? {
+                ...message,
+                content: "",
+                error: false,
+                errorCode: undefined,
+                rewardAdsAvailable: undefined,
+                stopped: false,
+                requestId,
+                retryPrompt: prompt,
+                retryModel: submitMeta.model,
+                versions: configuration.previousVersions,
+                comparison: undefined,
+                meta: undefined,
+              }
+            : message
+        ));
+        messagesRef.current = next;
+        return next;
+      });
     } else {
       const userMessage: ChatMessage = {
         id: crypto.randomUUID(),
         role: "user",
         content: prompt,
       };
-      setMessages((current) => [
-        ...current,
-        userMessage,
-        {
-          id: assistantId,
-          role: "assistant",
-          content: "",
-          requestId,
-          retryPrompt: prompt,
-          retryModel: submitMeta.model,
-        },
-      ]);
+      setMessages((current) => {
+        const next = [
+          ...current,
+          userMessage,
+          {
+            id: assistantId,
+            role: "assistant" as const,
+            content: "",
+            requestId,
+            retryPrompt: prompt,
+            retryModel: submitMeta.model,
+          },
+        ];
+        messagesRef.current = next;
+        return next;
+      });
     }
 
     activeRequestRef.current = controller;
@@ -302,6 +322,8 @@ export function useChatRequest(options: {
       if (!response.ok) {
         const payload = await response.json().catch(() => null) as {
           error?: unknown;
+          code?: unknown;
+          rewards?: { available?: unknown };
           requestId?: unknown;
           retryAfter?: unknown;
         } | null;
@@ -313,6 +335,8 @@ export function useChatRequest(options: {
           ...message,
           content: errorText,
           error: true,
+          errorCode: typeof payload?.code === "string" ? payload.code : undefined,
+          rewardAdsAvailable: payload?.rewards?.available === true,
           requestId: typeof payload?.requestId === "string" ? payload.requestId : requestId,
           retryAfterSeconds: safeRetrySeconds(response, payload),
         }));
@@ -554,20 +578,41 @@ export function useChatRequest(options: {
     clearActiveRequest();
     dispatch({ type: "reset" });
     setServerContextStats(null);
+    messagesRef.current = [];
     setMessages([]);
   }
 
+  function replaceMessages(next: ChatMessage[]) {
+    // A history switch is a new conversation boundary. Do not let an in-flight
+    // response from the previous session write into the restored transcript.
+    activeRequestRef.current?.abort();
+    clearActiveRequest();
+    dispatch({ type: "reset" });
+    setServerContextStats(null);
+    messagesRef.current = next;
+    setMessages(next);
+  }
+
   useEffect(() => {
-    const stopOnPageHide = () => activeRequestRef.current?.abort();
+    const stopOnPageHide = () => {
+      const conversation = activeConversationRef.current;
+      if (conversation) saveCurrentMessages(messagesRef.current, conversation.model);
+      activeRequestRef.current?.abort();
+    };
     window.addEventListener("pagehide", stopOnPageHide);
     return () => {
       window.removeEventListener("pagehide", stopOnPageHide);
+      const conversation = activeConversationRef.current;
+      if (conversation) saveCurrentMessages(messagesRef.current, conversation.model);
       activeRequestRef.current?.abort();
       activeRequestRef.current = null;
       activeConversationRef.current = null;
       if (watchdogRef.current) clearTimeout(watchdogRef.current);
       watchdogRef.current = null;
     };
+    // The handler intentionally keeps the mount-time lifecycle and reads the
+    // latest conversation/messages through refs.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   return {
@@ -585,5 +630,6 @@ export function useChatRequest(options: {
     messagesThrough,
     toggleMessageContext,
     clearMessages,
+    replaceMessages,
   };
 }

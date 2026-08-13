@@ -44,10 +44,21 @@ export function PublicBrandingGuard() {
   useEffect(() => {
     neutralizeNode(document.documentElement);
 
+    const pending = new Set<Node>();
+    let frame = 0;
+    const flush = () => {
+      frame = 0;
+      for (const node of pending) neutralizeNode(node);
+      pending.clear();
+    };
+    const schedule = (node: Node) => {
+      pending.add(node);
+      if (!frame) frame = requestAnimationFrame(flush);
+    };
     const observer = new MutationObserver((records) => {
       for (const record of records) {
-        if (record.type === "characterData") neutralizeNode(record.target);
-        for (const node of record.addedNodes) neutralizeNode(node);
+        if (record.type === "characterData") schedule(record.target);
+        for (const node of record.addedNodes) schedule(node);
       }
     });
 
@@ -57,7 +68,11 @@ export function PublicBrandingGuard() {
       characterData: true,
     });
 
-    return () => observer.disconnect();
+    return () => {
+      observer.disconnect();
+      if (frame) cancelAnimationFrame(frame);
+      pending.clear();
+    };
   }, []);
 
   return null;

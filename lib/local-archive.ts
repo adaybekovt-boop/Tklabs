@@ -56,17 +56,23 @@ const MAX_SESSIONS = 30;
 const MAX_MESSAGES_PER_SESSION = 80;
 const MAX_MESSAGE_CONTENT_LENGTH = 12_000;
 const MAX_ARCHIVE_JSON_LENGTH = 1_500_000;
+const MAX_SESSION_JSON_LENGTH = 500_000;
 const MAX_MESSAGE_VERSIONS = 5;
 const MAX_TOOL_CALLS_PER_MESSAGE = 4;
 const MAX_GROUNDING_SUGGESTIONS_HTML = 60_000;
 const AI_TOOL_NAMES = new Set<AiToolName>([
   "search_documentation",
   "search_patch_notes",
+  "search_tklab_knowledge",
+  "search_documents",
   "get_service_status",
   "calculate",
+  "solve_math",
   "search_local_archive",
   "get_model_capabilities",
   "search_web",
+  "open_web_result",
+  "run_code_sandbox",
 ]);
 let archiveCache: ArchivedSession[] | null = null;
 let pendingArchivePayload: string | null = null;
@@ -307,8 +313,8 @@ export function loadArchive(): ArchivedSession[] {
         ...(typeof session.branchedFromMessageId === "string" ? { branchedFromMessageId: session.branchedFromMessageId.slice(0, 120) } : {}),
         messages,
       }];
-    }).slice(0, MAX_SESSIONS);
-    const sortedSessions = sortSessions(sessions);
+    });
+    const sortedSessions = sortSessions(sessions).slice(0, MAX_SESSIONS).map(limitSessionSize);
     if (removedLegacyReasoning) {
       try {
         window.localStorage.setItem(ARCHIVE_KEY, JSON.stringify(sortedSessions));
@@ -334,22 +340,21 @@ function flushArchive() {
   }
 }
 
-function scheduleArchiveWrite(sessions: ArchivedSession[]) {
+function persistArchive(sessions: ArchivedSession[]) {
   if (!isBrowser()) return;
-  pendingArchivePayload = JSON.stringify(sessions);
+  const next = sortSessions(sessions).slice(0, MAX_SESSIONS).map(limitSessionSize);
+  let payload = JSON.stringify(next);
+  while (next.length > 1 && payload.length > MAX_ARCHIVE_JSON_LENGTH) {
+    next.pop();
+    payload = JSON.stringify(next);
+  }
+  archiveCache = next;
+  pendingArchivePayload = payload;
   if (archiveWriteTimer) clearTimeout(archiveWriteTimer);
   archiveWriteTimer = setTimeout(() => {
     archiveWriteTimer = null;
     flushArchive();
   }, 350);
-}
-
-function persistArchive(sessions: ArchivedSession[]) {
-  if (!isBrowser()) return;
-  const next = sortSessions(sessions).slice(0, MAX_SESSIONS);
-  while (next.length > 1 && JSON.stringify(next).length > MAX_ARCHIVE_JSON_LENGTH) next.pop();
-  archiveCache = next;
-  scheduleArchiveWrite(next);
   window.dispatchEvent(new Event("tklab:archive-updated"));
 }
 
@@ -504,4 +509,12 @@ export function saveSettings(settings: LocalSettings) {
   } catch {
     // Settings are optional and must never block the chat.
   }
+}
+
+function limitSessionSize(session: ArchivedSession): ArchivedSession {
+  let messages = session.messages;
+  while (messages.length > 1 && JSON.stringify({ ...session, messages }).length > MAX_SESSION_JSON_LENGTH) {
+    messages = messages.slice(1);
+  }
+  return messages === session.messages ? session : { ...session, messages };
 }

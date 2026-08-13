@@ -3,7 +3,7 @@
 /* eslint-disable react-hooks/set-state-in-effect -- browser-only workspace state hydrates from localStorage. */
 
 import { lazy, Suspense, useEffect, useState } from "react";
-import { FileText, ListChecks, MessageSquareText } from "lucide-react";
+import { FileText, ListChecks, MessageSquareText, Play } from "lucide-react";
 import Link from "next/link";
 
 import { MobileWorkspaceSwitcher } from "@/components/playground/MobileWorkspaceSwitcher";
@@ -75,6 +75,7 @@ export function ErmaNovaWorkspace({ locale }: { locale: Locale }) {
   const tabs: Array<{ id: WorkspaceSection; label: string; icon: typeof MessageSquareText }> = [
     { id: "chat", label: ru ? "Чат" : "Chat", icon: MessageSquareText },
     { id: "flow", label: ru ? "Задачи" : "Tasks", icon: ListChecks },
+    { id: "runs", label: ru ? "Запуски" : "Runs", icon: Play },
     { id: "artifacts", label: ru ? "Файлы" : "Files", icon: FileText },
   ];
 
@@ -89,7 +90,7 @@ export function ErmaNovaWorkspace({ locale }: { locale: Locale }) {
 
         <nav role="tablist" className="flex min-w-0 items-center rounded-full border border-outline-variant bg-surface-container-low p-1" aria-label={ru ? "Разделы Erma" : "Erma sections"}>
           {tabs.map(({ id, label, icon: Icon }) => {
-            const selected = tab === id || (tab === "runs" && id === "flow");
+            const selected = tab === id;
             return (
               <button
                 key={id}
@@ -128,7 +129,7 @@ export function ErmaNovaWorkspace({ locale }: { locale: Locale }) {
           </div>
         ) : null}
         {tab === "runs" ? (
-          <div id="workspace-panel-runs" role="tabpanel" aria-label={ru ? "Выполнения задач" : "Task runs"} className="h-full min-h-0 motion-workspace-panel">
+          <div id="workspace-panel-runs" role="tabpanel" aria-labelledby="workspace-tab-runs" className="h-full min-h-0 motion-workspace-panel">
             <Suspense fallback={<WorkspacePanelFallback locale={locale} />}><AgentRunPanel locale={locale} /></Suspense>
           </div>
         ) : null}

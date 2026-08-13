@@ -20,6 +20,8 @@ const clodexGrantTtlDays = process.env.CLODEX_GRANT_TTL_DAYS?.trim() || "30";
 const clodexGrantVersion = process.env.CLODEX_GRANT_VERSION?.trim() || "v2";
 const configuredAuthUrl = process.env.AUTH_URL?.trim();
 const authTrustHost = process.env.AUTH_TRUST_HOST?.trim() || "true";
+const rewardedAdsEnabled = process.env.REWARDED_ADS_ENABLED?.trim() || "false";
+const rewardedAdSmartlinkUrl = process.env.REWARDED_AD_SMARTLINK_URL?.trim() || "";
 
 const localWorkerConfig = {
   main: "./worker/index.ts",
@@ -75,6 +77,8 @@ const localWorkerConfig = {
     TTS_DAILY_CHARACTER_QUOTA: process.env.TTS_DAILY_CHARACTER_QUOTA?.trim() || "10000",
     TTS_PRIVILEGED_REQUEST_LIMIT: process.env.TTS_PRIVILEGED_REQUEST_LIMIT?.trim() || "30",
     TTS_PRIVILEGED_DAILY_CHARACTER_QUOTA: process.env.TTS_PRIVILEGED_DAILY_CHARACTER_QUOTA?.trim() || "100000",
+    REWARDED_ADS_ENABLED: rewardedAdsEnabled,
+    REWARDED_AD_SMARTLINK_URL: rewardedAdSmartlinkUrl,
   },
   ...(d1DatabaseId ? {
     // The generated Wrangler config lives in dist/server, so this path points

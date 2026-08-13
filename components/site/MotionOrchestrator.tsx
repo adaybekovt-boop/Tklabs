@@ -56,12 +56,25 @@ export function MotionOrchestrator() {
 
     scan();
 
+    const pendingScopes = new Set<Element>();
+    let scanFrame = 0;
+    const flushPendingScopes = () => {
+      scanFrame = 0;
+      for (const scope of pendingScopes) {
+        if (scope.matches(REVEAL_SELECTOR)) register(scope);
+        scan(scope);
+      }
+      pendingScopes.clear();
+    };
+    const scheduleScan = (scope: Element) => {
+      pendingScopes.add(scope);
+      if (!scanFrame) scanFrame = requestAnimationFrame(flushPendingScopes);
+    };
     const mutationObserver = new MutationObserver((records) => {
       for (const record of records) {
         for (const addedNode of record.addedNodes) {
           if (!(addedNode instanceof Element)) continue;
-          if (addedNode.matches(REVEAL_SELECTOR)) register(addedNode);
-          scan(addedNode);
+          scheduleScan(addedNode);
         }
       }
     });
@@ -70,6 +83,8 @@ export function MotionOrchestrator() {
     return () => {
       observer?.disconnect();
       mutationObserver.disconnect();
+      if (scanFrame) cancelAnimationFrame(scanFrame);
+      pendingScopes.clear();
       delete root.dataset.motion;
     };
   }, []);

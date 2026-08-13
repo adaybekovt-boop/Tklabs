@@ -35,6 +35,8 @@ jobs:
       - name: Enforce single deployment writer
         run: test "$TKLABS_DEPLOY_WRITER" = "github-actions"
       - run: npm ci
+      - name: Build the Worker config used by rollback
+        run: npm run build
       - name: Roll back deliberately
         run: npx wrangler rollback "${{ inputs.version_id }}" --message "${{ inputs.reason }}" --config dist/server/wrangler.json
       - name: Verify canonical readiness

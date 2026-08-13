@@ -21,7 +21,8 @@ import { AgentActivity } from "@/components/playground/AgentActivity";
 import { GoogleGroundingPanel } from "@/components/playground/GoogleGroundingPanel";
 import AIThinkingBlock from "@/components/ui/ai-thinking-block";
 import type { AiResponseMeta } from "@/lib/ai/types";
-import { getDictionary, type Locale } from "@/lib/i18n";
+import type { ChatDictionary } from "@/lib/chat-i18n";
+import type { Locale } from "@/lib/i18n";
 import type { ArchivedMessageComparison, ArchivedMessageVersion } from "@/lib/local-archive";
 import { cn } from "@/lib/utils";
 
@@ -39,11 +40,11 @@ export type ChatMessage = {
   meta?: AiResponseMeta;
   requestId?: string;
   retryAfterSeconds?: number;
+  errorCode?: string;
+  rewardAdsAvailable?: boolean;
   retryPrompt?: string;
   retryModel?: string;
 };
-
-type ChatDictionary = ReturnType<typeof getDictionary>;
 
 function ContextAction({ message, locale, onToggle }: { message: ChatMessage; locale: Locale; onToggle: (message: ChatMessage) => void }) {
   const excluded = message.excludedFromContext === true;

@@ -43,6 +43,37 @@ function output(value: unknown) {
   return typeof value === "string" ? value.slice(0, MAX_OUTPUT_CHARS) : "";
 }
 
+async function readJsonBounded(response: Response, maxBytes: number) {
+  const body = response.body;
+  if (!body) return null;
+  const reader = body.getReader();
+  const decoder = new TextDecoder();
+  const chunks: Uint8Array[] = [];
+  let bytes = 0;
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      bytes += value.byteLength;
+      if (bytes > maxBytes) throw new CodeSandboxError("code_sandbox_response_too_large");
+      chunks.push(value);
+    }
+  } finally {
+    try { await reader.cancel(); } catch { /* no-op */ }
+  }
+  const merged = new Uint8Array(chunks.reduce((total, chunk) => total + chunk.length, 0));
+  let offset = 0;
+  for (const chunk of chunks) {
+    merged.set(chunk, offset);
+    offset += chunk.length;
+  }
+  try {
+    return JSON.parse(decoder.decode(merged)) as Record<string, unknown>;
+  } catch {
+    return null;
+  }
+}
+
 export async function runCodeSandbox(input: { language: unknown; code: unknown; stdin?: unknown }, parentSignal?: AbortSignal): Promise<SandboxResult> {
   const { url, token } = sandboxConfig();
   const language = normalizeLanguage(input.language);
@@ -73,7 +104,7 @@ export async function runCodeSandbox(input: { language: unknown; code: unknown; 
       }),
     });
     if (!response.ok) throw new CodeSandboxError(`code_sandbox_http_${response.status}`);
-    const payload = await response.json().catch(() => null) as Record<string, unknown> | null;
+    const payload = await readJsonBounded(response, 256_000);
     if (!payload) throw new CodeSandboxError("code_sandbox_invalid_response");
     const exitCode = typeof payload.exitCode === "number" && Number.isInteger(payload.exitCode) ? payload.exitCode : -1;
     const rawStdout = typeof payload.stdout === "string" ? payload.stdout : "";

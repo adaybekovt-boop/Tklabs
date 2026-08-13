@@ -1,7 +1,7 @@
 /* global self, caches, Request, Response, fetch, URL */
 
 const CACHE_PREFIX = "tklabs";
-const CACHE_VERSION = "v0.24.2";
+const CACHE_VERSION = "v0.25.0";
 const CACHE_REVISION = "google-direct-grounding-r1";
 const STATIC_CACHE = `${CACHE_PREFIX}-${CACHE_VERSION}-${CACHE_REVISION}-static`;
 const OFFLINE_URL = "/offline";

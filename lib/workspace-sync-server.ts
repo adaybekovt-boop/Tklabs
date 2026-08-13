@@ -1,4 +1,4 @@
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 
 import { getDb } from "@/db";
 import { users, workspaceSnapshots } from "@/db/schema";
@@ -97,7 +97,27 @@ export async function putWorkspaceSnapshot(email: string, payload: string, expec
     const currentRevision = existing?.revision ?? 0;
     if (expectedRevision !== null && expectedRevision !== currentRevision) throw new WorkspaceSyncConflictError(currentRevision);
     const revision = currentRevision + 1; const sealed = await sealV2(normalized, payload, revision); const updatedAt = new Date();
-    await db.insert(workspaceSnapshots).values({ userId: id, ...sealed, revision, updatedAt }).onConflictDoUpdate({ target: workspaceSnapshots.userId, set: { ...sealed, revision, updatedAt } }).run();
+    if (existing) {
+      const result = await db.update(workspaceSnapshots)
+        .set({ ...sealed, revision, updatedAt })
+        .where(and(eq(workspaceSnapshots.userId, id), eq(workspaceSnapshots.revision, currentRevision)))
+        .run();
+      const changes = Number((result as { meta?: { changes?: number } }).meta?.changes ?? 0);
+      if (changes !== 1) {
+        const latest = await db.select({ revision: workspaceSnapshots.revision }).from(workspaceSnapshots).where(eq(workspaceSnapshots.userId, id)).get();
+        throw new WorkspaceSyncConflictError(latest?.revision ?? currentRevision);
+      }
+    } else {
+      const result = await db.insert(workspaceSnapshots)
+        .values({ userId: id, ...sealed, revision, updatedAt })
+        .onConflictDoNothing()
+        .run();
+      const changes = Number((result as { meta?: { changes?: number } }).meta?.changes ?? 0);
+      if (changes !== 1) {
+        const latest = await db.select({ revision: workspaceSnapshots.revision }).from(workspaceSnapshots).where(eq(workspaceSnapshots.userId, id)).get();
+        throw new WorkspaceSyncConflictError(latest?.revision ?? 1);
+      }
+    }
     return { revision, checksum: sealed.checksum, keyVersion: sealed.keyVersion, updatedAt: updatedAt.toISOString() };
   } catch (error) { if (error instanceof WorkspaceSyncConflictError || error instanceof WorkspaceSyncUnavailableError) throw error; if (error instanceof Error && error.message === "workspace_sync_payload_too_large") throw error; console.error("Unable to write workspace sync snapshot", error); throw new WorkspaceSyncUnavailableError(); }
 }

@@ -13,9 +13,11 @@ async function waitForClientShell(page) {
 
 async function submitVisibleComposer(page, prompt) {
   const textarea = page.locator("textarea:visible").first();
+  await expect(page.locator("[data-chat-hydrated=true]")).toBeAttached();
   await expect(textarea).toBeVisible();
   await textarea.fill(prompt);
-  await page.getByRole("button", { name: /Отправить|Send/i }).last().click();
+  await expect(textarea).toHaveValue(prompt);
+  await textarea.press("Enter");
 }
 
 test("Erma renders display LaTeX through KaTeX without an external provider", async ({ page }, testInfo) => {

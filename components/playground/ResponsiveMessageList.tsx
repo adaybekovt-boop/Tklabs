@@ -9,12 +9,11 @@ import { ErmaAttentionNotice } from "@/components/playground/ErmaAttentionNotice
 import { MessageList, type ChatMessage } from "@/components/playground/MessageList";
 import AIThinkingBlock from "@/components/ui/ai-thinking-block";
 import { useMobileViewport } from "@/hooks/use-mobile-viewport";
-import { getDictionary, type Locale } from "@/lib/i18n";
+import type { ChatDictionary } from "@/lib/chat-i18n";
+import type { Locale } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 
 const MarkdownMessage = lazy(() => import("@/components/playground/MarkdownMessage").then((module) => ({ default: module.MarkdownMessage })));
-type ChatDictionary = ReturnType<typeof getDictionary>;
-
 export type ResponsiveMessageListProps = {
   messages: ChatMessage[];
   isPending: boolean;
@@ -98,7 +97,7 @@ function MobileMessageList(props: ResponsiveMessageListProps) {
 
   return (
     <>
-      <div className="mx-auto flex w-full max-w-3xl flex-col gap-6 pb-8" role="log" aria-label={text.chat.currentSession} lang={locale} aria-live="polite">
+      <div className="mx-auto flex w-full max-w-3xl flex-col gap-6 pb-8" role="log" aria-label={text.chat.currentSession} lang={locale}>
         {messages.map((message) => message.role === "user" ? (
           <article
             key={message.id}

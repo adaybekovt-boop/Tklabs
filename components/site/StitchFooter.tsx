@@ -20,7 +20,7 @@ export async function StitchFooter() {
   return (
     <footer className="mt-section-gap border-t border-outline-variant/30 bg-surface">
       <div className="stitch-container py-8 md:py-10">
-        <div className="md:hidden">
+        <div className="lg:hidden" data-device-version="mobile" data-site-footer="mobile">
           <p className="label-caps mb-5 text-secondary">{footerLabel}</p>
           <div className="divide-y divide-outline-variant border-y border-outline-variant">
             <details open className="group">
@@ -65,7 +65,7 @@ export async function StitchFooter() {
           </div>
         </div>
 
-        <div className="hidden items-start justify-between gap-10 md:flex">
+        <div className="hidden items-start gap-10 lg:grid lg:grid-cols-[minmax(0,1fr)_minmax(0,2fr)]" data-device-version="desktop" data-site-footer="desktop">
           <div className="max-w-sm">
             <p className="label-caps text-secondary">{footerLabel}</p>
             <p className="mt-4 text-sm leading-[1.7] text-on-surface-variant">
@@ -74,7 +74,7 @@ export async function StitchFooter() {
                 : "Navigation, documentation, and release history."}
             </p>
           </div>
-          <div className="grid min-w-[620px] grid-cols-3 gap-10">
+          <div className="grid min-w-0 grid-cols-3 gap-6 lg:gap-10">
             <nav aria-label={productTitle}>
               <p className="label-caps mb-4 text-secondary">{productTitle}</p>
               <div className="grid gap-3 text-sm">
@@ -108,7 +108,6 @@ export async function StitchFooter() {
 
         <div className="mt-8 flex flex-col gap-2 border-t border-outline-variant pt-5 text-xs text-secondary sm:flex-row sm:items-center sm:justify-between">
           <span>© 2026</span>
-          <span>{locale === "ru" ? "Сделано для спокойной и проверяемой работы" : "Built for calm, verifiable work"}</span>
         </div>
       </div>
     </footer>

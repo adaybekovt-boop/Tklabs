@@ -5,6 +5,8 @@ export type DemoRateLimitStatus = {
   limit: number;
   windowMs: number;
   remaining: number;
+  baseRemaining?: number;
+  bonusRemaining?: number;
   resetAt: number | null;
 };
 

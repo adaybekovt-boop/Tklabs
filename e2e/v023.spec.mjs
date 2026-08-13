@@ -47,6 +47,7 @@ function sseBody(events) {
 async function waitForClientShell(page) {
   await expect(page.locator('[data-app-dock], [data-mobile-workspace-switcher]').first()).toBeAttached({ timeout: 15_000 });
   await expect(page.locator("html")).not.toHaveAttribute("data-route-transition", "entering", { timeout: 15_000 });
+  await expect(page.locator("[data-chat-hydrated=true]")).toBeAttached({ timeout: 15_000 });
 }
 
 async function acknowledgeTrustDisclosure(page) {
@@ -128,7 +129,11 @@ test("mobile attachment plus opens a visible tappable menu above the composer", 
 
   const composer = page.getByTestId("prompt-input");
   await expect(composer).toBeVisible({ timeout: 15_000 });
-  const attachmentButton = composer.locator('button[aria-expanded]').first();
+  // Scope past the model picker trigger: it renders earlier in the composer
+  // and also carries aria-expanded, so a bare [aria-expanded] + .first()
+  // grabs the wrong control (confirmed independently by both overnight
+  // agents — see AGENT_AUDIT_MOBILE.md).
+  const attachmentButton = composer.locator('button[aria-expanded]:not([role="combobox"])').first();
   await expect(attachmentButton).toHaveAttribute("aria-expanded", "false");
   await expect(attachmentButton).toBeVisible();
   await expect(attachmentButton).toBeEnabled();

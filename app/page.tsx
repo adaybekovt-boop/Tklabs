@@ -31,13 +31,12 @@ export default async function HomePage() {
     <>
       <StitchHeader active="home" />
       <main>
-        {/* Regression reference retained for mobile tests: aspect-[4/5] lg:aspect-auto. */}
+        <div className="hidden lg:block" data-device-version="desktop" data-home-surface="desktop">
         <section className="stitch-container mb-section-gap mt-8 grid items-center gap-8 sm:mt-12 sm:gap-10 lg:mt-20 lg:grid-cols-2 lg:gap-12">
           <ScrollReveal className="space-y-6 sm:space-y-8">
             <p className="label-caps text-secondary">TK LAB · ERMA</p>
             <h1 className="display-title max-w-2xl">{ru ? "Спокойная AI-среда для реальной работы" : "A calm AI workspace for real work"}</h1>
             <p className="max-w-xl text-[17px] leading-[1.75] text-on-surface-variant">{ru ? "Задайте вопрос, приложите текст или продолжите локальный проект. Основная навигация всегда закреплена снизу: AI-чат, обновления, профиль и остальные разделы доступны без повторяющихся кнопок." : "Ask a question, attach text, or continue a local project. Primary navigation stays pinned below: AI chat, updates, profile, and the rest of the workspace remain available without repeated call-to-action buttons."}</p>
-            <p className="text-xs font-medium uppercase tracking-[0.12em] text-secondary md:hidden">{ru ? "Основное меню закреплено внизу экрана" : "Primary navigation is pinned to the bottom"}</p>
             <div className="pt-2 sm:pt-4">
               <Link href="/models" className="inline-flex min-h-11 items-center gap-1 border-b border-primary text-sm font-medium text-primary">{ru ? "Как работает Erma Auto" : "How Erma Auto works"}<ArrowUpRight size={15} /></Link>
             </div>
@@ -88,6 +87,70 @@ export default async function HomePage() {
             </article>
           </ScrollReveal>
         </section>
+        </div>
+
+        <div className="lg:hidden" data-device-version="mobile" data-home-surface="mobile">
+          <section className="stitch-container mb-14 mt-6">
+            <p className="label-caps text-secondary">TK LAB · ERMA</p>
+            <h1 className="mt-5 font-serif text-[42px] font-normal leading-[1.08] tracking-[-0.02em] text-primary">{ru ? "Спокойная AI-среда для реальной работы" : "A calm AI workspace for real work"}</h1>
+            <p className="mt-5 text-[16px] leading-[1.7] text-on-surface-variant">{ru ? "Задайте вопрос, приложите текст или продолжите локальный проект. Всё нужное для работы доступно из нижнего меню." : "Ask a question, attach text, or continue a local project. Everything you need stays available from the bottom menu."}</p>
+            <Link href="/models" className="mt-6 inline-flex min-h-11 items-center gap-1 border-b border-primary text-sm font-medium text-primary">{ru ? "Как работает Erma Auto" : "How Erma Auto works"}<ArrowUpRight size={15} /></Link>
+            <div className="relative mt-8 aspect-[4/5] overflow-hidden rounded-3xl">
+              <Image src={HERO_IMAGE} alt={ru ? "Интерфейс AI-чата Erma" : "Erma AI chat interface"} fill sizes="100vw" unoptimized className="object-cover grayscale" />
+            </div>
+          </section>
+
+          <section className="stitch-container mb-14">
+            <div className="mb-6 border-b border-outline-variant/30 pb-4">
+              <p className="label-caps mb-3 text-secondary">{ru ? "Основное" : "Core product"}</p>
+              <h2 className="font-serif text-[30px] font-normal leading-[1.2] text-primary">{ru ? "Меньше элементов, больше полезной работы" : "Fewer controls, more useful work"}</h2>
+            </div>
+            <div className="grid gap-3">
+              {capabilities.map(({ title, text, icon: Icon }) => (
+                <article key={title} className="rounded-3xl border border-outline-variant bg-surface-container-lowest p-5">
+                  <span className="grid size-10 place-items-center rounded-2xl bg-surface-container-low text-primary"><Icon size={18} /></span>
+                  <h3 className="mt-5 font-serif text-[25px] text-primary">{title}</h3>
+                  <p className="mt-3 leading-[1.65] text-on-surface-variant">{text}</p>
+                </article>
+              ))}
+            </div>
+          </section>
+
+          <section className="stitch-container mb-14">
+            <div className="relative aspect-[4/3] overflow-hidden rounded-3xl">
+              <Image src={LAB_IMAGE} alt={ru ? "Рабочая среда TK Lab" : "TK Lab workspace"} fill loading="lazy" sizes="100vw" unoptimized className="object-cover grayscale" />
+            </div>
+            <article className="mt-4 rounded-3xl border border-outline-variant bg-surface-container-lowest p-5">
+              <p className="label-caps text-secondary">{ru ? "Проверяемая работа" : "Verifiable work"}</p>
+              <h2 className="mt-4 font-serif text-[30px] font-normal leading-[1.2] text-primary">{ru ? "Инструменты видны, инфраструктура скрыта" : "Tools are visible; infrastructure stays hidden"}</h2>
+              <p className="mt-4 leading-[1.7] text-on-surface-variant">{ru ? "Проверки обновлений, документации и статуса появляются в понятной активности под ответом. Технические идентификаторы не мешают обычной работе." : "Release, documentation, and status checks appear as clear activity below the answer. Technical identifiers stay out of the normal workflow."}</p>
+              <div className="mt-5 grid gap-2 text-sm text-on-surface-variant">
+                <p className="flex items-start gap-2 rounded-2xl bg-surface-container-low p-3"><CheckCircle2 size={16} className="mt-0.5 shrink-0" />{ru ? "Только серверный allowlist" : "Server allowlist only"}</p>
+                <p className="flex items-start gap-2 rounded-2xl bg-surface-container-low p-3"><CheckCircle2 size={16} className="mt-0.5 shrink-0" />{ru ? "Без shell и произвольных URL" : "No shell or arbitrary URLs"}</p>
+              </div>
+              <Link href="/status" className="mt-6 inline-flex min-h-11 items-center gap-2 border-b border-primary text-sm font-medium text-primary">{ru ? "Открыть статус" : "Open status"}<ArrowUpRight size={15} /></Link>
+            </article>
+          </section>
+
+          <section className="stitch-container mb-section-gap">
+            <article className="rounded-3xl border border-outline-variant bg-surface-container-lowest p-5">
+              <div className="flex items-start gap-4">
+                <span className="grid size-10 shrink-0 place-items-center rounded-2xl border border-outline-variant bg-surface-container-low"><Sparkles size={18} /></span>
+                <div className="min-w-0">
+                  <p className="label-caps text-secondary">{ru ? "Текущая версия" : "Current release"}</p>
+                  <p className="mt-2 break-words font-serif text-[26px] text-primary">{latestRelease.version}</p>
+                  <p className="mt-1 text-sm text-secondary">{latestRelease.date}</p>
+                </div>
+              </div>
+              <h2 className="mt-6 font-serif text-[30px] font-normal leading-[1.2] text-primary">{latestRelease.title}</h2>
+              <p className="mt-4 leading-[1.7] text-on-surface-variant">{latestRelease.summary}</p>
+              <ul className="mt-5 grid gap-2">
+                {latestRelease.changes.slice(0, 3).map((change) => <li key={change} className="rounded-2xl bg-surface-container-low p-3 text-sm leading-[1.6] text-on-surface-variant">{change}</li>)}
+              </ul>
+              <Link href="/patch-notes" className="mt-6 inline-flex min-h-11 items-center gap-2 border-b border-primary text-sm font-medium text-primary">{ru ? "Все обновления" : "All updates"}<ArrowUpRight size={16} /></Link>
+            </article>
+          </section>
+        </div>
       </main>
       <StitchFooter />
     </>

@@ -25,6 +25,7 @@ async function waitForClientShell(page) {
 
 async function submitVisibleComposer(page, prompt) {
   const textarea = page.locator("textarea:visible").first();
+  await expect(page.locator("[data-chat-hydrated=true]")).toBeAttached();
   await expect(textarea).toBeVisible();
   await textarea.fill(prompt);
   await expect(textarea).toHaveValue(prompt);
@@ -65,6 +66,28 @@ async function expectViewportPinned(locator) {
   expect(geometry.parentIsBody).toBeTruthy();
   expect(geometry.bodyTransform).toBe("none");
   expect(geometry.top).toBeGreaterThanOrEqual(geometry.viewportTop - 2);
+  expect(geometry.bottom).toBeLessThanOrEqual(geometry.viewportBottom + 2);
+}
+
+async function expectPopupInsideViewport(locator) {
+  await expect(locator).toBeVisible();
+  const geometry = await locator.evaluate((element) => {
+    const rect = element.getBoundingClientRect();
+    const viewport = window.visualViewport;
+    return {
+      top: rect.top,
+      right: rect.right,
+      bottom: rect.bottom,
+      left: rect.left,
+      viewportTop: viewport?.offsetTop ?? 0,
+      viewportRight: (viewport?.offsetLeft ?? 0) + (viewport?.width ?? window.innerWidth),
+      viewportBottom: (viewport?.offsetTop ?? 0) + (viewport?.height ?? window.innerHeight),
+      viewportLeft: viewport?.offsetLeft ?? 0,
+    };
+  });
+  expect(geometry.top).toBeGreaterThanOrEqual(geometry.viewportTop - 2);
+  expect(geometry.left).toBeGreaterThanOrEqual(geometry.viewportLeft - 2);
+  expect(geometry.right).toBeLessThanOrEqual(geometry.viewportRight + 2);
   expect(geometry.bottom).toBeLessThanOrEqual(geometry.viewportBottom + 2);
 }
 
@@ -149,8 +172,93 @@ test("mocked SSE reaches the transcript without external providers", async ({ pa
   ));
   await submitVisibleComposer(page, "Run the browser assurance contract");
   await demoRequest;
-  await expect(page.getByText("Browser assurance response", { exact: false })).toBeVisible();
-  await expect(page.getByText("Run the browser assurance contract", { exact: false })).toBeVisible();
+  // Scope to the transcript log: once the request lands, the history sidebar
+  // also lists this conversation by its first message, which duplicates the
+  // same text outside the transcript and makes an unscoped locator ambiguous.
+  const transcript = page.getByRole("log");
+  await expect(transcript.getByText("Browser assurance response", { exact: false })).toBeVisible();
+  await expect(transcript.getByText("Run the browser assurance contract", { exact: false })).toBeVisible();
+});
+
+test("desktop history restores saved chats through client navigation", async ({ page }, testInfo) => {
+  test.skip(!testInfo.project.name.includes("desktop"), "Desktop history contract");
+  await page.addInitScript(() => {
+    localStorage.setItem("tklab.archive.v1", JSON.stringify([
+      {
+        id: "desktop-session-alpha",
+        title: "Desktop archive alpha",
+        model: "erma-auto",
+        createdAt: 1,
+        updatedAt: 1,
+        messages: [
+          { id: "alpha-user", role: "user", content: "Alpha prompt" },
+          { id: "alpha-answer", role: "assistant", content: "Alpha restored transcript" },
+        ],
+      },
+      {
+        id: "desktop-session-beta",
+        title: "Desktop archive beta",
+        model: "erma-auto",
+        createdAt: 2,
+        updatedAt: 2,
+        messages: [
+          { id: "beta-user", role: "user", content: "Beta prompt" },
+          { id: "beta-answer", role: "assistant", content: "Beta restored transcript" },
+        ],
+      },
+    ]));
+  });
+  await page.setViewportSize({ width: 1280, height: 720 });
+  await page.goto(PLAYGROUND_HARNESS);
+  await waitForClientShell(page);
+
+  await page.getByRole("link", { name: /Desktop archive alpha/i }).click();
+  await expect(page).toHaveURL(/session=desktop-session-alpha/);
+  await expect(page.getByRole("log").getByText("Alpha restored transcript")).toBeVisible();
+
+  await page.getByRole("link", { name: /Desktop archive beta/i }).click();
+  await expect(page).toHaveURL(/session=desktop-session-beta/);
+  await expect(page.getByRole("log").getByText("Beta restored transcript")).toBeVisible();
+  await expect(page.getByRole("log").getByText("Alpha restored transcript")).toHaveCount(0);
+});
+
+test("desktop popovers stay in the viewport and model navigation stays scoped", async ({ page }, testInfo) => {
+  test.skip(!testInfo.project.name.includes("desktop"), "Desktop overlay contract");
+  await page.setViewportSize({ width: 1400, height: 650 });
+  await page.goto(PLAYGROUND_HARNESS);
+  await waitForClientShell(page);
+
+  const attachmentTrigger = page.getByRole("button", { name: /Добавить текстовый файл|Add text file/i }).last();
+  await attachmentTrigger.click();
+  await expectPopupInsideViewport(page.getByRole("menu"));
+
+  await attachmentTrigger.click();
+  const modelTrigger = page.getByRole("combobox", { name: /Model:/i });
+  await modelTrigger.focus();
+  await modelTrigger.press("Enter");
+  const modelMenu = page.locator("[data-slot=model-selector-content]");
+  await expectPopupInsideViewport(modelMenu);
+  const initialActiveOption = await modelTrigger.getAttribute("aria-activedescendant");
+  await modelTrigger.press("ArrowDown");
+  await expect(modelTrigger).not.toHaveAttribute("aria-activedescendant", initialActiveOption ?? "");
+  await modelTrigger.press("Escape");
+  await expect(modelMenu).toHaveCount(0);
+});
+
+test("desktop workspace exposes Runs as an honest tab and keeps the shell usable at each desktop width", async ({ page }, testInfo) => {
+  test.skip(!testInfo.project.name.includes("desktop"), "Desktop workspace contract");
+  await page.goto(PLAYGROUND_HARNESS);
+  await waitForClientShell(page);
+
+  for (const width of [768, 834, 900, 1024, 1280, 1440, 1920]) {
+    await page.setViewportSize({ width, height: 720 });
+    await expect(page.locator(".chat-desktop-sidebar")).toBeVisible();
+    const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
+    expect(overflow).toBeLessThanOrEqual(1);
+  }
+
+  await page.getByRole("tab", { name: /Запуски|Runs/i }).click();
+  await expect(page.getByRole("tabpanel", { name: /Запуски|Runs/i })).toBeVisible();
 });
 
 test("mobile playground stays inside the viewport and exposes the mobile composer", async ({ page }, testInfo) => {

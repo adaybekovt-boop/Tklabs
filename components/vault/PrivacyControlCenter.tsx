@@ -1,6 +1,6 @@
 "use client";
 
-import { useRouter } from "next/navigation";
+import { signOut } from "next-auth/react";
 import { useState } from "react";
 
 import type { Locale } from "@/lib/i18n";
@@ -10,11 +10,10 @@ function downloadJson(name: string, text: string) {
   const blob = new Blob([text], { type: "application/json" });
   const url = URL.createObjectURL(blob);
   const link = document.createElement("a"); link.href = url; link.download = name; link.click();
-  URL.revokeObjectURL(url);
+  window.setTimeout(() => URL.revokeObjectURL(url), 0);
 }
 
 export function PrivacyControlCenter({ locale }: { locale: Locale }) {
-  const router = useRouter();
   const ru = locale === "ru";
   const [status, setStatus] = useState<string | null>(null);
   const [confirmation, setConfirmation] = useState("");
@@ -48,8 +47,9 @@ export function PrivacyControlCenter({ locale }: { locale: Locale }) {
       const response = await fetch("/api/account/privacy", { method: "DELETE", headers: { "content-type": "application/json" }, body: JSON.stringify({ confirmation }) });
       if (!response.ok) throw new Error();
       clearLocalWorkspace();
-      router.push("/api/auth/signout");
-    } catch { setStatus(ru ? "Удаление аккаунта не завершено. Данные не считаются удалёнными." : "Account deletion did not complete. Data is not considered deleted."); setBusy(false); }
+      await signOut({ callbackUrl: "/" });
+    } catch { setStatus(ru ? "Удаление аккаунта не завершено. Данные не считаются удалёнными." : "Account deletion did not complete. Data is not considered deleted."); }
+    finally { setBusy(false); }
   }
 
   return (

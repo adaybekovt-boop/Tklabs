@@ -1,5 +1,3 @@
-import "@/lib/public-branding";
-
 export type PublicClodexModel = {
   key: string;
   name: string;

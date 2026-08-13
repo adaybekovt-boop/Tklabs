@@ -4,7 +4,11 @@ const MAX_DRAFT_LENGTH = 20_000;
 type DraftStorage = Pick<Storage, "getItem" | "setItem" | "removeItem">;
 
 function browserStorage(): DraftStorage | null {
-  return typeof window === "undefined" ? null : window.localStorage;
+  try {
+    return typeof window === "undefined" ? null : window.localStorage;
+  } catch {
+    return null;
+  }
 }
 
 export function draftStorageKey(sessionId: string) {

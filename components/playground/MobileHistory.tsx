@@ -3,12 +3,13 @@
 import { History, X } from "lucide-react";
 import { useState } from "react";
 
-import { getDictionary, type Locale } from "@/lib/i18n";
+import { getChatDictionary } from "@/lib/chat-i18n";
+import type { Locale } from "@/lib/i18n";
 
 import { ConversationArchive } from "./ConversationArchive";
 
 export function MobileHistory({ locale }: { locale: Locale }) {
-  const text = getDictionary(locale);
+  const text = getChatDictionary(locale);
   const [open, setOpen] = useState(false);
 
   return (

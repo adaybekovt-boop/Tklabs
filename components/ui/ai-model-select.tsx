@@ -164,7 +164,7 @@ interface ModelSelectorContextValue {
   contentId: string
   layoutGroupId: string
   activeIndex: number
-  setActiveIndex: (index: number) => void
+  setActiveIndex: React.Dispatch<React.SetStateAction<number>>
   optionIds: string[]
   ariaLabel: string
   side: "top" | "bottom"
@@ -372,58 +372,13 @@ function ModelSelector({
       if (!inTrigger && !inContent) setOpen(false)
     }
 
-    const onKey = (event: KeyboardEvent) => {
-      if (event.key === "Escape") {
-        event.preventDefault()
-        setOpen(false)
-        triggerRef.current?.focus()
-        return
-      }
-
-      if (optionIds.length === 0) return
-
-      if (event.key === "ArrowDown" || event.key === "ArrowUp") {
-        event.preventDefault()
-        const delta = event.key === "ArrowDown" ? 1 : -1
-        setActiveIndex((prev) => {
-          let next = prev
-          for (let i = 0; i < optionIds.length; i++) {
-            next = (next + delta + optionIds.length) % optionIds.length
-            const model = models.find((m) => m.id === optionIds[next])
-            if (!model?.disabled) break
-          }
-          return next
-        })
-        return
-      }
-
-      if (event.key === "Enter" || event.key === " ") {
-        event.preventDefault()
-        const id = optionIds[activeIndex]
-        if (id) selectModel(id)
-        return
-      }
-
-      if (event.key === "Home") {
-        event.preventDefault()
-        setActiveIndex(firstEnabledIndex(models, optionIds))
-        return
-      }
-      if (event.key === "End") {
-        event.preventDefault()
-        setActiveIndex(lastEnabledIndex(models, optionIds))
-      }
-    }
-
     document.addEventListener("mousedown", onPointer)
     document.addEventListener("touchstart", onPointer)
-    document.addEventListener("keydown", onKey)
     return () => {
       document.removeEventListener("mousedown", onPointer)
       document.removeEventListener("touchstart", onPointer)
-      document.removeEventListener("keydown", onKey)
     }
-  }, [open, setOpen, optionIds, activeIndex, models, selectModel])
+  }, [open, setOpen])
 
   React.useEffect(() => {
     if (disabled) setOpen(false)
@@ -472,7 +427,7 @@ ModelSelector.displayName = "ModelSelector"
 const ModelSelectorTrigger = React.forwardRef<
   HTMLButtonElement,
   ModelSelectorTriggerProps
->(({ className, children, disabled, onClick, ...props }, ref) => {
+>(({ className, children, disabled, onClick, onKeyDown, ...props }, ref) => {
   const {
     open,
     setOpen,
@@ -480,19 +435,43 @@ const ModelSelectorTrigger = React.forwardRef<
     contentId,
     disabled: rootDisabled,
     selectedModel,
+    selectModel,
+    models,
+    activeIndex,
+    setActiveIndex,
+    optionIds,
   } = useModelSelectorContext("ModelSelectorTrigger")
 
   const isDisabled = disabled || rootDisabled
   const label = selectedModel?.label ?? "Select model"
+  const activeOptionId = optionIds[activeIndex]
+    ? optionDomId(contentId, optionIds[activeIndex])
+    : undefined
+
+  function moveActive(delta: number) {
+    if (!optionIds.length) return
+    setActiveIndex((previous) => {
+      let next = open ? previous : optionIds.indexOf(selectedModel?.id ?? "")
+      if (next < 0) next = firstEnabledIndex(models, optionIds)
+      for (let index = 0; index < optionIds.length; index += 1) {
+        next = (next + delta + optionIds.length) % optionIds.length
+        if (!models.find((model) => model.id === optionIds[next])?.disabled) return next
+      }
+      return previous
+    })
+  }
 
   return (
     <motion.button
       ref={(node) => assignRef(node, ref, triggerRef)}
       type="button"
       disabled={isDisabled}
+      role="combobox"
+      aria-autocomplete="none"
       aria-haspopup="listbox"
       aria-expanded={open}
       aria-controls={contentId}
+      aria-activedescendant={open ? activeOptionId : undefined}
       aria-label={`Model: ${label}`}
       data-slot="model-selector-trigger"
       data-state={open ? "open" : "closed"}
@@ -500,6 +479,36 @@ const ModelSelectorTrigger = React.forwardRef<
         onClick?.(event)
         if (event.defaultPrevented || isDisabled) return
         setOpen(!open)
+      }}
+      onKeyDown={(event) => {
+        onKeyDown?.(event)
+        if (event.defaultPrevented || isDisabled) return
+        if (event.key === "Escape" && open) {
+          event.preventDefault()
+          setOpen(false)
+          return
+        }
+        if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+          event.preventDefault()
+          setOpen(true)
+          moveActive(event.key === "ArrowDown" ? 1 : -1)
+          return
+        }
+        if (event.key === "Home" || event.key === "End") {
+          event.preventDefault()
+          setOpen(true)
+          setActiveIndex(event.key === "Home" ? firstEnabledIndex(models, optionIds) : lastEnabledIndex(models, optionIds))
+          return
+        }
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault()
+          if (!open) {
+            setOpen(true)
+            return
+          }
+          const id = optionIds[activeIndex]
+          if (id) selectModel(id)
+        }
       }}
       whileTap={isDisabled ? undefined : { scale: 0.96 }}
       transition={SPRING_PRESS}
@@ -571,14 +580,15 @@ const ModelSelectorContent = React.forwardRef<
     reduceMotion,
     ariaLabel,
     setSide,
-    activeIndex,
-    optionIds,
   } = useModelSelectorContext("ModelSelectorContent")
 
   const [mounted, setMounted] = React.useState(false)
   const [coords, setCoords] = React.useState<{
     top: number
     left: number
+    width: number
+    placement: "top" | "bottom"
+    maxHeight: number
   } | null>(null)
 
   React.useEffect(() => {
@@ -592,34 +602,59 @@ const ModelSelectorContent = React.forwardRef<
 
   React.useLayoutEffect(() => {
     if (!open) return
+    const viewport = window.visualViewport
 
     const update = () => {
       const trigger = triggerRef.current
       if (!trigger) return
       const rect = trigger.getBoundingClientRect()
-      if (sideProp === "bottom") {
-        setCoords({ top: rect.bottom + 8, left: rect.left })
-      } else {
-        setCoords({ top: rect.top - 8, left: rect.left })
-      }
+      const viewportLeft = viewport?.offsetLeft ?? 0
+      const viewportTop = viewport?.offsetTop ?? 0
+      const viewportWidth = viewport?.width ?? window.innerWidth
+      const viewportHeight = viewport?.height ?? window.innerHeight
+      const viewportRight = viewportLeft + viewportWidth
+      const viewportBottom = viewportTop + viewportHeight
+      const gutter = 8
+      const menuWidth = Math.min(Math.max(rect.width, 224), Math.max(0, viewportWidth - gutter * 2))
+      const roomBelow = viewportBottom - rect.bottom - gutter
+      const roomAbove = rect.top - viewportTop - gutter
+      const minimumUsableHeight = 160
+      const placeTop = sideProp === "top"
+        ? roomAbove >= minimumUsableHeight || roomAbove >= roomBelow
+        : roomBelow >= minimumUsableHeight || roomBelow > roomAbove
+      const availableHeight = Math.max(0, placeTop ? roomAbove : roomBelow)
+      const maxHeight = Math.min(420, availableHeight)
+      const left = Math.min(
+        Math.max(viewportLeft + gutter, rect.left),
+        Math.max(viewportLeft + gutter, viewportRight - menuWidth - gutter),
+      )
+      setCoords({
+        top: placeTop
+          ? Math.min(viewportBottom - gutter, Math.max(viewportTop + gutter, rect.top - gutter))
+          : Math.min(viewportBottom - gutter, Math.max(viewportTop + gutter, rect.bottom + gutter)),
+        left,
+        width: menuWidth,
+        placement: placeTop ? "top" : "bottom",
+        maxHeight,
+      })
     }
 
     update()
     window.addEventListener("resize", update)
     window.addEventListener("scroll", update, true)
+    viewport?.addEventListener("resize", update)
+    viewport?.addEventListener("scroll", update)
     return () => {
       window.removeEventListener("resize", update)
       window.removeEventListener("scroll", update, true)
+      viewport?.removeEventListener("resize", update)
+      viewport?.removeEventListener("scroll", update)
     }
   }, [open, triggerRef, sideProp])
 
   if (!mounted) return null
 
   const list = children ?? <ModelSelectorDefaultItems />
-  const activeModelId = optionIds[activeIndex]
-  const activeOptionId = activeModelId
-    ? optionDomId(contentId, activeModelId)
-    : undefined
 
   return createPortal(
     <AnimatePresence>
@@ -628,28 +663,33 @@ const ModelSelectorContent = React.forwardRef<
           key={contentId}
           ref={(node) => assignRef(node, ref, contentRef)}
           data-slot="model-selector-content"
-          {...menuPresence(reduceMotion)}
+          {...FADE_ONLY}
           style={{
             position: "fixed",
             top: coords.top,
             left: coords.left,
-            transform: sideProp === "top" ? "translateY(-100%)" : undefined,
+            width: coords.width,
+            transform: coords.placement === "top" ? "translateY(-100%)" : undefined,
+            maxHeight: coords.maxHeight,
+            maxWidth: "calc(100vw - 16px)",
+            overflowY: "auto",
             zIndex: 50,
             ...style,
           }}
-          className={cn("flex origin-top-left items-start", className)}
+          className={cn("origin-top-left", className)}
           {...props}
         >
-          <div
-            id={contentId}
-            role="listbox"
-            aria-label={ariaLabel}
-            aria-activedescendant={activeOptionId}
-            data-slot="model-selector-listbox"
-            className="min-w-0"
-          >
-            {list}
-          </div>
+          <motion.div {...menuPresence(reduceMotion)} className="flex w-full items-start">
+            <div
+              id={contentId}
+              role="listbox"
+              aria-label={ariaLabel}
+              data-slot="model-selector-listbox"
+              className="min-w-0 w-full"
+            >
+              {list}
+            </div>
+          </motion.div>
         </motion.div>
       ) : null}
     </AnimatePresence>,

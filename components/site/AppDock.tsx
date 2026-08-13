@@ -36,17 +36,11 @@ export type AppDockLabels = {
   workspaceTitle: string;
   resourcesTitle: string;
   models: string;
-  modelsHint: string;
   vault: string;
-  vaultHint: string;
   status: string;
-  statusHint: string;
   documentation: string;
-  documentationHint: string;
   developers: string;
-  developersHint: string;
   principles: string;
-  principlesHint: string;
   login: string;
   themeLight: string;
   themeDark: string;
@@ -56,6 +50,7 @@ export type AppDockLabels = {
 const subscribeClientReady = () => () => undefined;
 const clientReadySnapshot = () => true;
 const serverReadySnapshot = () => false;
+const MOBILE_DOCK_QUERY = "(max-width: 1023px)";
 
 function routeIsActive(pathname: string, href: string) {
   if (href === "/") return pathname === "/";
@@ -93,17 +88,17 @@ export function AppDock({
       {
         title: labels.workspaceTitle,
         items: [
-          { href: "/models", label: labels.models, hint: labels.modelsHint, icon: Boxes },
-          { href: "/vault", label: labels.vault, hint: labels.vaultHint, icon: DatabaseBackup },
-          { href: "/status", label: labels.status, hint: labels.statusHint, icon: Activity },
+          { href: "/models", label: labels.models, icon: Boxes },
+          { href: "/vault", label: labels.vault, icon: DatabaseBackup },
+          { href: "/status", label: labels.status, icon: Activity },
         ],
       },
       {
         title: labels.resourcesTitle,
         items: [
-          { href: "/documentation", label: labels.documentation, hint: labels.documentationHint, icon: FileText },
-          { href: "/developers", label: labels.developers, hint: labels.developersHint, icon: Code2 },
-          { href: "/truth", label: labels.principles, hint: labels.principlesHint, icon: Scale },
+          { href: "/documentation", label: labels.documentation, icon: FileText },
+          { href: "/developers", label: labels.developers, icon: Code2 },
+          { href: "/truth", label: labels.principles, icon: Scale },
         ],
       },
     ],
@@ -139,14 +134,27 @@ export function AppDock({
 
   useEffect(() => {
     const previousPadding = document.body.style.paddingBottom;
-    document.body.style.paddingBottom = "calc(6.2rem + env(safe-area-inset-bottom, 0px))";
+    const mobileDock = window.matchMedia(MOBILE_DOCK_QUERY);
+
+    function syncMobileDockPadding() {
+      document.body.style.paddingBottom = mobileDock.matches
+        ? "calc(6.2rem + env(safe-area-inset-bottom, 0px))"
+        : previousPadding;
+    }
+
+    syncMobileDockPadding();
+    mobileDock.addEventListener("change", syncMobileDockPadding);
     return () => {
+      mobileDock.removeEventListener("change", syncMobileDockPadding);
       document.body.style.paddingBottom = previousPadding;
     };
   }, []);
 
   useEffect(() => {
     if (!open) return;
+
+    const mobileDock = window.matchMedia(MOBILE_DOCK_QUERY);
+    if (!mobileDock.matches) return;
 
     const previousFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     const releaseScrollLock = lockDocumentScroll();
@@ -182,12 +190,18 @@ export function AppDock({
       setOpen(false);
     }
 
+    function handleViewportChange(event: MediaQueryListEvent) {
+      if (!event.matches) closeMenu();
+    }
+
     document.addEventListener("keydown", handleKeyDown);
     window.addEventListener("popstate", handlePopState);
+    mobileDock.addEventListener("change", handleViewportChange);
     return () => {
       cancelAnimationFrame(frame);
       document.removeEventListener("keydown", handleKeyDown);
       window.removeEventListener("popstate", handlePopState);
+      mobileDock.removeEventListener("change", handleViewportChange);
       releaseScrollLock();
       previousFocus?.focus();
     };
@@ -195,7 +209,7 @@ export function AppDock({
 
   const sheet = portalReady && open
     ? createPortal(
-        <div className="fixed inset-0 z-[160]" role="presentation" data-app-dock-sheet>
+        <div className="fixed inset-0 z-[160] lg:hidden" role="presentation" data-app-dock-sheet data-device-version="mobile">
           <button
             type="button"
             className="absolute inset-0 rounded-none bg-black/45 backdrop-blur-[3px]"
@@ -233,7 +247,7 @@ export function AppDock({
                   <section key={group.title} aria-label={group.title} data-app-dock-group>
                     <p className="mb-2 px-1 text-[10px] font-semibold uppercase tracking-[0.13em] text-secondary">{group.title}</p>
                     <nav className="grid gap-2 sm:grid-cols-2" aria-label={group.title}>
-                      {group.items.map(({ href, label, hint, icon: Icon }) => {
+                      {group.items.map(({ href, label, icon: Icon }) => {
                         const active = routeIsActive(pathname, href);
                         return (
                           <Link
@@ -255,7 +269,6 @@ export function AppDock({
                             </span>
                             <span className="min-w-0">
                               <span className="block truncate text-sm font-semibold">{label}</span>
-                              <span className={cn("mt-0.5 block text-[11px] leading-[1.4]", active ? "text-on-primary/75" : "text-on-surface-variant")}>{hint}</span>
                             </span>
                           </Link>
                         );
@@ -282,11 +295,12 @@ export function AppDock({
   const dock = portalReady
     ? createPortal(
         <nav
-          className="fixed inset-x-2 bottom-2 z-[120] mx-auto max-w-[34rem] rounded-[1.4rem] border border-outline-variant bg-surface/94 px-2 py-1.5 shadow-[0_18px_60px_rgba(0,0,0,.15)] backdrop-blur-xl sm:bottom-4 sm:px-3"
+          className="fixed inset-x-2 bottom-2 z-[120] mx-auto max-w-[34rem] rounded-[1.4rem] border border-outline-variant bg-surface/94 px-2 py-1.5 shadow-[0_18px_60px_rgba(0,0,0,.15)] backdrop-blur-xl sm:bottom-4 sm:px-3 lg:hidden"
           style={{ marginBottom: "env(safe-area-inset-bottom, 0px)" }}
           aria-label={labels.menuTitle}
           data-testid="app-bottom-navigation"
           data-app-dock
+          data-device-version="mobile"
         >
           <div className="grid grid-cols-5 gap-1">
             {primaryItems.map(({ href, label, icon: Icon, prominent }) => {

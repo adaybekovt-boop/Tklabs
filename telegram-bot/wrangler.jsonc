@@ -1,0 +1,48 @@
+﻿{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "tklabs-bot",
+  "account_id": "4779193285f4b7225a52cfb160958347",
+  "main": "index.ts",
+  "compatibility_date": "2026-08-06",
+  "compatibility_flags": ["nodejs_compat"],
+  "workers_dev": true,
+  "vars": {
+    "SITE_URL": "https://tklabs.uk",
+    "GITHUB_REPO": "adaybekovt-boop/Tklabs",
+    "CLODEX_API_URL": "https://clodex.xyz/v1",
+    "CLODEX_MODEL": "gpt-5.5",
+    "CLODEX_MAX_TOKENS": "1024",
+    "MONITOR_INTERVAL_MS": "60000",
+    "MONITOR_TIMEOUT_MS": "15000"
+  },
+  "triggers": {
+    "crons": ["* * * * *"]
+  },
+  "durable_objects": {
+    "bindings": [
+      {
+        "name": "BOT_STATE",
+        "class_name": "BotState"
+      }
+    ]
+  },
+  "migrations": [
+    {
+      "tag": "v1",
+      "new_sqlite_classes": ["BotState"]
+    }
+  ],
+  "observability": {
+    "enabled": true,
+    "logs": {
+      "enabled": true,
+      "head_sampling_rate": 1,
+      "persist": true,
+      "invocation_logs": true
+    },
+    "traces": {
+      "enabled": false,
+      "head_sampling_rate": 1
+    }
+  }
+}

@@ -21,7 +21,7 @@ export default function AIThinkingBlock({ label = "AI is thinking" }: AIThinking
     <div className="flex items-center gap-2 py-2 text-on-secondary-container" role="status" aria-live="polite">
       <Loader size="sm" />
       <span>{label}</span>
-      <span className="text-[12px]">{elapsedSeconds}s</span>
+      <span className="text-[12px]" aria-hidden="true">{elapsedSeconds}s</span>
     </div>
   );
 }

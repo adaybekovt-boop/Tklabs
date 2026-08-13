@@ -16,7 +16,24 @@ function withPersonalMemory(summary: string | undefined, memory: string) {
 export async function respondWithDemoJson(input: PreparedDemoRequest) {
   const { request, body, requestId, prompt, context, personalMemoryContext, language, model, requestedReasoning, effort, tone, privilegedAccount, documents, images, quota, rateLimitCookie, startedAt, requestedModel } = input;
 
-  const toolAugmentation = await prepareReadOnlyToolAugmentation({ request, requestId, prompt, context, language, model, localArchive: body.localArchive, documents, allowCodeSandbox: privilegedAccount, signal: request.signal });
+  let toolAugmentation: Awaited<ReturnType<typeof prepareReadOnlyToolAugmentation>>;
+  try {
+    toolAugmentation = await prepareReadOnlyToolAugmentation({
+      request,
+      requestId,
+      prompt,
+      context,
+      language,
+      model,
+      localArchive: body.localArchive,
+      documents,
+      allowCodeSandbox: privilegedAccount,
+      signal: request.signal,
+    });
+  } catch (error) {
+    await quota.release();
+    throw error;
+  }
   const generationSummary = withPersonalMemory(toolAugmentation.summary, personalMemoryContext);
 
   if (toolAugmentation.directGrounding) {

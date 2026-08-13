@@ -6,7 +6,8 @@ import { MessageSquareText, Plus, X } from "lucide-react";
 
 import { ConversationArchive } from "@/components/playground/ConversationArchive";
 import { lockDocumentScroll } from "@/lib/document-scroll-lock";
-import { getDictionary, type Locale } from "@/lib/i18n";
+import { getChatDictionary } from "@/lib/chat-i18n";
+import type { Locale } from "@/lib/i18n";
 
 export function MobileChatDrawer({
   open,
@@ -21,7 +22,7 @@ export function MobileChatDrawer({
   onOpenArtifacts?: () => void;
   onOpenRuns?: () => void;
 }) {
-  const text = getDictionary(locale);
+  const text = getChatDictionary(locale);
   const drawerRef = useRef<HTMLDivElement | null>(null);
   const previousFocusRef = useRef<HTMLElement | null>(null);
   const onCloseRef = useRef(onClose);
@@ -34,6 +35,10 @@ export function MobileChatDrawer({
 
   useEffect(() => {
     if (!open) return;
+
+    const mobileViewport = window.matchMedia("(max-width: 767px)");
+    if (!mobileViewport.matches) return;
+
     previousFocusRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     const releaseScrollLock = lockDocumentScroll();
     const frame = requestAnimationFrame(() => drawerRef.current?.focus());
@@ -60,10 +65,16 @@ export function MobileChatDrawer({
       }
     }
 
+    function handleViewportChange(event: MediaQueryListEvent) {
+      if (!event.matches) onCloseRef.current();
+    }
+
     document.addEventListener("keydown", handleKeyDown);
+    mobileViewport.addEventListener("change", handleViewportChange);
     return () => {
       cancelAnimationFrame(frame);
       document.removeEventListener("keydown", handleKeyDown);
+      mobileViewport.removeEventListener("change", handleViewportChange);
       releaseScrollLock();
       previousFocusRef.current?.focus();
     };
@@ -97,7 +108,7 @@ export function MobileChatDrawer({
         aria-labelledby="mobile-chat-drawer-title"
         onTouchStart={handleTouchStart}
         onTouchEnd={handleTouchEnd}
-        className="absolute inset-y-0 left-0 flex w-[min(88vw,380px)] touch-pan-y flex-col overflow-hidden rounded-none border-r border-outline-variant bg-surface-container-lowest shadow-2xl outline-none"
+        className="safe-area-bottom absolute inset-y-0 left-0 flex w-[min(88vw,380px)] touch-pan-y flex-col overflow-hidden rounded-none border-r border-outline-variant bg-surface-container-lowest shadow-2xl outline-none"
       >
         <header className="flex min-h-16 shrink-0 items-center justify-between gap-3 border-b border-outline-variant px-4 pt-[env(safe-area-inset-top,0px)]">
           <div className="flex min-w-0 items-center gap-3">
@@ -117,9 +128,6 @@ export function MobileChatDrawer({
           </div>
         </div>
 
-        <footer className="safe-area-bottom shrink-0 border-t border-outline-variant bg-surface px-4 pb-3 pt-3">
-          <p className="text-[11px] leading-5 text-on-secondary-container">{ru ? "Остальные разделы TK LAB доступны в основной навигации." : "Other TK LAB areas stay in the main navigation."}</p>
-        </footer>
       </div>
     </div>,
     document.body,

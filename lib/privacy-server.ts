@@ -26,11 +26,18 @@ export async function deleteAccountData(emailValue: string) {
   try {
     const db = getDb(); const user = await db.select({ id: users.id }).from(users).where(eq(users.email, email)).get();
     if (!user?.id) return { deleted: false, accessRevocationAttempted: false };
-    let accessRevocationAttempted = false; try { await revokeClodexAccess(email); accessRevocationAttempted = true; } catch { accessRevocationAttempted = true; }
+    try {
+      await revokeClodexAccess(email);
+    } catch (error) {
+      console.error("Unable to revoke external account access before privacy deletion", error instanceof Error ? error.name : "unknown");
+      throw new PrivacyDataUnavailableError();
+    }
     await recordAuditEvent(user.id, "privacy.deleted");
-    await db.delete(legalAcceptances).where(eq(legalAcceptances.userId, user.id)).run();
-    await db.delete(workspaceSnapshots).where(eq(workspaceSnapshots.userId, user.id)).run();
-    await db.delete(users).where(eq(users.id, user.id)).run();
-    return { deleted: true, accessRevocationAttempted };
+    await db.batch([
+      db.delete(legalAcceptances).where(eq(legalAcceptances.userId, user.id)),
+      db.delete(workspaceSnapshots).where(eq(workspaceSnapshots.userId, user.id)),
+      db.delete(users).where(eq(users.id, user.id)),
+    ]);
+    return { deleted: true, accessRevocationAttempted: true };
   } catch (error) { console.error("Unable to delete account privacy data", error); throw new PrivacyDataUnavailableError(); }
 }

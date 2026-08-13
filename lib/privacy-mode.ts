@@ -9,8 +9,8 @@ export function isWorkspacePrivacyMode(value: unknown): value is WorkspacePrivac
 
 export function getWorkspacePrivacyMode(storage?: Pick<Storage, "getItem">): WorkspacePrivacyMode {
   if (!storage && typeof window === "undefined") return "local";
-  const source = storage ?? window.localStorage;
   try {
+    const source = storage ?? window.localStorage;
     const value = source.getItem(WORKSPACE_PRIVACY_MODE_KEY);
     return isWorkspacePrivacyMode(value) ? value : "local";
   } catch {
@@ -19,10 +19,14 @@ export function getWorkspacePrivacyMode(storage?: Pick<Storage, "getItem">): Wor
 }
 
 export function setWorkspacePrivacyMode(mode: WorkspacePrivacyMode, storage?: Pick<Storage, "setItem">) {
-  const target = storage ?? (typeof window === "undefined" ? null : window.localStorage);
-  if (!target) return;
-  target.setItem(WORKSPACE_PRIVACY_MODE_KEY, mode);
-  if (typeof window !== "undefined") window.dispatchEvent(new Event(WORKSPACE_PRIVACY_MODE_EVENT));
+  try {
+    const target = storage ?? (typeof window === "undefined" ? null : window.localStorage);
+    if (!target) return;
+    target.setItem(WORKSPACE_PRIVACY_MODE_KEY, mode);
+    if (typeof window !== "undefined") window.dispatchEvent(new Event(WORKSPACE_PRIVACY_MODE_EVENT));
+  } catch {
+    // Privacy mode is best effort when browser storage is blocked.
+  }
 }
 
 export function shouldPersistWorkspace(mode: WorkspacePrivacyMode = getWorkspacePrivacyMode()) {

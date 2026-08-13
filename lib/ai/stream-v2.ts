@@ -1,4 +1,4 @@
-import { isAgentRunEvent, type AgentRunEvent } from "@/lib/ai/agent-run";
+import { AGENT_RUN_PROTOCOL_VERSION, isAgentRunEvent, type AgentRunEvent } from "@/lib/ai/agent-run";
 
 const encoder = new TextEncoder();
 
@@ -28,6 +28,6 @@ export function agentRunStreamHeaders(runId: string) {
     "content-type": "text/event-stream; charset=utf-8",
     "x-accel-buffering": "no",
     "x-erma-run-id": runId,
-    "x-erma-run-protocol": "2.0",
+    "x-erma-run-protocol": AGENT_RUN_PROTOCOL_VERSION,
   });
 }

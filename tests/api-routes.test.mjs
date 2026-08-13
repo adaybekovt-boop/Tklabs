@@ -25,6 +25,21 @@ function makeDemoStub() {
       this.released += 1;
       return Promise.resolve({ released: true, reservationId, limit: 3, windowMs: 86_400_000, remaining: 3, resetAt: Date.now() + 86_400_000 });
     },
+    getRewardAdStatus() {
+      return Promise.resolve({
+        enabled: true,
+        adsPerRequest: 2,
+        dailyAdLimit: 6,
+        adsCompleted: 0,
+        adsTowardNextRequest: 0,
+        adsRemaining: 6,
+        bonusRequests: 0,
+        bonusRequestLimit: 3,
+        resetAt: Date.now() + 86_400_000,
+        nextAdAt: null,
+        canStart: true,
+      });
+    },
   };
 }
 
@@ -314,6 +329,8 @@ test("POST /api/demo rejects invalid origin, oversized attachments and exhausted
   const stub = makeDemoStub();
   process.env.RATE_LIMIT_SECRET = "api-test-rate-limit-secret";
   process.env.NVIDIA_API_KEY_PRIMARY = "test-provider-key";
+  process.env.REWARDED_ADS_ENABLED = "true";
+  process.env.REWARDED_AD_SMARTLINK_URL = "https://www.effectivecpmnetwork.com/z6f2ck6w2?key=test";
   let providerCalls = 0;
   globalThis.fetch = async (input) => {
     if (String(input).includes("integrate.api.nvidia.com")) providerCalls += 1;
@@ -324,7 +341,68 @@ test("POST /api/demo rejects invalid origin, oversized attachments and exhausted
   assert.equal((await POST(request({ prompt: "hello", attachments: [{ name: "big.txt", content: "x".repeat(17_000) }] }))).status, 413);
   stub.nextAllowed = false;
   assert.equal((await POST(request({ prompt: "hello" }))).status, 429);
+  globalThis.__tklabsAuth = signedInSession;
+  const rewardedResponse = await POST(request({ prompt: "hello", locale: "en" }));
+  const rewardedPayload = await rewardedResponse.json();
+  assert.equal(rewardedResponse.status, 429);
+  assert.equal(rewardedPayload.code, "demo_quota_exhausted");
+  assert.equal(rewardedPayload.rewards.available, true);
+  assert.equal(rewardedPayload.rewards.adsPerRequest, 2);
   assert.equal(providerCalls, 0);
+});
+
+test("reward APIs require authentication, reject cross-site starts and keep the Smartlink server-controlled", async () => {
+  process.env.RATE_LIMIT_SECRET = "reward-api-test-rate-limit-secret";
+  process.env.REWARDED_ADS_ENABLED = "true";
+  process.env.REWARDED_AD_SMARTLINK_URL = "https://www.effectivecpmnetwork.com/z6f2ck6w2?key=test";
+  const rewardStatus = {
+    enabled: true,
+    adsPerRequest: 2,
+    dailyAdLimit: 6,
+    adsCompleted: 0,
+    adsTowardNextRequest: 0,
+    adsRemaining: 6,
+    bonusRequests: 0,
+    bonusRequestLimit: 3,
+    resetAt: Date.now() + 86_400_000,
+    nextAdAt: null,
+    canStart: true,
+  };
+  const stub = {
+    getRewardAdStatus: async () => rewardStatus,
+    startRewardAd: async () => ({
+      ...rewardStatus,
+      canStart: false,
+      allowed: true,
+      sessionId: "2dbf3d2f-dcbd-4fae-8f5a-c3e7c2e131bc",
+      startedAt: Date.now(),
+      eligibleAt: Date.now() + 20_000,
+      expiresAt: Date.now() + 600_000,
+    }),
+  };
+  setCloudflareEnv({ CLODEX_ACCESS: { getByName: () => stub } });
+
+  const statusRoute = await import(`../app/api/rewards/status/route.ts?reward-status=${Math.random()}`);
+  const startRoute = await import(`../app/api/rewards/ad/start/route.ts?reward-start=${Math.random()}`);
+  globalThis.__tklabsAuth = async () => null;
+  assert.equal((await statusRoute.GET(new Request("https://tklabs.uk/api/rewards/status"))).status, 401);
+
+  globalThis.__tklabsAuth = signedInSession;
+  const crossSite = new Request("https://tklabs.uk/api/rewards/ad/start", {
+    method: "POST",
+    headers: { origin: "https://evil.example", "sec-fetch-site": "cross-site" },
+  });
+  assert.equal((await startRoute.POST(crossSite)).status, 403);
+
+  const sameSite = new Request("https://tklabs.uk/api/rewards/ad/start", {
+    method: "POST",
+    headers: { origin: "https://tklabs.uk", "sec-fetch-site": "same-origin" },
+  });
+  const response = await startRoute.POST(sameSite);
+  const payload = await response.json();
+  assert.equal(response.status, 200);
+  assert.equal(payload.result.allowed, true);
+  assert.match(payload.adUrl, /^https:\/\/www\.effectivecpmnetwork\.com\//);
 });
 
 test("account access prefers a non-empty HMAC object over every legacy grant state", async () => {

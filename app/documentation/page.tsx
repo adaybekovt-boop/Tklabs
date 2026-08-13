@@ -41,7 +41,6 @@ export default async function DocumentationPage() {
                 </div>
                 <h2 className="mt-12 font-serif text-[30px]">{document.title}</h2>
                 <p className="mt-4 max-w-lg leading-[1.7] text-on-surface-variant">{document.description}</p>
-                <span className="label-caps mt-10 inline-block border-b border-primary pb-1">{text.documentation.openSection}</span>
               </Link>
             </StaggerItem>
           ))}

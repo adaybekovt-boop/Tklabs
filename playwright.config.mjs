@@ -2,14 +2,6 @@ import { defineConfig, devices } from "@playwright/test";
 
 const port = Number(process.env.PLAYWRIGHT_PORT || 3100);
 const baseURL = `http://127.0.0.1:${port}`;
-const previewEnvironment = [
-  "NODE_ENV=development",
-  "AUTH_SECRET=tklabs-browser-assurance-local-secret-2026",
-  "AUTH_TRUST_HOST=true",
-  "TKLABS_LOCAL_PREVIEW=true",
-  "NEXT_PUBLIC_TKLABS_LOCAL_PREVIEW=true",
-].join(" ");
-
 export default defineConfig({
   testDir: "./e2e",
   globalSetup: "./e2e/global-setup.mjs",
@@ -33,7 +25,7 @@ export default defineConfig({
     },
   },
   webServer: {
-    command: `${previewEnvironment} npm run dev -- --hostname 127.0.0.1 --port ${port}`,
+    command: `npm run dev -- --hostname 127.0.0.1 --port ${port}`,
     url: baseURL,
     reuseExistingServer: !process.env.CI,
     timeout: 120_000,

@@ -264,8 +264,8 @@ test("mobile layouts avoid fixed-width content traps", async () => {
   const input = await text("components/ui/ai-chat-input.tsx");
   const login = await text("app/login/page.tsx");
 
-  assert.match(home, /md:hidden/);
-  assert.match(home, /aspect-\[4\/5\] lg:aspect-auto/);
+  assert.match(home, /lg:hidden/);
+  assert.match(home, /aspect-\[4\/5\]/);
   assert.doesNotMatch(home, /min-w-\[700px\]/);
   assert.match(input, /w-full max-w-\[780px\]/);
   assert.match(input, /ChatOverlay/);

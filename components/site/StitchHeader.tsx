@@ -42,17 +42,11 @@ export async function StitchHeader({ active, chatMode = false }: StitchHeaderPro
         workspaceTitle: "Рабочее пространство",
         resourcesTitle: "Информация и команда",
         models: text.footer.models,
-        modelsHint: "Сравнение Erma-моделей и их возможностей",
         vault: "Workspace Vault",
-        vaultHint: "Полный локальный бэкап и восстановление данных",
         status: text.footer.status,
-        statusHint: "Проверка доступности сервисов и AI-провайдеров",
         documentation: text.footer.documentation,
-        documentationHint: "Инструкции, API и устройство платформы",
         developers: text.footer.developers,
-        developersHint: "Команда, роли и история TK LAB",
         principles: text.footer.truth,
-        principlesHint: "Принципы продукта, безопасности и прозрачности",
         login: text.nav.login,
         themeLight: text.nav.themeLight,
         themeDark: text.nav.themeDark,
@@ -69,17 +63,11 @@ export async function StitchHeader({ active, chatMode = false }: StitchHeaderPro
         workspaceTitle: "Workspace",
         resourcesTitle: "Information and team",
         models: text.footer.models,
-        modelsHint: "Compare Erma models and their capabilities",
         vault: "Workspace Vault",
-        vaultHint: "Complete local backup and restore",
         status: text.footer.status,
-        statusHint: "Check service and AI provider availability",
         documentation: text.footer.documentation,
-        documentationHint: "Guides, API details, and platform architecture",
         developers: text.footer.developers,
-        developersHint: "Team, roles, and the TK LAB story",
         principles: text.footer.truth,
-        principlesHint: "Product, safety, and transparency principles",
         login: text.nav.login,
         themeLight: text.nav.themeLight,
         themeDark: text.nav.themeDark,
@@ -90,7 +78,7 @@ export async function StitchHeader({ active, chatMode = false }: StitchHeaderPro
     <>
       {!chatMode && (
         <>
-          <header className="sticky top-0 z-50 hidden border-b border-outline-variant/30 bg-surface/95 backdrop-blur-sm lg:block" data-desktop-site-header>
+          <header className="sticky top-0 z-50 hidden border-b border-outline-variant/30 bg-surface/95 backdrop-blur-sm lg:block" data-desktop-site-header data-device-version="desktop">
             <div className="stitch-container flex min-h-[72px] items-center justify-between gap-8">
               <div className="flex min-w-0 items-center gap-3">
                 <Link href="/" className="shrink-0" aria-label="TK LAB"><SiteLogo /></Link>

@@ -1,4 +1,4 @@
-import { getDictionary } from "@/lib/i18n";
+import type { ChatDictionary } from "@/lib/chat-i18n";
 
 type SuggestionKind = "learn" | "write";
 
@@ -8,7 +8,7 @@ export function SuggestionPanel({
   onClose,
   onChoose,
 }: {
-  text: ReturnType<typeof getDictionary>;
+  text: ChatDictionary;
   kind: SuggestionKind;
   onClose: () => void;
   onChoose: (suggestion: string) => void;

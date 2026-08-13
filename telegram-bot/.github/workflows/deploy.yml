@@ -1,0 +1,94 @@
+﻿name: Deploy TKlab Telegram Bot
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: tklabs-bot-production
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    # The existing GitHub secrets are scoped to this environment.
+    environment: TELEGRAM_BOT_TOKEN
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+      TELEGRAM_ALLOWED_USER_IDS: ${{ secrets.TELEGRAM_ALLOWED_USER_IDS }}
+      CLODEX_API_KEY: ${{ secrets.CLODEX_API_KEY }}
+      REPO_GITHUB_TOKEN: ${{ secrets.REPO_GITHUB_TOKEN }}
+      WORKER_URL: https://tklabs-bot.adaybekovt.workers.dev
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Validate Worker
+        run: npm run check
+
+      - name: Check deployment credentials
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$CLOUDFLARE_API_TOKEN"
+          test -n "$TELEGRAM_BOT_TOKEN"
+          test -n "$TELEGRAM_ALLOWED_USER_IDS"
+
+      - name: Deploy Worker
+        run: npx wrangler deploy --keep-vars
+
+      - name: Upload runtime secrets
+        shell: bash
+        run: |
+          set -euo pipefail
+          for name in TELEGRAM_BOT_TOKEN TELEGRAM_ALLOWED_USER_IDS CLODEX_API_KEY REPO_GITHUB_TOKEN; do
+            value="${!name:-}"
+            if [ -n "$value" ]; then
+              printf '%s' "$value" | npx wrangler secret put "$name"
+            fi
+          done
+          webhook_secret="$(openssl rand -hex 32)"
+          echo "::add-mask::$webhook_secret"
+          printf '%s' "$webhook_secret" | npx wrangler secret put TELEGRAM_WEBHOOK_SECRET
+          printf 'WEBHOOK_SECRET=%s\n' "$webhook_secret" >> "$GITHUB_ENV"
+
+      - name: Register Telegram webhook
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail-with-body --retry 3 --silent --show-error \
+            --data-urlencode "url=$WORKER_URL/telegram/webhook" \
+            --data-urlencode "secret_token=$WEBHOOK_SECRET" \
+            --data-urlencode 'allowed_updates=["message"]' \
+            "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/setWebhook"
+
+      - name: Register Telegram commands
+        shell: bash
+        run: |
+          set -euo pipefail
+          commands='[{"command":"start","description":"Запуск бота"},{"command":"status","description":"Статус сайта"},{"command":"health","description":"Проверка здоровья"},{"command":"commits","description":"Последние коммиты"},{"command":"reset","description":"Сбросить историю AI"},{"command":"help","description":"Справка"}]'
+          curl --fail-with-body --retry 3 --silent --show-error \
+            --data-urlencode "commands=$commands" \
+            "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/setMyCommands"
+
+      - name: Verify Telegram webhook
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail-with-body --retry 3 --silent --show-error \
+            "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/getWebhookInfo"

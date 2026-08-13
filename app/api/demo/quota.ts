@@ -1,10 +1,12 @@
 import {
   DemoRateLimitUnavailableError,
   commitDemoRequest,
+  getDemoRewardStatus,
   releaseDemoRequest,
   reserveDemoRequest,
 } from "@/lib/demo-rate-limit-access";
 import { getRateLimitIdentity, getRateLimitSecret, hmacSha256Hex, RateLimitConfigurationError } from "@/lib/rate-limit-identity";
+import { REWARD_AD_DAILY_LIMIT, REWARD_ADS_PER_REQUEST, rewardedAdsEnabled } from "@/lib/rewarded-ads";
 
 import type { Language } from "./contracts";
 import { jsonResponse } from "./http";
@@ -71,15 +73,37 @@ export async function createDemoQuota(input: {
   }
 
   if (!allowance.allowed) {
+    let rewardOffer: { available: boolean; adsPerRequest?: number; dailyAdLimit?: number; adsRemaining?: number } = { available: false };
+    if (input.sessionEmail && rewardedAdsEnabled()) {
+      try {
+        const rewardStatus = await getDemoRewardStatus(identifier);
+        if (rewardStatus.enabled && rewardStatus.adsRemaining > 0) {
+          rewardOffer = {
+            available: true,
+            adsPerRequest: REWARD_ADS_PER_REQUEST,
+            dailyAdLimit: REWARD_AD_DAILY_LIMIT,
+            adsRemaining: rewardStatus.adsRemaining,
+          };
+        }
+      } catch {
+        // The ordinary reset path remains available if the reward service is unavailable.
+      }
+    }
     const retryAfter = allowance.resetAt
       ? Math.max(1, Math.ceil((allowance.resetAt - Date.now()) / 1000))
       : undefined;
     const response = jsonResponse(
       {
         error: input.language === "ru"
-          ? "Дневной лимит демо исчерпан. Попробуйте завтра."
-          : "Daily demo limit reached. Please try again tomorrow.",
+          ? rewardOffer.available
+            ? "Дневной лимит Erma исчерпан. Посмотрите две рекламы, чтобы получить ещё один запрос."
+            : "Дневной лимит Erma исчерпан. Попробуйте после сброса лимита."
+          : rewardOffer.available
+            ? "Your daily Erma limit is reached. Watch two ads to unlock one more request."
+            : "Your daily Erma limit is reached. Try again after the limit resets.",
+        code: "demo_quota_exhausted",
         retryAt: allowance.resetAt,
+        rewards: rewardOffer,
         requestId: input.requestId,
       },
       input.requestId,

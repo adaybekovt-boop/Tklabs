@@ -2,13 +2,14 @@ import { Sparkles } from "lucide-react";
 
 import { DataRouteInspector } from "@/components/playground/DataRouteInspector";
 import type { ChatResponseMode } from "@/lib/chat-modes";
-import { getDictionary, type Locale } from "@/lib/i18n";
+import type { ChatDictionary } from "@/lib/chat-i18n";
+import type { Locale } from "@/lib/i18n";
 
 type SuggestionKind = "learn" | "write";
 type Tone = "professional" | "character" | "erma";
 
 type ChatToolbarProps = {
-  text: ReturnType<typeof getDictionary>;
+  text: ChatDictionary;
   locale: Locale;
   responseMode: ChatResponseMode;
   suggestionKind: SuggestionKind | null;

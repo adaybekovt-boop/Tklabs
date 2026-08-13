@@ -3,7 +3,7 @@
   --chat-visual-width: 100vw;
   --chat-visual-offset-top: 0px;
   --chat-keyboard-inset: 0px;
-  --mobile-workspace-dock-height: calc(3.25rem + env(safe-area-inset-bottom, 0px));
+  --mobile-workspace-dock-height: calc(3.6rem + env(safe-area-inset-bottom, 0px));
 }
 
 .mobile-workspace-switcher {
@@ -27,7 +27,7 @@
 .mobile-workspace-switcher__item {
   display: inline-flex;
   min-width: 0;
-  min-height: 2.4rem;
+  min-height: 2.75rem;
   align-items: center;
   justify-content: center;
   gap: 0.35rem;
@@ -49,7 +49,10 @@
   position: fixed;
   z-index: 139;
   right: max(0.5rem, env(safe-area-inset-right, 0px));
-  bottom: calc(var(--chat-keyboard-inset, 0px) + var(--mobile-workspace-dock-height) + 0.5rem);
+  /* Anchored below the chat header (not above the dock) so it never overlaps
+     the composer — a bottom-anchored overlay covered the send button on
+     shorter phones before the user could dismiss it. */
+  top: calc(env(safe-area-inset-top, 0px) + 3.5rem + 1px + 0.5rem);
   left: max(0.5rem, env(safe-area-inset-left, 0px));
   display: flex;
   max-height: min(34dvh, 13rem);
@@ -69,7 +72,7 @@
   -webkit-backdrop-filter: blur(16px);
 }
 
-@media (max-width: 767px), (pointer: coarse) {
+@media (max-width: 767px) {
   .playground-shell {
     height: var(--chat-visual-height, 100dvh);
     max-height: var(--chat-visual-height, 100dvh);
@@ -119,10 +122,10 @@
   .mobile-workspace-switcher__item { gap: 0.2rem; font-size: 0.62rem; }
 }
 
-@media (max-width: 767px) and (orientation: landscape), (max-height: 520px) and (pointer: coarse) {
-  :root { --mobile-workspace-dock-height: calc(2.85rem + env(safe-area-inset-bottom, 0px)); }
+@media (max-width: 767px) and (orientation: landscape) {
+  :root { --mobile-workspace-dock-height: calc(3.15rem + env(safe-area-inset-bottom, 0px)); }
   .mobile-workspace-switcher { padding-top: 0.2rem; }
-  .mobile-workspace-switcher__item { min-height: 2.1rem; }
+  .mobile-workspace-switcher__item { min-height: 2.75rem; }
   .playground-header > div { min-height: 2.75rem; }
   .chat-composer-area { padding-top: 0.35rem; padding-bottom: max(0.3rem, env(safe-area-inset-bottom, 0px)); }
 }

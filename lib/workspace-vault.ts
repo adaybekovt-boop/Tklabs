@@ -37,7 +37,11 @@ export type WorkspaceVaultSummary = {
 type UnsignedWorkspaceVaultBundle = Omit<WorkspaceVaultBundle, "digest">;
 
 function browserStorage(): VaultStorage | null {
-  return typeof window === "undefined" ? null : window.localStorage;
+  try {
+    return typeof window === "undefined" ? null : window.localStorage;
+  } catch {
+    return null;
+  }
 }
 
 function utf8Bytes(value: string) {

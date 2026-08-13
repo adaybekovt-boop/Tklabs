@@ -3,8 +3,8 @@
 import { Check, CircleAlert, CircleX, LoaderCircle, RefreshCw } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 
-import "@/lib/public-branding";
-import { getDictionary, type Locale } from "@/lib/i18n";
+import { getStatusDictionary } from "@/lib/status-i18n";
+import type { Locale } from "@/lib/i18n";
 
 type HealthStatus = "operational" | "degraded" | "down" | "not_configured";
 
@@ -26,8 +26,14 @@ function statusIcon(status: HealthStatus) {
   return <CircleAlert size={16} />;
 }
 
+function neutralizePublicLabel(value: string) {
+  return value
+    .replace(/\/api\/clodex\b/gi, "/api/external-api")
+    .replace(/\bclodex\b/gi, "External API");
+}
+
 export function StatusBoard({ locale }: { locale: Locale }) {
-  const text = getDictionary(locale);
+  const text = getStatusDictionary(locale);
   const [payload, setPayload] = useState<HealthPayload | null>(null);
   const [loading, setLoading] = useState(true);
   const [failed, setFailed] = useState(false);
@@ -99,7 +105,7 @@ export function StatusBoard({ locale }: { locale: Locale }) {
             const status = check?.status;
             return (
               <div key={service} className="editorial-card grid items-center gap-4 border-b border-outline-variant/30 py-7 md:grid-cols-12">
-                <span className="md:col-span-6">{service}</span>
+                <span className="md:col-span-6">{neutralizePublicLabel(service)}</span>
                 <span className="label-caps flex items-center gap-2 text-secondary md:col-span-3">{status ? statusIcon(status) : <LoaderCircle size={16} className="animate-spin" />} {statusLabel(status)}</span>
                 <span className="flex items-center justify-end gap-3 text-[13px] md:col-span-3">{check?.latencyMs != null ? `${check.latencyMs} ${text.status.ms}` : "—"}</span>
               </div>

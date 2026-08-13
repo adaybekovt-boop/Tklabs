@@ -524,7 +524,7 @@ export const PromptInput = React.forwardRef<HTMLDivElement, PromptInputProps>(fu
             }}
             onKeyDown={(event) => {
               const isComposing = event.nativeEvent.isComposing || event.keyCode === 229;
-              const desktopEnter = window.matchMedia("(pointer: fine) and (min-width: 768px)").matches;
+              const desktopEnter = window.matchMedia("(min-width: 768px)").matches;
               if (event.key === "Enter" && !event.shiftKey && !isComposing && desktopEnter) {
                 event.preventDefault();
                 submit();

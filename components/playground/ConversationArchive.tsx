@@ -5,7 +5,8 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { Check, CopyPlus, FolderKanban, MoreHorizontal, Pencil, Pin, Search, SquarePen, Trash2, X } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 
-import { getDictionary, type Locale } from "@/lib/i18n";
+import { getChatDictionary } from "@/lib/chat-i18n";
+import type { Locale } from "@/lib/i18n";
 import {
   clearArchive,
   deleteSession,
@@ -20,12 +21,24 @@ import { cn } from "@/lib/utils";
 type ConversationArchiveProps = {
   locale: Locale;
   onNavigate?: () => void;
+  onSessionSelect?: (session: ArchivedSession) => void;
+  basePath?: string;
   headingId?: string;
   compact?: boolean;
 };
 
-export function ConversationArchive({ locale, onNavigate, headingId = "conversation-history-title", compact = false }: ConversationArchiveProps) {
-  const text = getDictionary(locale);
+const DEFAULT_PLAYGROUND_PATH = "/playground";
+
+function sessionHref(basePath: string, sessionId: string) {
+  if (basePath === DEFAULT_PLAYGROUND_PATH) {
+    return `/playground?session=${encodeURIComponent(sessionId)}`;
+  }
+
+  return `${basePath}?session=${encodeURIComponent(sessionId)}`;
+}
+
+export function ConversationArchive({ locale, onNavigate, onSessionSelect, basePath = DEFAULT_PLAYGROUND_PATH, headingId = "conversation-history-title", compact = false }: ConversationArchiveProps) {
+  const text = getChatDictionary(locale);
   const router = useRouter();
   const searchParams = useSearchParams();
   const [sessions, setSessions] = useState<ArchivedSession[]>([]);
@@ -40,11 +53,18 @@ export function ConversationArchive({ locale, onNavigate, headingId = "conversat
     : { search: "Search conversations", emptySearch: "No conversations found.", clear: "Clear", confirmClear: "Delete all", cancel: "Cancel", pin: "Pin", unpin: "Unpin", rename: "Rename", duplicate: "Duplicate", save: "Save", remove: "Delete", pinned: "Pinned", projects: "Projects", allProjects: "All", noProject: "No project", copySuffix: "copy", actions: "Actions" };
 
   useEffect(() => {
-    const refresh = () => setSessions(loadArchive());
+    let mounted = true;
+    const refresh = () => {
+      const nextSessions = loadArchive();
+      queueMicrotask(() => {
+        if (mounted) setSessions(nextSessions);
+      });
+    };
     refresh();
     window.addEventListener("tklab:archive-updated", refresh);
     window.addEventListener("visibilitychange", refresh);
     return () => {
+      mounted = false;
       window.removeEventListener("tklab:archive-updated", refresh);
       window.removeEventListener("visibilitychange", refresh);
     };
@@ -94,14 +114,20 @@ export function ConversationArchive({ locale, onNavigate, headingId = "conversat
     const duplicate = duplicateSession(session.id, `${session.title} · ${ui.copySuffix}`);
     if (!duplicate) return;
     onNavigate?.();
-    router.push(`/playground?session=${encodeURIComponent(duplicate.id)}`);
+    router.push(sessionHref(basePath, duplicate.id));
+  }
+
+  function selectSession(event: React.MouseEvent<HTMLAnchorElement>, session: ArchivedSession) {
+    onNavigate?.();
+    if (event.button !== 0 || event.defaultPrevented || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+    onSessionSelect?.(session);
   }
 
   return (
     <section className={compact ? "pt-3" : "mt-8 border-t border-outline-variant/30 pt-6"} aria-labelledby={headingId}>
       <h2 id={headingId} className="sr-only">{text.chat.history}</h2>
       <div className="mb-3 flex items-center justify-between gap-2 px-2">
-        <Link href="/playground" onClick={onNavigate} className="grid size-8 place-items-center rounded-full text-on-secondary-container hover:bg-surface-container-low hover:text-primary" aria-label={text.chat.newDialog} title={text.chat.newDialog}>
+        <Link href={basePath} onClick={onNavigate} className="grid size-8 place-items-center rounded-full text-on-secondary-container hover:bg-surface-container-low hover:text-primary" aria-label={text.chat.newDialog} title={text.chat.newDialog}>
           <SquarePen size={16} />
         </Link>
         {sessions.length > 0 && (
@@ -161,7 +187,7 @@ export function ConversationArchive({ locale, onNavigate, headingId = "conversat
                   </div>
                 ) : (
                   <>
-                    <Link href={`/playground?session=${encodeURIComponent(session.id)}`} onClick={onNavigate} className="min-w-0 flex-1 rounded-xl px-1 py-1.5">
+                    <Link href={sessionHref(basePath, session.id)} onClick={(event) => selectSession(event, session)} className="min-w-0 flex-1 rounded-xl px-1 py-1.5">
                       <span className="flex items-center gap-1.5">
                         {session.pinned && <Pin size={12} className="shrink-0 fill-current" aria-label={ui.pinned} />}
                         <span className="block truncate text-[13px] text-primary">{session.title}</span>
