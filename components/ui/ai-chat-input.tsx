@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { createPortal } from "react-dom";
 import { ArrowUp, Camera, FileText, ImageIcon, Mic, Plus, Square, Upload, WifiOff, X } from "lucide-react";
 
 import { ChatOverlay } from "@/components/playground/ChatOverlay";
@@ -82,8 +83,7 @@ type SpeechRecognitionLike = {
   stop(): void;
 };
 type SpeechRecognitionConstructor = new () => SpeechRecognitionLike;
-
-type AttachmentMenuPlacement = "above" | "below";
+type AttachmentMenuPosition = { left: number; top: number };
 
 const IMAGE_ACCEPT = "image/jpeg,image/png,image/webp";
 const MAX_IMAGE_SOURCE_BYTES = 12 * 1024 * 1024;
@@ -92,6 +92,8 @@ const MAX_IMAGE_TOTAL_BYTES = 1_700 * 1024;
 const MAX_IMAGE_COUNT = 2;
 const MAX_IMAGE_DIMENSION = 1536;
 const ATTACHMENT_MENU_GAP = 8;
+const ATTACHMENT_MENU_MARGIN = 8;
+const ATTACHMENT_MENU_WIDTH = 208;
 const ATTACHMENT_MENU_FALLBACK_HEIGHT = 104;
 
 function normalizeSpeechSegment(value: string) {
@@ -115,6 +117,28 @@ function blobToDataUrl(blob: Blob) {
     reader.onerror = () => reject(new Error("image_read_failed"));
     reader.readAsDataURL(blob);
   });
+}
+
+function attachmentMenuPosition(trigger: DOMRect, menuHeight = ATTACHMENT_MENU_FALLBACK_HEIGHT): AttachmentMenuPosition {
+  const viewport = window.visualViewport;
+  const viewportLeft = viewport?.offsetLeft ?? 0;
+  const viewportTop = viewport?.offsetTop ?? 0;
+  const viewportWidth = viewport?.width ?? window.innerWidth;
+  const viewportHeight = viewport?.height ?? window.innerHeight;
+  const viewportRight = viewportLeft + viewportWidth;
+  const viewportBottom = viewportTop + viewportHeight;
+  const availableAbove = trigger.top - viewportTop - ATTACHMENT_MENU_GAP;
+  const availableBelow = viewportBottom - trigger.bottom - ATTACHMENT_MENU_GAP;
+  const preferAbove = menuHeight <= availableAbove || availableAbove >= availableBelow;
+  const unclampedTop = preferAbove
+    ? trigger.top - ATTACHMENT_MENU_GAP - menuHeight
+    : trigger.bottom + ATTACHMENT_MENU_GAP;
+  const maxTop = Math.max(viewportTop + ATTACHMENT_MENU_MARGIN, viewportBottom - menuHeight - ATTACHMENT_MENU_MARGIN);
+  const maxLeft = Math.max(viewportLeft + ATTACHMENT_MENU_MARGIN, viewportRight - ATTACHMENT_MENU_WIDTH - ATTACHMENT_MENU_MARGIN);
+  return {
+    top: Math.min(Math.max(unclampedTop, viewportTop + ATTACHMENT_MENU_MARGIN), maxTop),
+    left: Math.min(Math.max(trigger.left, viewportLeft + ATTACHMENT_MENU_MARGIN), maxLeft),
+  };
 }
 
 async function compressImage(file: File) {
@@ -198,7 +222,7 @@ export const PromptInput = React.forwardRef<HTMLDivElement, PromptInputProps>(fu
   const [attachments, setAttachments] = React.useState<ChatInputAttachment[]>([]);
   const [activeAttachment, setActiveAttachment] = React.useState<ChatInputAttachment | null>(null);
   const [attachmentMenuOpen, setAttachmentMenuOpen] = React.useState(false);
-  const [attachmentMenuPlacement, setAttachmentMenuPlacement] = React.useState<AttachmentMenuPlacement>("above");
+  const [attachmentMenuPositionState, setAttachmentMenuPositionState] = React.useState<AttachmentMenuPosition>({ left: ATTACHMENT_MENU_MARGIN, top: ATTACHMENT_MENU_MARGIN });
   const [recording, setRecording] = React.useState(false);
   const [online, setOnline] = React.useState(true);
   const [voiceError, setVoiceError] = React.useState("");
@@ -206,6 +230,7 @@ export const PromptInput = React.forwardRef<HTMLDivElement, PromptInputProps>(fu
   const textareaRef = React.useRef<HTMLTextAreaElement>(null);
   const fileInputRef = React.useRef<HTMLInputElement>(null);
   const cameraInputRef = React.useRef<HTMLInputElement>(null);
+  const attachmentButtonRef = React.useRef<HTMLButtonElement>(null);
   const attachmentMenuRef = React.useRef<HTMLDivElement>(null);
   const recognitionRef = React.useRef<SpeechRecognitionLike | null>(null);
   const attachmentsRef = React.useRef<ChatInputAttachment[]>([]);
@@ -251,50 +276,43 @@ export const PromptInput = React.forwardRef<HTMLDivElement, PromptInputProps>(fu
     if (!attachmentMenuOpen) return;
 
     let frame = 0;
-    const updatePlacement = () => {
+    const updatePosition = () => {
+      const trigger = attachmentButtonRef.current;
+      if (!trigger) return;
       const menu = attachmentMenuRef.current;
-      if (!menu) return;
-      const anchor = menu.offsetParent instanceof HTMLElement ? menu.offsetParent : menu.parentElement;
-      if (!anchor) return;
-
-      const anchorRect = anchor.getBoundingClientRect();
-      const menuRect = menu.getBoundingClientRect();
-      const menuHeight = Math.max(menuRect.height, menu.scrollHeight, ATTACHMENT_MENU_FALLBACK_HEIGHT);
-      const visualViewport = window.visualViewport;
-      const viewportTop = visualViewport?.offsetTop ?? 0;
-      const viewportBottom = viewportTop + (visualViewport?.height ?? window.innerHeight);
-      const availableAbove = anchorRect.top - viewportTop - ATTACHMENT_MENU_GAP;
-      const availableBelow = viewportBottom - anchorRect.bottom - ATTACHMENT_MENU_GAP;
-      const canFitAbove = anchorRect.top - ATTACHMENT_MENU_GAP - menuHeight >= viewportTop;
-      const canFitBelow = anchorRect.bottom + ATTACHMENT_MENU_GAP + menuHeight <= viewportBottom;
-      const placement: AttachmentMenuPlacement = canFitAbove
-        ? "above"
-        : canFitBelow
-          ? "below"
-          : availableAbove >= availableBelow
-            ? "above"
-            : "below";
-      setAttachmentMenuPlacement((current) => current === placement ? current : placement);
+      const measuredHeight = menu ? Math.max(menu.getBoundingClientRect().height, menu.scrollHeight, ATTACHMENT_MENU_FALLBACK_HEIGHT) : ATTACHMENT_MENU_FALLBACK_HEIGHT;
+      setAttachmentMenuPositionState(attachmentMenuPosition(trigger.getBoundingClientRect(), measuredHeight));
     };
-
-    const schedulePlacement = () => {
+    const schedulePosition = () => {
       window.cancelAnimationFrame(frame);
-      frame = window.requestAnimationFrame(updatePlacement);
+      frame = window.requestAnimationFrame(updatePosition);
     };
 
-    updatePlacement();
-    schedulePlacement();
-    const visualViewport = window.visualViewport;
-    window.addEventListener("resize", schedulePlacement);
-    visualViewport?.addEventListener("resize", schedulePlacement);
-    visualViewport?.addEventListener("scroll", schedulePlacement);
+    updatePosition();
+    schedulePosition();
+    const viewport = window.visualViewport;
+    window.addEventListener("resize", schedulePosition);
+    window.addEventListener("scroll", schedulePosition, true);
+    viewport?.addEventListener("resize", schedulePosition);
+    viewport?.addEventListener("scroll", schedulePosition);
     return () => {
       window.cancelAnimationFrame(frame);
-      window.removeEventListener("resize", schedulePlacement);
-      visualViewport?.removeEventListener("resize", schedulePlacement);
-      visualViewport?.removeEventListener("scroll", schedulePlacement);
+      window.removeEventListener("resize", schedulePosition);
+      window.removeEventListener("scroll", schedulePosition, true);
+      viewport?.removeEventListener("resize", schedulePosition);
+      viewport?.removeEventListener("scroll", schedulePosition);
     };
   }, [attachmentMenuOpen]);
+
+  function toggleAttachmentMenu() {
+    if (attachmentMenuOpen) {
+      setAttachmentMenuOpen(false);
+      return;
+    }
+    const trigger = attachmentButtonRef.current;
+    if (trigger) setAttachmentMenuPositionState(attachmentMenuPosition(trigger.getBoundingClientRect()));
+    setAttachmentMenuOpen(true);
+  }
 
   function submit() {
     if (!canSubmit) return;
@@ -460,19 +478,18 @@ export const PromptInput = React.forwardRef<HTMLDivElement, PromptInputProps>(fu
         </>
       )}
 
-      {attachmentMenuOpen && (
+      {attachmentMenuOpen && typeof document !== "undefined" && createPortal(
         <div
           ref={attachmentMenuRef}
-          className={cn(
-            "absolute left-0 z-40 w-52 overflow-hidden rounded-2xl border border-outline-variant bg-surface-container-lowest p-1.5 shadow-xl",
-            attachmentMenuPlacement === "above" ? "bottom-[calc(100%+8px)]" : "top-[calc(100%+8px)]",
-          )}
+          className="fixed z-[180] w-52 overflow-hidden rounded-2xl border border-outline-variant bg-surface-container-lowest p-1.5 shadow-xl"
+          style={{ left: attachmentMenuPositionState.left, top: attachmentMenuPositionState.top }}
           role="menu"
-          data-placement={attachmentMenuPlacement}
+          data-attachment-menu
         >
           <button type="button" role="menuitem" onClick={() => cameraInputRef.current?.click()} className="flex min-h-11 w-full items-center gap-3 rounded-xl px-3 text-left text-sm text-primary hover:bg-surface-container-low"><Camera size={17} />{locale === "ru" ? "Камера" : "Camera"}</button>
           <button type="button" role="menuitem" onClick={() => fileInputRef.current?.click()} className="flex min-h-11 w-full items-center gap-3 rounded-xl px-3 text-left text-sm text-primary hover:bg-surface-container-low"><Upload size={17} />{locale === "ru" ? "Фото или файл" : "Photo or file"}</button>
-        </div>
+        </div>,
+        document.body,
       )}
 
       <div className="overflow-hidden rounded-[1.55rem] border border-outline-variant bg-surface-container-lowest shadow-[0_10px_30px_color-mix(in_srgb,var(--color-primary)_7%,transparent)] focus-within:border-primary">
@@ -507,7 +524,7 @@ export const PromptInput = React.forwardRef<HTMLDivElement, PromptInputProps>(fu
         )}
 
         <div className="flex items-end gap-1 px-2 pb-2 pt-2 sm:px-3">
-          <button type="button" onClick={() => setAttachmentMenuOpen((open) => !open)} disabled={!attachmentsEnabled || disabled || attachments.length >= 3} className="relative grid size-11 shrink-0 place-items-center rounded-full text-on-surface-variant hover:bg-surface-container hover:text-primary disabled:opacity-30" aria-label={labels.addAttachment} aria-expanded={attachmentMenuOpen}>
+          <button ref={attachmentButtonRef} type="button" onClick={toggleAttachmentMenu} disabled={!attachmentsEnabled || disabled || attachments.length >= 3} className="relative grid size-11 shrink-0 place-items-center rounded-full text-on-surface-variant hover:bg-surface-container hover:text-primary disabled:opacity-30" aria-label={labels.addAttachment} aria-expanded={attachmentMenuOpen}>
             <Plus size={19} />
             {attachments.length > 0 && <span className="absolute right-0 top-0 grid size-4 place-items-center rounded-full bg-primary text-[9px] text-on-primary">{attachments.length}</span>}
           </button>
