@@ -20,7 +20,7 @@ const nextAuth = NextAuth({
   ],
   session: { strategy: "jwt" },
   pages: { signIn: "/login" },
-  trustHost: process.env.AUTH_TRUST_HOST !== "false",
+  trustHost: process.env.AUTH_TRUST_HOST === "true",
 });
 
 export const handlers = nextAuth.handlers;

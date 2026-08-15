@@ -10,6 +10,13 @@ const textEncoder = new TextEncoder();
 
 export class WorkspaceSyncUnavailableError extends Error { constructor() { super("Workspace sync storage or encryption is unavailable."); this.name = "WorkspaceSyncUnavailableError"; } }
 export class WorkspaceSyncConflictError extends Error { readonly revision: number; constructor(revision: number) { super("Workspace snapshot revision changed."); this.name = "WorkspaceSyncConflictError"; this.revision = revision; } }
+export class WorkspaceSyncRateLimitedError extends Error { constructor() { super("Workspace sync is writing too frequently."); this.name = "WorkspaceSyncRateLimitedError"; } }
+
+// This endpoint has no per-request quota (unlike demo/tts, which reserve against the
+// Clodex account Durable Object). It's a manual, button-triggered upload — real usage
+// never approaches this — so a small per-user cooldown is enough to stop a scripted loop
+// from turning it into unbounded paid D1 writes + AES-GCM work.
+const MIN_MS_BETWEEN_WRITES = 2_000;
 
 function normalizeEmail(email: string) { return email.trim().toLowerCase(); }
 function secretForVersion(version: number) {
@@ -61,8 +68,14 @@ async function openV2(email: string, row: { ciphertext: string; iv: string; chec
 
 async function ensureUserId(emailValue: string) {
   const email = normalizeEmail(emailValue); if (!email) throw new WorkspaceSyncUnavailableError();
-  const db = getDb(); const now = new Date(); const id = await termsUserId(email);
-  await db.insert(users).values({ id, email, createdAt: now, updatedAt: now }).onConflictDoUpdate({ target: users.email, set: { updatedAt: now } }).run();
+  const db = getDb(); const id = await termsUserId(email);
+  // onConflictDoNothing: this must stay read-safe. A plain GET calls this too, and an
+  // unconditional onConflictDoUpdate would turn every read into a D1 write.
+  const existing = await db.select({ id: users.id }).from(users).where(eq(users.email, email)).get();
+  if (!existing) {
+    const now = new Date();
+    await db.insert(users).values({ id, email, createdAt: now, updatedAt: now }).onConflictDoNothing().run();
+  }
   const row = await db.select({ id: users.id }).from(users).where(eq(users.email, email)).get();
   if (!row?.id) throw new WorkspaceSyncUnavailableError();
   return { db, id: row.id, email };
@@ -94,6 +107,7 @@ export async function putWorkspaceSnapshot(email: string, payload: string, expec
   try {
     const { db, id, email: normalized } = await ensureUserId(email);
     const existing = await db.select().from(workspaceSnapshots).where(eq(workspaceSnapshots.userId, id)).get();
+    if (existing && Date.now() - existing.updatedAt.getTime() < MIN_MS_BETWEEN_WRITES) throw new WorkspaceSyncRateLimitedError();
     const currentRevision = existing?.revision ?? 0;
     if (expectedRevision !== null && expectedRevision !== currentRevision) throw new WorkspaceSyncConflictError(currentRevision);
     const revision = currentRevision + 1; const sealed = await sealV2(normalized, payload, revision); const updatedAt = new Date();
@@ -119,7 +133,7 @@ export async function putWorkspaceSnapshot(email: string, payload: string, expec
       }
     }
     return { revision, checksum: sealed.checksum, keyVersion: sealed.keyVersion, updatedAt: updatedAt.toISOString() };
-  } catch (error) { if (error instanceof WorkspaceSyncConflictError || error instanceof WorkspaceSyncUnavailableError) throw error; if (error instanceof Error && error.message === "workspace_sync_payload_too_large") throw error; console.error("Unable to write workspace sync snapshot", error); throw new WorkspaceSyncUnavailableError(); }
+  } catch (error) { if (error instanceof WorkspaceSyncConflictError || error instanceof WorkspaceSyncUnavailableError || error instanceof WorkspaceSyncRateLimitedError) throw error; if (error instanceof Error && error.message === "workspace_sync_payload_too_large") throw error; console.error("Unable to write workspace sync snapshot", error); throw new WorkspaceSyncUnavailableError(); }
 }
 
 export async function deleteWorkspaceSnapshot(email: string) {

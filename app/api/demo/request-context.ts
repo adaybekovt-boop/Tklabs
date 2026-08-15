@@ -46,14 +46,28 @@ async function sessionEmail() {
   }
 }
 
+// Coarse, body-free language guess for the quota check below, which must run before the
+// (up to 2.5MB) request body is read — an exhausted-quota response shouldn't cost a full
+// body parse. The real, body-derived language takes over for every response after that.
+function languageFromHeader(request: Request): Language {
+  return request.headers.get("accept-language")?.trim().toLowerCase().startsWith("en") ? "en" : "ru";
+}
+
 export async function prepareDemoRequest(request: Request): Promise<DemoRequestPreparation> {
   const requestId = newRequestId();
   if (!isTrustedRequestOrigin(request)) return { response: jsonResponse({ error: "Request origin is not allowed.", requestId }, requestId, 403) };
+
+  const email = await sessionEmail();
+  const privilegedAccount = isPrivilegedAiEmail(email);
+
+  const quotaResult = await createDemoQuota({ request, requestId, language: languageFromHeader(request), sessionEmail: email, privileged: privilegedAccount });
+  if ("response" in quotaResult) return quotaResult;
 
   let body: ChatRequest | null;
   try {
     body = await parseJsonBody<ChatRequest>(request, DEMO_JSON_BODY_LIMIT_BYTES);
   } catch (error) {
+    await quotaResult.quota.release();
     if (error instanceof RequestBodyTooLargeError) return { response: jsonResponse({ error: "Request body is too large.", requestId }, requestId, 413) };
     throw error;
   }
@@ -64,13 +78,12 @@ export async function prepareDemoRequest(request: Request): Promise<DemoRequestP
   const requestedReasoning = normalizedBody.reasonEnabled === true;
   const effort = normalizeEffort(normalizedBody.effort);
   const tone = normalizeTone(normalizedBody.tone);
-  const email = await sessionEmail();
-  const privilegedAccount = isPrivilegedAiEmail(email);
 
   let validatedPrompt;
   try {
     validatedPrompt = validateAndBuildProviderPrompt(normalizedBody.prompt, normalizedBody.attachments, { privileged: privilegedAccount });
   } catch (error) {
+    await quotaResult.quota.release();
     if (error instanceof PromptValidationError) return { response: promptErrorResponse(error, language, privilegedAccount, requestId) };
     throw error;
   }
@@ -90,6 +103,7 @@ export async function prepareDemoRequest(request: Request): Promise<DemoRequestP
       attachmentCount: validatedPrompt.attachments.length + validatedPrompt.images.length,
     });
   } catch (error) {
+    await quotaResult.quota.release();
     if (error instanceof ChatContextValidationError) return { response: contextErrorResponse(error, language, requestId) };
     throw error;
   }
@@ -102,10 +116,10 @@ export async function prepareDemoRequest(request: Request): Promise<DemoRequestP
     ...context.messages.filter((message) => message.role === "user").map((message) => message.content),
   ].filter(Boolean).join("\n\n");
   const safetyDecision = classifyPromptSafety(safetyInput, { allowCode: privilegedAccount });
-  if (safetyDecision.blocked) return { response: jsonResponse({ error: safetyRefusal(language, safetyDecision.reason), requestId }, requestId, 403) };
-
-  const quotaResult = await createDemoQuota({ request, requestId, language, sessionEmail: email, privileged: privilegedAccount });
-  if ("response" in quotaResult) return quotaResult;
+  if (safetyDecision.blocked) {
+    await quotaResult.quota.release();
+    return { response: jsonResponse({ error: safetyRefusal(language, safetyDecision.reason), requestId }, requestId, 403) };
+  }
 
   return {
     prepared: {

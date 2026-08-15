@@ -16,9 +16,21 @@ function serializeDate(value: Date | null | undefined) { return value ? value.to
 async function ensureUser(user: TermsUser) {
   const email = normalizeEmail(user.email); if (!email) throw new TermsStorageUnavailableError();
   try {
-    const db = getDb(); const now = new Date(); const id = await termsUserId(email);
-    await db.insert(users).values({ id, email, name: user.name?.trim() || null, image: user.image?.trim() || null, createdAt: now, updatedAt: now }).onConflictDoUpdate({ target: users.email, set: { name: user.name?.trim() || null, image: user.image?.trim() || null, updatedAt: now } }).run();
-    let row = await db.select().from(users).where(eq(users.email, email)).get(); if (!row) throw new TermsStorageUnavailableError();
+    const db = getDb(); const id = await termsUserId(email);
+    const name = user.name?.trim() || null; const image = user.image?.trim() || null;
+    // Read-only paths (e.g. GET /api/account/terms) call this too, so only write when
+    // something actually changed — otherwise every status check becomes a D1 write.
+    let row = await db.select().from(users).where(eq(users.email, email)).get();
+    if (!row) {
+      const now = new Date();
+      await db.insert(users).values({ id, email, name, image, createdAt: now, updatedAt: now }).onConflictDoNothing().run();
+      row = await db.select().from(users).where(eq(users.email, email)).get();
+    } else if (row.name !== name || row.image !== image) {
+      const now = new Date();
+      await db.update(users).set({ name, image, updatedAt: now }).where(eq(users.id, row.id)).run();
+      row = { ...row, name, image, updatedAt: now };
+    }
+    if (!row) throw new TermsStorageUnavailableError();
     if (row.id !== id && row.id === (await legacyTermsUserId(email))) {
       const legacyId = row.id;
       // Related rows now exist, so migrate them before changing the users PK.

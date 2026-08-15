@@ -1,7 +1,7 @@
 import { auth } from "@/auth";
 import { parseJsonBody, RequestBodyTooLargeError } from "@/lib/request-body";
 import { isTrustedRequestOrigin } from "@/lib/request-security";
-import { deleteWorkspaceSnapshot, getWorkspaceSnapshot, putWorkspaceSnapshot, WorkspaceSyncConflictError, WorkspaceSyncUnavailableError } from "@/lib/workspace-sync-server";
+import { deleteWorkspaceSnapshot, getWorkspaceSnapshot, putWorkspaceSnapshot, WorkspaceSyncConflictError, WorkspaceSyncRateLimitedError, WorkspaceSyncUnavailableError } from "@/lib/workspace-sync-server";
 
 export const runtime = "edge";
 
@@ -31,6 +31,7 @@ export async function PUT(request: Request) {
   try { return Response.json({ available: true, snapshot: await putWorkspaceSnapshot(email, body.payload, expectedRevision) }, noStore()); }
   catch (error) {
     if (error instanceof WorkspaceSyncConflictError) return Response.json({ error: "workspace_sync_conflict", revision: error.revision }, noStore({ status: 409 }));
+    if (error instanceof WorkspaceSyncRateLimitedError) return Response.json({ error: "workspace_sync_rate_limited" }, noStore({ status: 429, headers: { "retry-after": "2" } }));
     if (error instanceof WorkspaceSyncUnavailableError) return unavailable();
     if (error instanceof Error && error.message === "workspace_sync_payload_too_large") return Response.json({ error: "Workspace snapshot is too large." }, noStore({ status: 413 }));
     throw error;
