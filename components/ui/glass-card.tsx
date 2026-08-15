@@ -28,9 +28,9 @@ function GlassCardHeader({ className, ...props }: React.ComponentProps<"div">) {
   );
 }
 
-function GlassCardTitle({ className, ...props }: React.ComponentProps<"div">) {
+function GlassCardTitle({ className, ...props }: React.ComponentProps<"h1">) {
   return (
-    <div
+    <h1
       data-slot="glass-card-title"
       className={cn("font-serif text-2xl font-normal leading-tight text-white sm:text-3xl", className)}
       {...props}
