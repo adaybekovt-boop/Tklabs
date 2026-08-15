@@ -6,7 +6,7 @@ async function source(path) { return readFile(new URL(`../${path}`, import.meta.
 
 test("public navigation uses one persistent application dock", async () => {
   const [dock, header, home, login] = await Promise.all([source("components/site/AppDock.tsx"), source("components/site/StitchHeader.tsx"), source("app/page.tsx"), source("app/login/page.tsx")]);
-  assert.match(dock, /data-app-dock/); assert.match(dock, /fixed inset-x-2 bottom-2/); assert.match(dock, /href: "\/playground"/); assert.match(header, /<AppDock /); assert.doesNotMatch(header, /<GlowNav /); assert.doesNotMatch(header, /<MobileNavigation /); assert.doesNotMatch(home, /FlowButton href="\/playground"/); assert.doesNotMatch(home, /Начать новый диалог|Start a new conversation/); assert.match(login, /<StitchHeader \/>/); assert.doesNotMatch(login, /FlowButton/);
+  assert.match(dock, /data-app-dock/); assert.match(dock, /fixed inset-x-2 bottom-2/); assert.match(dock, /href: "\/playground"/); assert.match(header, /<AppDock /); assert.doesNotMatch(header, /<GlowNav /); assert.doesNotMatch(header, /<MobileNavigation /); assert.doesNotMatch(home, /FlowButton href="\/playground"/); assert.doesNotMatch(home, /Начать новый диалог|Start a new conversation/); assert.match(login, /<StitchHeader\b[^>]*\/>/); assert.doesNotMatch(login, /FlowButton/);
 });
 
 test("navigation transitions keep the dock anchored and respect reduced motion", async () => {

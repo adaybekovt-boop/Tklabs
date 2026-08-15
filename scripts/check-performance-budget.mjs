@@ -8,11 +8,15 @@ const IMAGE_ROOT = join(CLIENT_ROOT, "images");
 
 // v0.21 adds an optional lazy KaTeX/MathML renderer. These aggregate limits include
 // lazy client assets while preserving explicit caps for every production build.
+// cssRaw raised 155_000 -> 163_000: the floating desktop nav pill (components/ui/navigation-menu.tsx)
+// and the glass-morphism login card (components/ui/glass-card.tsx) are genuinely new, non-redundant
+// UI, not accidental duplication. Duplicate arbitrary shadow/radius utilities were already
+// consolidated (see app/page.tsx, app/login/page.tsx) to keep the increase to ~8KB raw.
 const BUDGETS = {
   javascriptRaw: 1_400_000,
   javascriptGzip: 440_000,
   largestJavascript: 450_000,
-  cssRaw: 155_000,
+  cssRaw: 163_000,
   imagesRaw: 700_000,
   largestImage: 300_000,
 };

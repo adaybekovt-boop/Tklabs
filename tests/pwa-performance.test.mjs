@@ -50,8 +50,8 @@ test("manifest and offline fallback expose installable application metadata", as
 
 test("home artwork is local and does not depend on Google image delivery", async () => {
   const home = await source("app/page.tsx");
-  assert.match(home, /\/images\/home\/hero-lab\.svg/);
-  assert.match(home, /\/images\/home\/lab-cluster\.svg/);
+  assert.match(home, /\/images\/home\/hero-editorial\.jpg/);
+  assert.match(home, /\/images\/home\/lab-monolith\.jpg/);
   assert.doesNotMatch(home, /googleusercontent\.com/);
   assert.match(home, /fetchPriority="high"/);
   assert.match(home, /loading="lazy"/);

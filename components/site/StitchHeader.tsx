@@ -6,17 +6,20 @@ import { AppDock } from "@/components/site/AppDock";
 import { LanguageToggle } from "@/components/site/LanguageToggle";
 import { SiteLogo } from "@/components/site/SiteLogo";
 import { ThemeToggle } from "@/components/site/ThemeToggle";
+import { AnimatedNavFramer } from "@/components/ui/navigation-menu";
 import { getDictionary } from "@/lib/i18n";
 import { getLocale } from "@/lib/locale";
+import { cn } from "@/lib/utils";
 
 type ActiveSection = "home" | "models" | "access" | "laboratory" | "status" | "documentation" | "developers" | "patch-notes" | "truth";
 
 type StitchHeaderProps = {
   active?: ActiveSection;
   chatMode?: boolean;
+  transparent?: boolean;
 };
 
-export async function StitchHeader({ active, chatMode = false }: StitchHeaderProps) {
+export async function StitchHeader({ active, chatMode = false, transparent = false }: StitchHeaderProps) {
   const locale = await getLocale();
   const text = getDictionary(locale);
   let signedIn = false;
@@ -78,19 +81,37 @@ export async function StitchHeader({ active, chatMode = false }: StitchHeaderPro
     <>
       {!chatMode && (
         <>
-          <header className="sticky top-0 z-50 hidden border-b border-outline-variant/30 bg-surface/95 backdrop-blur-sm lg:block" data-desktop-site-header data-device-version="desktop">
+          <AnimatedNavFramer locale={locale} />
+          <header
+            className={cn(
+              "sticky top-0 z-50 hidden min-h-[72px] transition-colors duration-200 lg:block",
+              transparent
+                ? "border-b-0 bg-transparent"
+                : "border-b border-outline-variant/30 bg-surface/95 backdrop-blur-sm",
+            )}
+            data-desktop-site-header
+            data-device-version="desktop"
+          >
             <div className="stitch-container flex min-h-[72px] items-center justify-between gap-8">
               <div className="flex min-w-0 items-center gap-3">
-                <Link href="/" className="shrink-0" aria-label="TK LAB"><SiteLogo /></Link>
-                <span className="truncate text-[13px] font-medium text-on-surface-variant">
-                  {active ? sectionLabels[active] : signedIn ? text.nav.profile : text.nav.login}
-                </span>
+                <Link href="/" className="shrink-0" aria-label="TK LAB">
+                  <SiteLogo showWordmark={!transparent} />
+                </Link>
+                {!transparent && (
+                  <span className="truncate text-[13px] font-medium text-on-surface-variant">
+                    {active ? sectionLabels[active] : signedIn ? text.nav.profile : text.nav.login}
+                  </span>
+                )}
               </div>
 
               <div className="flex items-center gap-4">
                 <ThemeToggle lightLabel={text.nav.themeLight} darkLabel={text.nav.themeDark} />
                 <LanguageToggle locale={locale} label={text.nav.language} />
-                <Link href={signedIn ? "/profile" : "/login"} className="quiet-button min-h-10 px-5 text-[12px]">{signedIn ? text.nav.profile : text.nav.login}</Link>
+                {!transparent && (
+                  <Link href={signedIn ? "/profile" : "/login"} className="quiet-button min-h-10 px-5 text-[12px]">
+                    {signedIn ? text.nav.profile : text.nav.login}
+                  </Link>
+                )}
               </div>
             </div>
           </header>

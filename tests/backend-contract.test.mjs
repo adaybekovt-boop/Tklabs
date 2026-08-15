@@ -265,11 +265,12 @@ test("mobile layouts avoid fixed-width content traps", async () => {
   const login = await text("app/login/page.tsx");
 
   assert.match(home, /lg:hidden/);
-  assert.match(home, /aspect-\[4\/5\]/);
+  assert.match(home, /aspect-\[16\/11\]/);
   assert.doesNotMatch(home, /min-w-\[700px\]/);
   assert.match(input, /w-full max-w-\[780px\]/);
   assert.match(input, /ChatOverlay/);
-  assert.match(login, /grid-cols-1.*sm:grid-cols-2/);
+  assert.match(login, /max-w-md/);
+  assert.doesNotMatch(login, /w-\[\d+px\]/);
 });
 
 test("theme switching is persistent and available from the global shell", async () => {
