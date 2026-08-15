@@ -67,8 +67,8 @@ export default async function HomePage() {
               </h1>
               <p className="max-w-xl text-[17px] leading-[1.8] text-on-surface-variant">
                 {ru
-                  ? "Работа с моделями, документами и локальными проектами. Вся навигация закреплена в нижней панели."
-                  : "Work with models, documents, and local projects. All navigation stays accessible in the bottom dock."}
+                  ? "Работа с моделями, документами и локальными проектами."
+                  : "Work with models, documents, and local projects."}
               </p>
               <div className="pt-2">
                 <Link
@@ -185,7 +185,7 @@ export default async function HomePage() {
                     <div className="relative aspect-[16/9] w-full overflow-hidden rounded-2xl border border-outline-variant/40">
                       <Image
                         src={LAB_PRECISION_IMAGE}
-                        alt="Hardware precision"
+                        alt={ru ? "Аппаратная точность" : "Hardware precision"}
                         fill
                         loading="lazy"
                         sizes="(min-width: 1024px) 25vw, 50vw"
@@ -242,7 +242,7 @@ export default async function HomePage() {
             <div className="relative mt-7 aspect-[16/11] overflow-hidden rounded-[2rem] border border-outline-variant/60 bg-surface-container-lowest shadow-sm">
               <Image
                 src={HERO_IMAGE}
-                alt={ru ? "Интерфейс AI-чата Erma" : "Erma AI chat interface"}
+                alt={ru ? "Лаборатория TK LAB" : "TK LAB workspace"}
                 fill
                 priority
                 sizes="100vw"

@@ -2,10 +2,10 @@
 
 const CACHE_PREFIX = "tklabs";
 const CACHE_VERSION = "v0.25.0";
-const CACHE_REVISION = "google-direct-grounding-r1";
+const CACHE_REVISION = "login-nav-redesign-r1";
 const STATIC_CACHE = `${CACHE_PREFIX}-${CACHE_VERSION}-${CACHE_REVISION}-static`;
 const OFFLINE_URL = "/offline";
-const PRECACHE_URLS = [OFFLINE_URL, "/manifest.webmanifest", "/images/brand/tk-app-icon.svg", "/images/brand/tk-logo.png", "/images/home/hero-lab.svg", "/images/home/lab-cluster.svg"];
+const PRECACHE_URLS = [OFFLINE_URL, "/manifest.webmanifest", "/images/brand/tk-app-icon.svg", "/images/brand/tk-logo.png", "/images/home/hero-editorial.jpg", "/images/home/lab-monolith.jpg"];
 
 function canStore(response) {
   if (!response || !response.ok) return false;

@@ -88,7 +88,7 @@ export default async function LoginPage() {
               >
                 <button
                   type="submit"
-                  className="inline-flex min-h-12 w-full items-center justify-center gap-3 rounded-xl bg-white px-5 text-sm font-semibold text-black transition-transform hover:scale-[1.01] hover:bg-white/90 active:scale-[0.99]"
+                  className="inline-flex min-h-12 w-full items-center justify-center gap-3 rounded-xl bg-[#fff] px-5 text-sm font-semibold text-black transition-transform hover:scale-[1.01] hover:bg-[#fff]/90 active:scale-[0.99]"
                 >
                   <GoogleIcon className="size-4.5 shrink-0" />
                   <span>{text.login.google}</span>

@@ -188,6 +188,15 @@ table, thead, tbody, tfoot, tr, td, th { border-radius: 0; }
 
 html[data-theme="dark"] .bg-white { background-color: var(--color-surface-container-lowest); }
 
+/* The transparent header (login page) always sits over a dark photo, independent of the
+   site's light/dark theme setting, so its controls need fixed light-on-dark colors instead
+   of the theme-driven tokens the normal header uses. */
+[data-header-transparent] .theme-toggle { border-color: rgba(255, 255, 255, 0.3); color: rgba(255, 255, 255, 0.85); }
+[data-header-transparent] .theme-toggle:hover { background: rgba(255, 255, 255, 0.15); color: #fff; }
+[data-header-transparent] [data-locale-toggle] .text-primary { color: #fff; }
+[data-header-transparent] [data-locale-toggle] .text-secondary { color: rgba(255, 255, 255, 0.6); }
+[data-header-transparent] [data-locale-toggle] .text-outline-variant { color: rgba(255, 255, 255, 0.3); }
+
 .editorial-enter { animation: quiet-rise 650ms cubic-bezier(.2,.8,.2,1) both; }
 .editorial-enter-delay { animation: quiet-rise 650ms 120ms cubic-bezier(.2,.8,.2,1) both; }
 .editorial-card { transition: background-color 160ms ease, color 160ms ease, transform 220ms ease; }

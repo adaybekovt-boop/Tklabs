@@ -113,31 +113,43 @@ export function AnimatedNavFramer({
 
   const { scrollY } = useScroll();
   const lastScrollY = React.useRef(0);
-  const scrollPositionOnCollapse = React.useRef(0);
+  const peakScrollY = React.useRef(0);
 
   useMotionValueEvent(scrollY, "change", (latest) => {
     const previous = lastScrollY.current;
 
-    if (isExpanded && latest > previous && latest > 150) {
-      setExpanded(false);
-      scrollPositionOnCollapse.current = latest;
-    } else if (!isExpanded && latest < previous && scrollPositionOnCollapse.current - latest > EXPAND_SCROLL_THRESHOLD) {
+    if (latest > previous) {
+      peakScrollY.current = Math.max(peakScrollY.current, latest);
+      if (isExpanded && latest > 150) setExpanded(false);
+    } else if (latest < previous && !isExpanded && peakScrollY.current - latest > EXPAND_SCROLL_THRESHOLD) {
       setExpanded(true);
+      peakScrollY.current = latest;
     }
 
     lastScrollY.current = latest;
   });
 
+  const expandFromCollapsed = () => {
+    if (!isExpanded) setExpanded(true);
+  };
+
   const handleNavClick = (e: React.MouseEvent) => {
     if (!isExpanded) {
       e.preventDefault();
       e.stopPropagation();
-      setExpanded(true);
+      expandFromCollapsed();
+    }
+  };
+
+  const handleNavKeyDown = (e: React.KeyboardEvent) => {
+    if (!isExpanded && (e.key === "Enter" || e.key === " ")) {
+      e.preventDefault();
+      expandFromCollapsed();
     }
   };
 
   return (
-    <div className={cn("fixed top-5 left-1/2 -translate-x-1/2 z-[100] hidden lg:block", className)}>
+    <div className={cn("fixed top-5 left-1/2 -translate-x-1/2 z-[100] hidden xl:block", className)}>
       <motion.nav
         initial={{ y: -80, opacity: 0 }}
         animate={isExpanded ? "expanded" : "collapsed"}
@@ -145,6 +157,10 @@ export function AnimatedNavFramer({
         whileHover={!isExpanded ? { scale: 1.08 } : {}}
         whileTap={!isExpanded ? { scale: 0.96 } : {}}
         onClick={handleNavClick}
+        onKeyDown={handleNavKeyDown}
+        role={!isExpanded ? "button" : undefined}
+        tabIndex={!isExpanded ? 0 : undefined}
+        aria-label={!isExpanded ? (locale === "en" ? "Open navigation menu" : "Открыть меню навигации") : undefined}
         className={cn(
           "relative flex h-12 items-center overflow-hidden whitespace-nowrap rounded-full border border-outline-variant/70 bg-surface/90 shadow-[0_12px_36px_rgba(0,0,0,0.12)] backdrop-blur-xl transition-colors duration-200 hover:border-primary/40",
           !isExpanded && "cursor-pointer justify-center",

@@ -91,6 +91,7 @@ export async function StitchHeader({ active, chatMode = false, transparent = fal
             )}
             data-desktop-site-header
             data-device-version="desktop"
+            data-header-transparent={transparent || undefined}
           >
             <div className="stitch-container flex min-h-[72px] items-center justify-between gap-8">
               <div className="flex min-w-0 items-center gap-3">

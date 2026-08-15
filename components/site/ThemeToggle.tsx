@@ -1,7 +1,7 @@
 "use client";
 
 import { Moon, Sun } from "lucide-react";
-import { useCallback, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useSyncExternalStore } from "react";
 
 type Theme = "light" | "dark";
 
@@ -31,6 +31,12 @@ function subscribeTheme(callback: () => void) {
 
 export function ThemeToggle({ lightLabel, darkLabel }: { lightLabel: string; darkLabel: string }) {
   const theme = useSyncExternalStore(subscribeTheme, getThemeSnapshot, getServerSnapshot);
+
+  // Keeps document.dataset.theme in sync with the store, including when the value changes
+  // via a real cross-tab storage event (not just the same-tab dispatch below).
+  useEffect(() => {
+    applyTheme(theme);
+  }, [theme]);
 
   const toggleTheme = useCallback(() => {
     const nextTheme: Theme = theme === "dark" ? "light" : "dark";
