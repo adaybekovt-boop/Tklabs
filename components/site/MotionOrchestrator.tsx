@@ -42,6 +42,8 @@ export function MotionOrchestrator() {
 
     function register(node: Element) {
       if (!(node instanceof HTMLElement) || tracked.has(node)) return;
+      // Cinematic home owns its entire subtree. Never add generic reveal transforms.
+      if (node.closest("[data-home-motion]")) return;
       tracked.add(node);
       node.dataset.motionReveal = "";
       node.style.setProperty("--motion-order", String(order % 8));
