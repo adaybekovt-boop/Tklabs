@@ -20,7 +20,7 @@ export default async function HomePage() {
     ? [
         {
           title: "Erma · Auto",
-          text: "Автоматический выбор между Lite, Core и Pro в зависимости от сложности задачи.",
+          text: "Автоматический выбор между Celer, Nova и Optima в зависимости от сложности задачи.",
           icon: Sparkles,
         },
         {
@@ -37,7 +37,7 @@ export default async function HomePage() {
     : [
         {
           title: "Erma · Auto",
-          text: "Automatic routing between Lite, Core, and Pro based on task complexity.",
+          text: "Automatic routing between Celer, Nova, and Optima based on task complexity.",
           icon: Sparkles,
         },
         {

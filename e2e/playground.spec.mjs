@@ -148,7 +148,7 @@ test("mocked SSE reaches the transcript without external providers", async ({ pa
           },
         },
         { event: "delta", data: { text: "Browser assurance " } },
-        { event: "delta", data: { text: "response" } },
+        { event: "delta", data: { text: "response: Clodex /api/clodex" } },
         {
           event: "meta",
           data: {
@@ -170,7 +170,7 @@ test("mocked SSE reaches the transcript without external providers", async ({ pa
   const demoRequest = page.waitForRequest((request) => (
     request.method() === "POST" && new URL(request.url()).pathname === "/api/demo"
   ));
-  await submitVisibleComposer(page, "Run the browser assurance contract");
+  await submitVisibleComposer(page, "Run the browser assurance contract: Clodex /api/clodex");
   await demoRequest;
   // Scope to the transcript log: once the request lands, the history sidebar
   // also lists this conversation by its first message, which duplicates the
@@ -178,6 +178,10 @@ test("mocked SSE reaches the transcript without external providers", async ({ pa
   const transcript = page.getByRole("log");
   await expect(transcript.getByText("Browser assurance response", { exact: false })).toBeVisible();
   await expect(transcript.getByText("Run the browser assurance contract", { exact: false })).toBeVisible();
+  // User/provider text is data, including legacy provider names and source code.
+  // Product branding must never mutate the React-owned transcript DOM.
+  await expect(transcript.getByText("Browser assurance response: Clodex /api/clodex", { exact: false })).toBeVisible();
+  await expect(transcript.getByText("Run the browser assurance contract: Clodex /api/clodex", { exact: false })).toBeVisible();
 });
 
 test("desktop history restores saved chats through client navigation", async ({ page }, testInfo) => {

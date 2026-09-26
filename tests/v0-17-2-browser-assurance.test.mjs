@@ -14,7 +14,12 @@ test("v0.17.2 runs isolated Chromium and WebKit browser assurance", async () => 
   assert.match(config, /iPhone 15/);
   assert.match(config, /TKLABS_LOCAL_PREVIEW/);
   assert.match(workflow, /Browser Assurance/);
-  assert.match(workflow, /@playwright\/test@1\.61\.1/);
+  const packageJson = JSON.parse(await read("package.json"));
+  const lock = JSON.parse(await read("package-lock.json"));
+  assert.ok(packageJson.devDependencies["@playwright/test"]);
+  assert.ok(lock.packages["node_modules/@playwright/test"].integrity);
+  assert.match(workflow, /run: npm ci/);
+  assert.doesNotMatch(workflow, /npm install.*@playwright/);
   assert.match(workflow, /playwright install --with-deps chromium webkit/);
   assert.match(workflow, /browser-assurance-/);
   assert.match(scenarios, /page\.route/);
@@ -27,7 +32,8 @@ test("v0.17.2 runs isolated Chromium and WebKit browser assurance", async () => 
 test("browser tests retain failure evidence without changing the lockfile", async () => {
   const workflow = await read(".github/workflows/e2e.yml");
   const config = await read("playwright.config.mjs");
-  assert.match(workflow, /--package-lock=false/);
+  assert.match(workflow, /run: npm ci/);
+  assert.doesNotMatch(workflow, /npm install --no-save/);
   assert.match(config, /trace: "retain-on-failure"/);
   assert.match(workflow, /playwright-report/);
   assert.match(workflow, /test-results/);

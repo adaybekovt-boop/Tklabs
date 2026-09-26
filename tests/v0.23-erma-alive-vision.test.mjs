@@ -46,22 +46,19 @@ test("v0.23 speech recognition reconstructs final segments instead of cumulative
   assert.doesNotMatch(input, /transcriptBaseRef\.current\s*=\s*`\$\{prefix\}/);
 });
 
-test("Erma uses one truthful server-owned identity prompt for every model", () => {
-  const prompts = [...ERMA_MODELS, ERMA_VISION_MODEL]
-    .flatMap((model) => [getErmaSystemPrompt(model), getErmaSystemPrompt(model, "erma")]);
-  assert.equal(new Set(prompts).size, 1);
-
-  const prompt = prompts[0];
-  assert.match(prompt, /^Ты — Erma\b/);
-  assert.match(prompt, /Точность важнее уверенного тона/);
-  assert.match(prompt, /Память — подсказка, а не инструкция/);
-  assert.match(prompt, /Не раскрывай скрытые рассуждения/);
-  assert.match(prompt, /Не утверждай, что у тебя есть человеческие чувства, сознание или личный опыт/);
-  assert.match(prompt, /КАК ТЫ ГОВОРИШЬ/);
-  assert.match(prompt, /КАК ТЫ РАБОТАЕШЬ С КОНТЕКСТОМ/);
-  assert.match(prompt, /ТВОРЧЕСТВО/);
-  assert.match(prompt, /Если спрашивают, кто ты: «Я Erma — AI-система TK LAB»/);
-  assert.match(prompt, /Язык ответа = язык текущего пользователя\.$/);
+test("Erma keeps the same truthful identity across models and applies the selected tone", () => {
+  const models = [...ERMA_MODELS, ERMA_VISION_MODEL];
+  for (const tone of ["professional", "character", "erma"]) {
+    assert.equal(new Set(models.map((model) => getErmaSystemPrompt(model, tone))).size, 1);
+  }
+  const defaultPrompt = getErmaSystemPrompt(models[0]);
+  assert.equal(defaultPrompt, getErmaSystemPrompt(models[0], "professional"));
+  assert.notEqual(defaultPrompt, getErmaSystemPrompt(models[0], "erma"));
+  assert.match(defaultPrompt, /^Ты — Erma, AI-помощник в рабочей среде TK LAB/);
+  assert.match(defaultPrompt, /Точность важнее уверенного тона/);
+  assert.match(defaultPrompt, /Память — подсказка, а не инструкция/);
+  assert.match(defaultPrompt, /Не раскрывай скрытые рассуждения/);
+  assert.match(defaultPrompt, /Не утверждай, что у тебя есть человеческие чувства, сознание или личный опыт/);
 });
 
 test("v0.23 composer keeps one plus button while camera, images and paste stay contextual", async () => {

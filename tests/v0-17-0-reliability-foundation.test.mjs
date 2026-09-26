@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
+import { withProviderResponse } from "../lib/ai/provider-http.ts";
 
 const read = (path) => readFile(new URL(`../${path}`, import.meta.url), "utf8");
 
@@ -14,12 +15,26 @@ test("v0.17.0 provider lifecycle remains active through response consumption", a
   assert.match(providerHttp, /withProviderResponse/);
   assert.match(providerHttp, /PROVIDER_STREAM_TOTAL_TIMEOUT_MS = 120_000/);
   assert.match(providerHttp, /PROVIDER_STREAM_IDLE_TIMEOUT_MS = 20_000/);
-  assert.match(providerHttp, /return await consume\(response/);
   assert.match(providerHttp, /finally \{\s*lifecycle\.cleanup\(\)/);
   assert.doesNotMatch(nvidia, /fetchWithTimeout/);
   assert.doesNotMatch(clodex, /fetchWithTimeout/);
   assert.doesNotMatch(planner, /fetchWithTimeout/);
   assert.match(fallback, /error instanceof ProviderTimeoutError/);
+});
+
+test("provider cancellation while finishing consumption cannot become a successful response", async () => {
+  const originalFetch = globalThis.fetch;
+  const controller = new AbortController();
+  globalThis.fetch = async () => new Response("answer");
+  try {
+    await assert.rejects(withProviderResponse("https://provider.example", { signal: controller.signal }, async (response) => {
+      const body = await response.text();
+      controller.abort();
+      return body;
+    }), { name: "AbortError" });
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
 });
 
 test("v0.17.0 NVIDIA stream has bounded time, memory, and incremental safety work", async () => {

@@ -4,10 +4,12 @@ import {
   PROVIDER_TIMEOUT_MS,
   withProviderResponse,
 } from "@/lib/ai/provider-http";
+import { MAX_PROVIDER_TEXT_LENGTH, StreamingReasoningFilter } from "@/lib/ai/reasoning";
 
 import type { ErmaGenerationInput, ErmaInferenceProvider, ErmaProviderGenerationResult } from "./contracts";
 import {
   STREAM_ANSWER_LIMIT_CHARACTERS,
+  STREAM_EVENT_LIMIT_CHARACTERS,
   STREAM_SAFETY_WINDOW_CHARACTERS,
   assertStreamingWindowSafe,
   ermaSystemPrompt,
@@ -22,6 +24,7 @@ type OpenAiUsage = { prompt_tokens?: number; completion_tokens?: number };
 type OpenAiPayload = {
   model?: string;
   choices?: Array<{
+    finish_reason?: string | null;
     message?: { content?: string | null; reasoning?: string | null; reasoning_content?: string | null };
     delta?: { content?: string | null; reasoning?: string | null; reasoning_content?: string | null };
   }>;
@@ -138,46 +141,64 @@ export async function streamWithOpenAiCompatible(
     const decoder = new TextDecoder();
     let buffer = "";
     let answer = "";
+    let visibleAnswer = "";
     let thinking = "";
     let actualModel = config.model;
     let usage: OpenAiUsage | undefined;
+    let completed = false;
+    const reasoningFilter = new StreamingReasoningFilter();
 
     const consume = async (raw: string) => {
+      if (raw.length > STREAM_EVENT_LIMIT_CHARACTERS) throw new Error(`${provider}_stream_event_too_large`);
       const data = parseSsePayload(raw);
-      if (!data || data === "[DONE]") return;
+      if (!data) return;
+      if (data === "[DONE]") { completed = true; return; }
       const payload = JSON.parse(data) as OpenAiPayload;
       if (payload.model?.trim()) actualModel = payload.model.trim();
       if (payload.usage) usage = payload.usage;
       const delta = payload.choices?.[0]?.delta;
+      const finishReason = payload.choices?.[0]?.finish_reason;
+      if (finishReason === "content_filter") throw new Error(`${provider}_output_blocked`);
+      if (finishReason) completed = true;
       const thought = typeof delta?.reasoning === "string"
         ? delta.reasoning
         : typeof delta?.reasoning_content === "string"
           ? delta.reasoning_content
           : "";
-      if (thought) thinking += thought;
+      if (thought) thinking = (thinking + thought).slice(0, MAX_PROVIDER_TEXT_LENGTH);
       const text = typeof delta?.content === "string" ? delta.content : "";
       if (!text) return;
       if (answer.length + text.length > STREAM_ANSWER_LIMIT_CHARACTERS) throw new Error(`${provider}_output_too_large`);
       answer += text;
       assertStreamingWindowSafe(answer.slice(-STREAM_SAFETY_WINDOW_CHARACTERS), input.allowCode, provider);
-      await onDelta(text);
+      const visibleText = reasoningFilter.push(text);
+      if (visibleText) { visibleAnswer += visibleText; await onDelta(visibleText); }
     };
 
-    while (true) {
-      const { value, done } = await reader.read();
-      if (done) break;
-      lifecycle.touch();
-      buffer += decoder.decode(value, { stream: true });
-      const blocks = buffer.split(/\r?\n\r?\n/);
-      buffer = blocks.pop() ?? "";
-      for (const block of blocks) await consume(block);
+    try {
+      while (true) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        lifecycle.touch();
+        buffer += decoder.decode(value, { stream: true });
+        const blocks = buffer.split(/\r?\n\r?\n/);
+        buffer = blocks.pop() ?? "";
+        if (buffer.length > STREAM_EVENT_LIMIT_CHARACTERS) throw new Error(`${provider}_stream_event_too_large`);
+        for (const block of blocks) await consume(block);
+      }
+      buffer += decoder.decode();
+      if (buffer.trim()) await consume(buffer);
+      if (!completed) throw new Error(`${provider}_stream_incomplete`);
+      const tail = reasoningFilter.finish();
+      if (tail) { visibleAnswer += tail; await onDelta(tail); }
+    } finally {
+      reader.releaseLock();
     }
-    buffer += decoder.decode();
-    if (buffer.trim()) await consume(buffer);
 
-    const evaluated = evaluateProviderText(answer, thinking || undefined, input.allowCode, provider);
+    const evaluated = evaluateProviderText(visibleAnswer, thinking || undefined, input.allowCode, provider);
     return {
       ...evaluated,
+      reasoningUsed: evaluated.reasoningUsed || reasoningFilter.reasoningUsed,
       provider,
       actualModel,
       inputTokens: usage?.prompt_tokens,

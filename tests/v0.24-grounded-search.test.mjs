@@ -12,7 +12,7 @@ import {
 } from "../lib/ai/intelligence/grounding.ts";
 import { routeErmaTask } from "../lib/ai/intelligence/router.ts";
 import { verifyErmaEvidence } from "../lib/ai/intelligence/verifier.ts";
-import { selectErmaModel } from "../lib/models/server.ts";
+import { ERMA_MODELS, getErmaSystemPrompt, selectErmaModel } from "../lib/models/server.ts";
 
 async function source(path) { return readFile(path, "utf8"); }
 
@@ -98,13 +98,16 @@ test("v0.24 web gateway is Google-first with bounded fallbacks and readable extr
   assert.match(productFacts, /fullConversationSentToSearchProvider: false/);
 });
 
-test("v0.24 preserves Erma identity while hardening factual accuracy", async () => {
-  const server = await source("lib/models/server.ts");
-  assert.match(server, /Ты — Erma/);
-  assert.match(server, /Точность важнее уверенного тона/);
-  assert.match(server, /Не выдумывай факты/);
-  assert.match(server, /Не превращай ответы в рекламу TK LAB/);
-  assert.match(server, /КАК ТЫ ГОВОРИШЬ/);
-  assert.match(server, /ТВОРЧЕСТВО/);
-  assert.match(server, /route\.intent === "fact_lookup"/);
+test("v0.24 preserves Erma identity while hardening factual accuracy", () => {
+  for (const tone of ["professional", "character", "erma"]) {
+    const prompt = getErmaSystemPrompt(ERMA_MODELS[0], tone);
+    assert.match(prompt, /Ты — Erma/);
+    assert.match(prompt, /Точность важнее уверенного тона/);
+    assert.match(prompt, /Разделяй проверенные факты, предположения и рекомендации/);
+    assert.match(prompt, /Не выдумывай источники, результаты тестов, действия инструментов или собственные возможности/);
+    assert.match(prompt, /Не превращай ответы в рекламу TK LAB/);
+    assert.match(prompt, /Пиши ясно, связно и законченно/);
+    assert.match(prompt, /Творческий стиль допустим, когда помогает задаче/);
+  }
+  assert.equal(selectErmaModel("erma-auto", "Кто входит в Старший жуз?").tier, "medium");
 });

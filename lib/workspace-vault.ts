@@ -1,7 +1,10 @@
+import { PERSONAL_MEMORY_STORAGE_KEY } from "@/lib/ai/personal-memory";
+
 export const WORKSPACE_VAULT_SCHEMA_VERSION = 1 as const;
 export const WORKSPACE_VAULT_MAX_BYTES = 5_000_000;
 
 const EXACT_STORAGE_KEYS = new Set([
+  PERSONAL_MEMORY_STORAGE_KEY,
   "tklab.archive.v1",
   "tklab.settings.v1",
   "tklab-locale",
@@ -187,6 +190,7 @@ export function applyWorkspaceVault(
     window.dispatchEvent(new Event("tklab:archive-updated"));
     window.dispatchEvent(new Event("tklabs:flow-runs-updated"));
     window.dispatchEvent(new Event("tklabs:workspace-vault-imported"));
+    window.dispatchEvent(new Event("tklabs:personal-memory"));
   }
 }
 

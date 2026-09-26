@@ -18,6 +18,7 @@ export async function respondWithDemoJson(input: PreparedDemoRequest) {
 
   let toolAugmentation: Awaited<ReturnType<typeof prepareReadOnlyToolAugmentation>>;
   try {
+    request.signal.throwIfAborted();
     toolAugmentation = await prepareReadOnlyToolAugmentation({
       request,
       requestId,
@@ -27,11 +28,14 @@ export async function respondWithDemoJson(input: PreparedDemoRequest) {
       model,
       localArchive: body.localArchive,
       documents,
+      hasImages: images.length > 0,
       allowCodeSandbox: privilegedAccount,
       signal: request.signal,
     });
+    request.signal.throwIfAborted();
   } catch (error) {
     await quota.release();
+    if (request.signal.aborted) return jsonResponse({ error: "Request cancelled.", requestId }, requestId, 499, rateLimitCookie);
     throw error;
   }
   const generationSummary = withPersonalMemory(toolAugmentation.summary, personalMemoryContext);
@@ -126,7 +130,14 @@ export async function respondWithDemoJson(input: PreparedDemoRequest) {
       return jsonResponse({ answer: visionResult.answer, meta }, requestId, 200, rateLimitCookie);
     }
 
-    const fallback = withContextMetadata(withToolCalls(await resolveFallback({ prompt: fallbackPrompt, language, allowCode: privilegedAccount, requestId, requestedModel, primaryReason: reason, signal: request.signal }), toolAugmentation.traces), context);
+    let fallback;
+    try {
+      fallback = withContextMetadata(withToolCalls(await resolveFallback({ prompt: fallbackPrompt, language, allowCode: privilegedAccount, requestId, requestedModel, primaryReason: reason, signal: request.signal }), toolAugmentation.traces), context);
+    } catch (fallbackError) {
+      await quota.release();
+      if (request.signal.aborted) return jsonResponse({ error: "Request cancelled.", requestId }, requestId, 499, rateLimitCookie);
+      throw fallbackError;
+    }
     if (fallback.provider === "clodex") await quota.commit(); else await quota.release();
     const meta = createAiResponseMeta(fallback, requestedModel, requestId, startedAt);
     logAiRequest(meta);

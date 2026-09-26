@@ -1,35 +1,26 @@
-﻿import { Bot, Context, GrammyError, HttpError, webhookCallback } from "grammy";
+import { Bot, Context } from "grammy";
+import type { Update } from "grammy/types";
 import { DurableObject } from "cloudflare:workers";
-import { isAuthorized, parseAllowedUserIds, userLabel } from "./access";
+import { conversationObjectName, isAuthorized, parseAllowedUserIds, userLabel } from "./access";
 import { chatWithClodex, initialHistory, type ChatMessage } from "./ai";
+import { CONVERSATION_BUSY_ERROR, ConversationQueue } from "./conversation-queue";
+import { DurableWebhookInbox, InboxRetryAfterError, INBOX_RECEIPT_LIMIT, INBOX_RECEIPT_TTL_MS, type TelegramReply } from "./durable-inbox";
+import { handleTelegramWebhook } from "./webhook";
 import { checkSite, formatCheckResult, type CheckResult, type MonitorDecision, type MonitorStateStub, type SiteStatus } from "./monitor";
 import { getGitHubCommits } from "./tools/github";
-import { fetchWithTimeout } from "./tools/http";
 import { getServerStatus, getSiteHealth } from "./tools/server";
 
 const WEBHOOK_PATH = "/telegram/webhook";
 const MONITOR_STATE_KEY = "monitor-state";
 const CHAT_HISTORY_KEY = "chat-history";
 const FAILURE_THRESHOLD = 3;
+const CONVERSATION_BUSY_REPLY = "Предыдущие сообщения ещё обрабатываются. Подожди ответа и попробуй снова.";
 
 type StoredMonitorState = {
   lastStatus: SiteStatus;
   consecutiveFailures: number;
   lastCheck?: CheckResult;
 };
-
-async function constantTimeEqual(left: string, right: string): Promise<boolean> {
-  const encoder = new TextEncoder();
-  const [leftHash, rightHash] = await Promise.all([
-    crypto.subtle.digest("SHA-256", encoder.encode(left)),
-    crypto.subtle.digest("SHA-256", encoder.encode(right)),
-  ]);
-  const leftBytes = new Uint8Array(leftHash);
-  const rightBytes = new Uint8Array(rightHash);
-  let difference = 0;
-  for (let index = 0; index < leftBytes.length; index += 1) difference |= leftBytes[index] ^ rightBytes[index];
-  return difference === 0;
-}
 
 function splitTelegramText(text: string, maxLength = 3900): string[] {
   if (text.length <= maxLength) return [text];
@@ -45,27 +36,23 @@ function splitTelegramText(text: string, maxLength = 3900): string[] {
   return chunks;
 }
 
-async function replyText(ctx: Context, text: string): Promise<void> {
-  for (const chunk of splitTelegramText(text)) await ctx.reply(chunk, { link_preview_options: { is_disabled: true } });
-}
-
 function monitorStub(env: Env): MonitorStateStub {
   const id = env.BOT_STATE.idFromName("monitor");
   return env.BOT_STATE.get(id);
 }
 
 interface UserStateStub {
-  chat(userMessage: string): Promise<string>;
+  chat(userMessage: string, updateId: number): Promise<string>;
   resetConversation(): Promise<void>;
 }
 
-function userStateStub(env: Env, userId: number): UserStateStub {
-  const id = env.BOT_STATE.idFromName("user:" + userId);
+function userStateStub(env: Env, userId: number, chatId: number): UserStateStub {
+  const id = env.BOT_STATE.idFromName(conversationObjectName(userId, chatId));
   return env.BOT_STATE.get(id);
 }
 
-function createBot(env: Env): Bot {
-  const bot = new Bot(env.TELEGRAM_BOT_TOKEN);
+function createBot(env: Env, replyText: (ctx: Context, text: string) => Promise<void>): Bot {
+  const bot = new Bot(env.TELEGRAM_BOT_TOKEN, { client: { timeoutSeconds: 15 } });
 
   bot.use(async (ctx, next) => {
     if (!isAuthorized(ctx.from?.id, env)) return;
@@ -97,42 +84,67 @@ function createBot(env: Env): Bot {
   });
 
   bot.command("reset", async (ctx) => {
-    await userStateStub(env, ctx.from!.id).resetConversation();
-    await replyText(ctx, "🧹 История диалога сброшена.");
-  });
-
-  bot.on("message:text", async (ctx) => {
-    await ctx.replyWithChatAction("typing");
     try {
-      const reply = await userStateStub(env, ctx.from!.id).chat(ctx.message.text);
-      await replyText(ctx, reply);
+      await userStateStub(env, ctx.from!.id, ctx.chat.id).resetConversation();
+      await replyText(ctx, "🧹 История диалога сброшена.");
     } catch (error) {
-      console.error(JSON.stringify({ event: "ai_error", error: error instanceof Error ? error.message : String(error) }));
-      await replyText(ctx, "❌ AI временно недоступен. Проверь CLODEX_API_KEY и попробуй ещё раз.");
+      if (error instanceof Error && error.message === CONVERSATION_BUSY_ERROR) {
+        await replyText(ctx, CONVERSATION_BUSY_REPLY);
+        return;
+      }
+      throw error;
     }
   });
 
-  bot.catch((error) => {
-    const telegramError = error.error;
-    if (telegramError instanceof GrammyError) {
-      console.error(JSON.stringify({ event: "telegram_error", code: telegramError.error_code, message: telegramError.message }));
-    } else if (telegramError instanceof HttpError) {
-      console.error(JSON.stringify({ event: "telegram_http_error", message: telegramError.message }));
-    } else {
-      console.error(JSON.stringify({ event: "telegram_unknown_error", message: String(telegramError) }));
+  bot.on("message:text", async (ctx) => {
+    try {
+      const reply = await userStateStub(env, ctx.from!.id, ctx.chat.id).chat(ctx.message.text, ctx.update.update_id);
+      await replyText(ctx, reply);
+    } catch (error) {
+      if (error instanceof Error && error.message === CONVERSATION_BUSY_ERROR) {
+        await replyText(ctx, CONVERSATION_BUSY_REPLY);
+        return;
+      }
+      console.error(JSON.stringify({ event: "ai_error", error: error instanceof Error ? error.message : String(error) }));
+      throw error;
     }
   });
 
   return bot;
 }
 
-async function sendTelegramMessage(env: Env, chatId: string, text: string): Promise<void> {
-  const response = await fetchWithTimeout(`https://api.telegram.org/bot${env.TELEGRAM_BOT_TOKEN}/sendMessage`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ chat_id: chatId, text, disable_web_page_preview: true }),
+async function generateTelegramReplies(env: Env, update: Update): Promise<TelegramReply[]> {
+  const outbox: TelegramReply[] = [];
+  const bot = createBot(env, async (ctx, text) => {
+    if (!ctx.chat) throw new Error("telegram_chat_missing");
+    for (const chunk of splitTelegramText(text)) outbox.push({ chatId: ctx.chat.id, text: chunk });
   });
-  if (!response.ok) throw new Error(`Telegram sendMessage HTTP ${response.status}`);
+  // bot.init() retries getMe indefinitely; the durable inbox owns retries.
+  bot.botInfo = await bot.api.getMe();
+  await bot.handleUpdate(update);
+  return outbox;
+}
+
+async function sendTelegramMessage(env: Env, chatId: string, text: string): Promise<void> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 15_000);
+  try {
+    const response = await fetch(`https://api.telegram.org/bot${env.TELEGRAM_BOT_TOKEN}/sendMessage`, {
+      method: "POST",
+      signal: controller.signal,
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ chat_id: chatId, text, disable_web_page_preview: true }),
+    });
+    const payload = await response.json() as { ok?: boolean; error_code?: number; parameters?: { retry_after?: number }; result?: { message_id?: number } };
+    if (!response.ok || payload?.ok !== true || !Number.isSafeInteger(payload.result?.message_id)) {
+      if ((response.status === 429 || payload?.error_code === 429) && typeof payload?.parameters?.retry_after === "number") {
+        throw new InboxRetryAfterError("Telegram sendMessage rate limited", payload.parameters.retry_after * 1_000);
+      }
+      throw new Error(`Telegram sendMessage HTTP ${response.status}`);
+    }
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 async function notifyStatusChange(env: Env, decision: MonitorDecision): Promise<void> {
@@ -148,6 +160,16 @@ async function notifyStatusChange(env: Env, decision: MonitorDecision): Promise<
 }
 
 export class BotState extends DurableObject<Env> {
+  private conversationQueue = new ConversationQueue();
+  private readonly inbox = new DurableWebhookInbox(this.ctx.storage, {
+    generate: (update) => generateTelegramReplies(this.env, update),
+    deliver: (reply) => sendTelegramMessage(this.env, String(reply.chatId), reply.text),
+    failed: (updateId) => console.error(JSON.stringify({ event: "telegram_inbox_failed", updateId })),
+    failureReply: (update) => "message" in update && update.message
+      ? [{ chatId: update.message.chat.id, text: "Сервис временно недоступен. Попробуй отправить сообщение позже." }]
+      : [],
+  });
+
   constructor(ctx: DurableObjectState, env: Env) {
     super(ctx, env);
   }
@@ -179,15 +201,49 @@ export class BotState extends DurableObject<Env> {
     return { notify, previousStatus, currentStatus, result };
   }
 
-  async chat(userMessage: string): Promise<string> {
-    const stored = await this.ctx.storage.get<ChatMessage[]>(CHAT_HISTORY_KEY);
-    const result = await chatWithClodex(this.env, stored ?? initialHistory(), userMessage);
-    await this.ctx.storage.put(CHAT_HISTORY_KEY, result.history);
-    return result.reply;
+  async enqueueUpdate(update: Update) {
+    return this.inbox.enqueue(update);
+  }
+
+  async alarm(): Promise<void> {
+    await this.inbox.alarm();
+    await this.pruneChatReplies();
+  }
+
+  private async pruneChatReplies(): Promise<void> {
+    const replies = await this.ctx.storage.list<{ expiresAt: number }>({ prefix: "chat-response:" });
+    const live = [...replies].filter(([, reply]) => reply.expiresAt > Date.now()).slice(-INBOX_RECEIPT_LIMIT);
+    const retained = new Set(live.map(([key]) => key));
+    const expired = [...replies.keys()].filter((key) => !retained.has(key));
+    for (let offset = 0; offset < expired.length; offset += 128) await this.ctx.storage.delete(expired.slice(offset, offset + 128));
+    const next = live.map(([, reply]) => reply).sort((a, b) => a.expiresAt - b.expiresAt)[0];
+    if (next) await this.ctx.storage.setAlarm(next.expiresAt);
+  }
+
+  async chat(userMessage: string, updateId: number): Promise<string> {
+    return this.conversationQueue.run(async () => {
+      const key = `chat-response:${String(updateId).padStart(16, "0")}`;
+      const cached = await this.ctx.storage.get<{ reply: string; expiresAt: number }>(key);
+      if (cached && cached.expiresAt > Date.now()) return cached.reply;
+      const stored = await this.ctx.storage.get<ChatMessage[]>(CHAT_HISTORY_KEY);
+      const result = await chatWithClodex(this.env, stored ?? initialHistory(), userMessage);
+      await this.ctx.storage.transaction(async (txn) => {
+        await txn.put(CHAT_HISTORY_KEY, result.history);
+        await txn.put(key, { reply: result.reply, expiresAt: Date.now() + INBOX_RECEIPT_TTL_MS });
+        if (await txn.getAlarm() === null) await txn.setAlarm(Date.now() + INBOX_RECEIPT_TTL_MS);
+      });
+      await this.pruneChatReplies();
+      return result.reply;
+    });
   }
 
   async resetConversation(): Promise<void> {
-    await this.ctx.storage.put(CHAT_HISTORY_KEY, initialHistory());
+    await this.conversationQueue.run(() => this.ctx.storage.transaction(async (txn) => {
+      await txn.put(CHAT_HISTORY_KEY, initialHistory());
+      const keys = [...(await txn.list({ prefix: "chat-response:" })).keys()];
+      for (let offset = 0; offset < keys.length; offset += 128) await txn.delete(keys.slice(offset, offset + 128));
+      await txn.deleteAlarm();
+    }));
   }
 }
 
@@ -198,12 +254,10 @@ export default {
       return Response.json({ ok: true, service: "tklabs-bot", timestamp: new Date().toISOString() });
     }
     if (url.pathname === WEBHOOK_PATH) {
-      if (request.method !== "POST") return new Response("Method Not Allowed", { status: 405 });
-      if (!env.TELEGRAM_BOT_TOKEN?.trim()) return Response.json({ ok: false, error: "bot_not_configured" }, { status: 500 });
-      if (!env.TELEGRAM_WEBHOOK_SECRET?.trim()) return new Response("Webhook secret is not configured", { status: 503 });
-      const provided = request.headers.get("X-Telegram-Bot-Api-Secret-Token") ?? "";
-      if (!(await constantTimeEqual(provided, env.TELEGRAM_WEBHOOK_SECRET))) return new Response("Forbidden", { status: 403 });
-      return webhookCallback(createBot(env), "cloudflare-mod")(request);
+      return handleTelegramWebhook(request, env, (update) => {
+        const inboxId = env.BOT_STATE.idFromName("telegram-webhook-inbox:v1");
+        return env.BOT_STATE.get(inboxId).enqueueUpdate(update);
+      });
     }
     if (request.method === "GET") return new Response("TKlab Telegram Monitor is running.");
     return new Response("Not Found", { status: 404 });
@@ -216,7 +270,3 @@ export default {
     if (decision.notify && env.TELEGRAM_BOT_TOKEN?.trim()) await notifyStatusChange(env, decision);
   },
 } satisfies ExportedHandler<Env>;
-
-
-
-

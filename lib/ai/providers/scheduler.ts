@@ -62,6 +62,7 @@ export async function acquireProviderLease(
   candidates: ErmaProviderLane[],
   input: ErmaGenerationInput,
 ): Promise<ProviderLeaseResult> {
+  input.signal?.throwIfAborted();
   const namespace = schedulerNamespace();
   if (!namespace) return candidates[0] ? unmanagedLease(candidates[0]) : { granted: false, mode: "survival", retryAfterMs: 1_000 };
 
@@ -72,8 +73,13 @@ export async function acquireProviderLease(
   const deadline = Date.now() + admissionWaitMs();
 
   while (true) {
+    input.signal?.throwIfAborted();
     const result = await stub.acquire({ candidates, fairnessKey, requestId, estimatedTokens });
-    if (result.granted || Date.now() >= deadline || input.signal?.aborted) return result;
+    if (input.signal?.aborted) {
+      if (result.granted) await releaseProviderLease(result.lease, { ok: false, cancelled: true, latencyMs: 0 });
+      input.signal.throwIfAborted();
+    }
+    if (result.granted || Date.now() >= deadline) return result;
     const remaining = deadline - Date.now();
     await delay(Math.min(Math.max(50, result.retryAfterMs), remaining), input.signal);
   }

@@ -32,29 +32,13 @@ import {
   type FlowRun,
   type FlowStepStatus,
 } from "@/lib/flow/local-store";
+import { concludeFlowStream, flowStreamToolName, parseFlowStreamFrame } from "@/lib/flow/stream";
 import type { Locale } from "@/lib/i18n";
 import { AUTO_ERMA_MODEL_KEY } from "@/lib/models/public";
 import { requestWorkspaceSection } from "@/lib/workspace-events";
 import { cn } from "@/lib/utils";
 
-type StreamEvent = "start" | "tool" | "delta" | "meta" | "error" | "done";
-type StreamPayload = Record<string, unknown>;
-
 const MAX_PROMPT_LENGTH = 2_000;
-
-function parseFrame(frame: string): { event: StreamEvent; payload: StreamPayload } | null {
-  const lines = frame.split("\n");
-  const eventLine = lines.find((line) => line.startsWith("event:"));
-  const dataLine = lines.find((line) => line.startsWith("data:"));
-  const event = eventLine?.slice(6).trim();
-  if (!event || !["start", "tool", "delta", "meta", "error", "done"].includes(event)) return null;
-  try {
-    const payload = JSON.parse(dataLine?.slice(5).trim() || "{}") as StreamPayload;
-    return { event: event as StreamEvent, payload };
-  } catch {
-    return null;
-  }
-}
 
 function detectArtifactKind(content: string): ArtifactKind {
   const trimmed = content.trim();
@@ -105,6 +89,7 @@ export function ErmaFlowStudio({ locale }: { locale: Locale }) {
     limit: ru ? "Лимит запроса" : "Prompt limit",
     genericError: ru ? "Не удалось завершить Flow." : "Flow could not be completed.",
     stopped: ru ? "Flow остановлен. Частичный результат сохранён." : "Flow stopped. The partial result was preserved.",
+    incomplete: ru ? "Поток завершился без подтверждения результата. Частичный ответ сохранён." : "The stream ended without confirming completion. Any partial answer was preserved.",
     noResult: ru ? "Результат ещё не сформирован." : "No result has been generated yet.",
     templates: ru
       ? [
@@ -227,89 +212,88 @@ export function ErmaFlowStudio({ locale }: { locale: Locale }) {
       let buffer = "";
       let result = "";
       let streamError = "";
+      let receivedDone = false;
+      let stopped = false;
+      let partial = false;
       let firstDelta = true;
       let lastPaintAt = 0;
 
-      while (true) {
-        const { value, done } = await reader.read();
-        buffer += decoder.decode(value, { stream: !done });
-        let boundary = buffer.indexOf("\n\n");
-        while (boundary >= 0) {
-          const frame = buffer.slice(0, boundary).trim();
-          buffer = buffer.slice(boundary + 2);
-          boundary = buffer.indexOf("\n\n");
-          const parsed = parseFrame(frame);
-          if (!parsed) continue;
+      try {
+        while (true) {
+          const { value, done } = await reader.read();
+          buffer += decoder.decode(value, { stream: !done });
+          const frames = buffer.split(/\r?\n\r?\n/);
+          buffer = frames.pop() ?? "";
+          for (const frame of frames) {
+            const parsed = parseFlowStreamFrame(frame);
+            if (!parsed) continue;
 
-          if (parsed.event === "start") {
-            const context = parsed.payload.context;
-            const detail = context && typeof context === "object" && "estimatedTokens" in context
-              ? `${ru ? "Контекст" : "Context"}: ${String((context as { estimatedTokens?: unknown }).estimatedTokens ?? "—")} tokens`
-              : ru ? "Контекст подготовлен" : "Context prepared";
-            step(1, "running", detail, false);
-          }
-
-          if (parsed.event === "tool") {
-            const tool = typeof parsed.payload.tool === "string" ? parsed.payload.tool : ru ? "Инструмент подключён" : "Tool connected";
-            step(1, "running", tool, false);
-          }
-
-          if (parsed.event === "delta") {
-            const delta = typeof parsed.payload.text === "string" ? parsed.payload.text : "";
-            if (!delta) continue;
-            result += delta;
-            if (firstDelta) {
-              firstDelta = false;
-              step(1, "completed", ru ? "Контекст и инструменты готовы" : "Context and tools ready", false);
-              step(2, "running", ru ? "Erma формирует результат" : "Erma is creating the result", false);
+            if (parsed.event === "start") {
+              const context = parsed.payload.context;
+              const detail = context && typeof context === "object" && "estimatedTokens" in context
+                ? `${ru ? "Контекст" : "Context"}: ${String((context as { estimatedTokens?: unknown }).estimatedTokens ?? "—")} tokens`
+                : ru ? "Контекст подготовлен" : "Context prepared";
+              step(1, "running", detail, false);
             }
-            const now = Date.now();
-            run = updateFlowRun(run, { result });
-            if (now - lastPaintAt > 70) {
-              displayRun(run, false);
-              lastPaintAt = now;
+
+            if (parsed.event === "tool") {
+              const tool = flowStreamToolName(parsed.payload, ru ? "Инструмент подключён" : "Tool connected");
+              step(1, "running", tool, false);
             }
-          }
 
-          if (parsed.event === "meta") {
-            step(2, "completed", ru ? "Результат сформирован" : "Result generated", false);
-            step(3, "running", ru ? "Проверка и сохранение" : "Checking and saving", false);
-            commit({
-              result,
-              ...(typeof parsed.payload.requestId === "string" ? { requestId: parsed.payload.requestId } : {}),
-              ...(typeof parsed.payload.actualModel === "string" ? { actualModel: parsed.payload.actualModel } : {}),
-            }, false);
-          }
+            if (parsed.event === "delta") {
+              const delta = typeof parsed.payload.text === "string" ? parsed.payload.text : "";
+              if (!delta) continue;
+              result += delta;
+              if (firstDelta) {
+                firstDelta = false;
+                step(1, "completed", ru ? "Контекст и инструменты готовы" : "Context and tools ready", false);
+                step(2, "running", ru ? "Erma формирует результат" : "Erma is creating the result", false);
+              }
+              const now = Date.now();
+              run = updateFlowRun(run, { result });
+              if (now - lastPaintAt > 70) {
+                displayRun(run, false);
+                lastPaintAt = now;
+              }
+            }
 
-          if (parsed.event === "error") {
-            streamError = typeof parsed.payload.error === "string" ? parsed.payload.error : copy.genericError;
-          }
-
-          if (parsed.event === "done") {
-            const stopped = parsed.payload.stopped === true;
-            if (stopped) {
-              const runningIndex = run.steps.findIndex((entry) => entry.status === "running");
-              if (runningIndex >= 0) step(runningIndex, "stopped", copy.stopped, false);
-              commit({ status: "stopped", result, error: copy.stopped });
-            } else if (result.trim()) {
+            if (parsed.event === "meta") {
               step(2, "completed", ru ? "Результат сформирован" : "Result generated", false);
-              step(3, "completed", ru ? "Flow завершён" : "Flow completed", false);
-              commit({ status: "completed", result, ...(streamError ? { error: streamError } : {}) });
-            } else {
-              step(2, "failed", streamError || copy.genericError, false);
-              commit({ status: "failed", error: streamError || copy.genericError });
+              step(3, "running", ru ? "Проверка и сохранение" : "Checking and saving", false);
+              commit({
+                result,
+                ...(typeof parsed.payload.requestId === "string" ? { requestId: parsed.payload.requestId } : {}),
+                ...(typeof parsed.payload.actualModel === "string" ? { actualModel: parsed.payload.actualModel } : {}),
+              }, false);
+            }
+
+            if (parsed.event === "error") {
+              streamError = typeof parsed.payload.error === "string" ? parsed.payload.error : copy.genericError;
+            }
+
+            if (parsed.event === "done") {
+              receivedDone = true;
+              stopped = parsed.payload.stopped === true;
+              partial = parsed.payload.partial === true;
             }
           }
+          if (done || receivedDone) break;
         }
-        if (done) break;
+      } finally {
+        if (receivedDone) await reader.cancel().catch(() => undefined);
+        reader.releaseLock();
       }
 
-      if (run.status === "running" || run.status === "planning") {
-        if (!result.trim()) throw new Error(streamError || copy.genericError);
+      const outcome = concludeFlowStream({ result, receivedDone, stopped, partial, error: streamError }, copy);
+      if (outcome.status === "completed") {
         step(2, "completed", ru ? "Результат сформирован" : "Result generated", false);
         step(3, "completed", ru ? "Flow завершён" : "Flow completed", false);
-        commit({ status: "completed", result, ...(streamError ? { error: streamError } : {}) });
+      } else {
+        const runningIndex = run.steps.findIndex((entry) => entry.status === "running");
+        step(runningIndex >= 0 ? runningIndex : 2, outcome.status, outcome.error, false);
       }
+      commit(outcome);
     } catch (error) {
       if (controller.signal.aborted) {
         const runningIndex = run.steps.findIndex((entry) => entry.status === "running");

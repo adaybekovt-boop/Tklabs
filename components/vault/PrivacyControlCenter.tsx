@@ -4,7 +4,7 @@ import { signOut } from "next-auth/react";
 import { useState } from "react";
 
 import type { Locale } from "@/lib/i18n";
-import { clearLocalWorkspace, collectWorkspaceSnapshot, deleteRemoteWorkspaceSnapshot } from "@/lib/workspace-sync-client";
+import { clearLocalWorkspace, collectLocalWorkspaceSnapshot, deleteRemoteWorkspaceSnapshot } from "@/lib/workspace-sync-client";
 
 function downloadJson(name: string, text: string) {
   const blob = new Blob([text], { type: "application/json" });
@@ -20,7 +20,7 @@ export function PrivacyControlCenter({ locale }: { locale: Locale }) {
   const [busy, setBusy] = useState(false);
 
   async function exportLocal() {
-    try { downloadJson("tk-lab-local-workspace.json", collectWorkspaceSnapshot()); setStatus(ru ? "Локальный экспорт создан." : "Local export created."); }
+    try { downloadJson("tk-lab-local-workspace.json", collectLocalWorkspaceSnapshot()); setStatus(ru ? "Локальный экспорт создан." : "Local export created."); }
     catch { setStatus(ru ? "Не удалось экспортировать локальные данные." : "Local export failed."); }
   }
 

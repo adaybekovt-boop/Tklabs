@@ -1,80 +1,58 @@
-# TK LAB Architecture Boundaries
+# TK LAB architecture
 
-This document defines the boundaries that keep TK LAB maintainable while the Erma Nova workspace grows.
+Updated against the September 2026 implementation. Historical release documents describe their release, not the current runtime.
 
-## Core rule
+## Product boundary
 
-Route handlers orchestrate. They do not own provider implementations, quota storage, identity derivation, response formatting, or UI state.
+TK LAB is a local-first AI workspace backed by external model providers. Its primary workflow is: sign in, submit a task with relevant context, receive an attributable result, save it, and reopen or export it. Erma is the product identity, not evidence of a separately trained foundation model.
 
-## Demo AI request flow
+Keep the modular monolith on Cloudflare Workers. D1 stores account/consent records and optional encrypted snapshots. Durable Objects own serialized usage/admission state. Microservices would add deployment and consistency work without addressing the defects found in this audit.
 
-`app/api/demo/route.ts` owns only the request sequence:
+## Current ownership
 
-1. establish a request ID and origin boundary;
-2. parse and normalize the request contract;
-3. resolve optional authentication and privilege;
-4. validate prompt, attachments, context, and safety;
-5. acquire a quota reservation;
-6. select JSON or SSE delivery;
-7. coordinate generation, fallback, metadata, and settlement.
+| Boundary | Owner | Contract |
+| --- | --- | --- |
+| Request host/geography | `worker/index.ts`, `lib/auth-origin.ts` | Canonical login origin; forwarded headers derive from the actual Worker URL. |
+| Session | `auth.ts`, `lib/auth-config.ts`, `lib/auth-http.ts` | Request-time configuration, verified Google email, original Request preserved for Auth.js HTTP handlers. |
+| Request preparation | `app/api/demo/request-context.ts` | Origin, body, optional account, context limits, tools and quota admission. |
+| Transport | `app/api/demo/route.ts` | Select JSON responder or SSE session; no provider/storage implementation. |
+| Generation/delivery | `json-responder.ts`, `stream-session.ts`, `fallback.ts` | Cancellation, safe output, disclosed fallback and quota settlement. |
+| Provider adapters | `lib/ai/providers/`, `lib/ai/provider-http.ts` | Typed results; bounded network lifetime/stream buffers; explicit completion. |
+| Shared admission | `worker/inference-scheduler.ts` | Lease ownership, bounded final-generation concurrency and health state. |
+| Quota/entitlement | `worker/clodex-access.ts`, quota/access helpers | Server authority; idempotent reservation/commit/release. |
+| Account records | `lib/terms-consent.ts`, `lib/privacy-server.ts`, `db/` | D1 transactions preserve related records and audit evidence. |
+| Snapshot sync | `lib/workspace-sync-server.ts`, client/limits helpers | Manual snapshot, revision compare-and-swap, encryption at rest. |
+| Local workspace | Archive, vault and personal-memory modules | Preserve user content; export and erase all owned local data. |
+| Flow | `ErmaFlowStudio.tsx`, `lib/flow/stream.ts` | Foreground task/result workflow; explicit terminal status and preserved partial output. |
+| Telegram | `telegram-bot/` | Separate deployment, per-user/per-chat history and durable webhook processing. |
 
-The details live in focused modules:
+## Invariants
 
-- `contracts.ts` — untrusted request shape and normalization;
-- `http.ts` — safe JSON responses and validation error mapping;
-- `quota.ts` — reserve/commit/release lifecycle and rate-limit responses;
-- `fallback.ts` — provider fallback policy, context metadata, and failure classification;
-- `route.ts` — orchestration only.
+1. Client cancellation is not a provider outage. Release its lease without increasing failure counters or starting fallback generation.
+2. Network ownership includes parsing and consumption, not just response headers. Consumer errors terminate upstream work. Idle/total duration and buffers are bounded.
+3. EOF alone is not success. Require a provider completion marker and valid visible output. Client transports likewise reject an error, partial result or missing terminal event as completion.
+4. Hidden reasoning never becomes a browser delta or archived answer. Streaming filters handle tags split across chunks.
+5. Quota has one settlement: commit according to delivered-output policy or release when no answer was delivered. Repeated settlement is harmless. Provider admission and user quota are separate resources.
+6. Related account/consent writes and success audit evidence commit together. Cryptographic migration uses compare-and-swap and cannot overwrite a newer snapshot.
+7. Snapshot limits use UTF-8 bytes and include encryption/base64 overhead. A local archive may exceed the cloud snapshot cap; oversized uploads return 413.
+8. Branding applies to authored product copy. Never rewrite a user's message, source code, citation URL or assistant answer in the DOM.
+9. Local-first describes storage, not local inference. Manual D1 snapshots are not end-to-end encryption or continuous backup.
+10. Readiness checks configuration/bindings, not a successful Google callback, database query or paid-provider generation. Smoke checks canonical provider URLs and CSRF separately.
 
-## Quota invariant
+## Remaining consolidation
 
-Every public AI request has at most one settlement transition:
+The responder and chat transport extractions already exist; the previous document incorrectly listed them as future work. JSON and SSE still duplicate parts of generation/fallback business logic. A shared event-producing executor should own that work; transports should only collect JSON or deliver events.
 
-- `pending -> committed` after a provider produced billable output;
-- `pending -> released` when no provider output was delivered;
-- repeated commit or release calls are no-ops.
+The scheduler currently covers final generation, while planner/council/direct grounding can call providers independently. A single request-wide deadline and cost/admission accounting remain necessary before claiming a complete global budget.
 
-Privileged sessions use the same interface with a no-op quota implementation. This prevents privileged and public paths from diverging inside generation code.
+Other targets: Flow's separate consumer and duplicated public/server capability definitions. Preserve behavior with domain tests before consolidating them. A `verified` source status is a scoped heuristic about evidence availability, not a proof that all generated claims are true.
 
-## Provider invariant
+Consent is enforced by the workspace UI, not the AI API. The demo API also intentionally has an anonymous path. Decide that API product contract explicitly before calling consent a universal server boundary. Local archive/memory storage is scoped to the browser, not the Google account. Audit retention cleanup is opportunistic on writes, not scheduled.
 
-Provider adapters return normalized generation results. A route must not expose provider reasoning, private prompts, keys, or unlabelled fallback output. Provider-specific fallback configuration stays outside the route.
+`AGENTS.md` describes an earlier desktop-only overnight task; `IMPLEMENTATION_PLAN.md` mixes older releases. Their historical paths, branches and temporary scope are not a current architecture specification. This audit does not change those files to bypass permissions.
 
-`withProviderResponse` owns provider network lifetime. Its timeout and external-abort scope remains active until JSON parsing or stream reading is complete. Provider adapters must not return a raw `Response` whose body outlives that scope.
+## Evidence
 
-## Streaming invariant
+Behavioral tests cover auth exchange, provider cancellation/completion, generated SQLite account queries, revision races, export/erase and transport status. Selected source-contract tests remain, but a regex match cannot prove a login or transaction rollback.
 
-SSE delivery owns its controller, removes abort listeners when closed, and settles quota based on whether any answer content reached the client. Partial output is preserved and explicitly labelled in metadata.
-
-Upstream provider streams are separately bounded by total duration, idle duration, and accumulated answer size. Incremental safety checks operate on a bounded rolling window; the complete answer receives one final evaluation.
-
-## Architecture budgets
-
-Automated tests enforce the following initial budget:
-
-- `app/api/demo/route.ts` must remain at or below 450 lines;
-- the route must not directly import rate-limit persistence or Clodex fallback configuration;
-- request normalization, HTTP mapping, quota settlement, and fallback policy must remain independently testable;
-- provider adapters must consume response bodies inside `withProviderResponse`;
-- streamed answer accumulation and per-delta safety work must remain bounded.
-
-Budgets should tighten as orchestration is extracted further. Raising a budget requires an architectural reason in the pull request, not only a new feature.
-
-## Completed in v0.17.0
-
-- provider timeout and abort ownership now covers complete body consumption;
-- NVIDIA JSON, NVIDIA tool planning, Clodex JSON, and NVIDIA SSE use the same lifecycle boundary;
-- NVIDIA SSE has total, idle, and output-size limits;
-- per-delta safety scanning no longer rebuilds and evaluates the complete accumulated answer;
-- regression tests cover lifecycle timeout, cancellation, idle stall, cleanup, and bounded accumulation.
-
-## Next extraction targets
-
-The next safe refactoring sequence is:
-
-1. extract JSON generation into a dedicated responder;
-2. extract demo SSE lifecycle into a stream session object;
-3. split `hooks/use-chat-request.ts` into transport, reducer, and persistence hooks;
-4. split large translation and release catalogs by domain;
-5. add browser-level Playwright coverage for login, chat, stop/retry, archive restore, locale, mobile viewport, and PWA update;
-6. reorganize version-named regression files into durable domain suites after equivalent coverage is established.
+See [the system audit](SYSTEM_AUDIT_2026-09-26.md) for exact validation results and operational gaps. No production capacity, paid-provider latency or retention figures are inferred from these tests.

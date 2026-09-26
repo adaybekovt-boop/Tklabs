@@ -150,7 +150,7 @@ export async function generateWithErmaMesh(input: ErmaGenerationInput): Promise<
       return failures.length ? { ...result, fallbackReason: `provider_failover:${failures.join(",")}` } : result;
     } catch (error) {
       const status = statusFromError(error);
-      await releaseProviderLease(lease, { ok: false, status, latencyMs: Date.now() - startedAt });
+      await releaseProviderLease(lease, { ok: false, cancelled: isAbort(error, input), status, latencyMs: Date.now() - startedAt });
       if (isAbort(error, input)) throw error;
       if (isSafetyFailure(error)) {
         throw new ErmaMeshError({ message: "erma_output_blocked", provider, lane: lease.lane, status, causeReason: errorReason(error) });
@@ -192,7 +192,7 @@ export async function streamWithErmaMesh(
       return failures.length ? { ...result, fallbackReason: `provider_failover:${failures.join(",")}` } : result;
     } catch (error) {
       const status = statusFromError(error);
-      await releaseProviderLease(lease, { ok: false, status, latencyMs: Date.now() - startedAt });
+      await releaseProviderLease(lease, { ok: false, cancelled: isAbort(error, input), status, latencyMs: Date.now() - startedAt });
       if (isAbort(error, input)) throw error;
       if (isSafetyFailure(error)) {
         throw new ErmaMeshError({ message: "erma_output_blocked", provider, lane: lease.lane, status, streamed, causeReason: errorReason(error) });

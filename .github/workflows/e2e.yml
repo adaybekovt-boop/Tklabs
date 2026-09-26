@@ -31,8 +31,6 @@ jobs:
           cache: npm
       - name: Install application dependencies
         run: npm ci
-      - name: Install pinned Playwright runner
-        run: npm install --no-save --package-lock=false @playwright/test@1.61.1
       - name: Install browser runtimes
         run: npx playwright install --with-deps chromium webkit
       - name: Run browser assurance

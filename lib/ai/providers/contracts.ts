@@ -48,6 +48,7 @@ export type ProviderLeaseResult =
 export type ProviderLeaseOutcome = {
   leaseId: string;
   ok: boolean;
+  cancelled?: boolean;
   status?: number;
   latencyMs: number;
 };

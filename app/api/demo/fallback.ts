@@ -48,6 +48,7 @@ export async function resolveFallback(input: {
   primaryReason: string;
   signal?: AbortSignal;
 }): Promise<AiGenerationResult> {
+  input.signal?.throwIfAborted();
   const apiKey = process.env.CLODEX_API_KEY?.trim();
   const fallbackModel = getClodexModelConfig({ requireRuntimeConfig: true })?.[0];
   if (isClodexEnabled() && apiKey && fallbackModel) {
@@ -71,6 +72,7 @@ export async function resolveFallback(input: {
         outputTokens,
       };
     } catch (error) {
+      if (input.signal?.aborted) throw error;
       logAiProviderFailure({
         requestId: input.requestId,
         requestedModel: input.requestedModel,
@@ -81,6 +83,7 @@ export async function resolveFallback(input: {
     }
   }
 
+  input.signal?.throwIfAborted();
   return localFallbackResult(
     input.language,
     isClodexEnabled() ? `${input.primaryReason};clodex_unavailable` : `${input.primaryReason};clodex_disabled`,

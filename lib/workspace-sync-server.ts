@@ -1,10 +1,10 @@
-import { and, eq } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 
 import { getDb } from "@/db";
 import { users, workspaceSnapshots } from "@/db/schema";
 import { termsUserId } from "@/lib/terms-user-id";
+import { MAX_WORKSPACE_SYNC_PAYLOAD_BYTES, workspaceSyncPayloadBytes } from "@/lib/workspace-sync-limits";
 
-const MAX_SYNC_PAYLOAD_CHARACTERS = 1_800_000;
 export const WORKSPACE_SYNC_KEY_VERSION = 2;
 const textEncoder = new TextEncoder();
 
@@ -37,20 +37,20 @@ async function legacyKey(email: string) {
 async function legacyChecksum(payload: string) { return bytesToHex(await sha256(payload)); }
 async function legacyDecrypt(email: string, ciphertext: string, iv: string) { const decrypted = await crypto.subtle.decrypt({ name: "AES-GCM", iv: base64ToBytes(iv) }, await legacyKey(email), base64ToBytes(ciphertext)); return new TextDecoder().decode(decrypted); }
 
-async function hkdfBaseKey(version: number) { return crypto.subtle.importKey("raw", textEncoder.encode(secretForVersion(version)), "HKDF", false, ["deriveKey"]); }
+async function hkdfBaseKey(secret: string) { return crypto.subtle.importKey("raw", textEncoder.encode(secret), "HKDF", false, ["deriveKey"]); }
 async function hkdfSalt() { return sha256("TK LAB Workspace Sync HKDF salt v2"); }
-async function deriveEncryptionKey(email: string, version: number) {
-  return crypto.subtle.deriveKey({ name: "HKDF", hash: "SHA-256", salt: await hkdfSalt(), info: textEncoder.encode(`encryption\n${normalizeEmail(email)}\nv${version}`) }, await hkdfBaseKey(version), { name: "AES-GCM", length: 256 }, false, ["encrypt", "decrypt"]);
+async function deriveEncryptionKey(email: string, version: number, secret = secretForVersion(version)) {
+  return crypto.subtle.deriveKey({ name: "HKDF", hash: "SHA-256", salt: await hkdfSalt(), info: textEncoder.encode(`encryption\n${normalizeEmail(email)}\nv${version}`) }, await hkdfBaseKey(secret), { name: "AES-GCM", length: 256 }, false, ["encrypt", "decrypt"]);
 }
-async function deriveIntegrityKey(email: string, version: number) {
-  return crypto.subtle.deriveKey({ name: "HKDF", hash: "SHA-256", salt: await hkdfSalt(), info: textEncoder.encode(`integrity\n${normalizeEmail(email)}\nv${version}`) }, await hkdfBaseKey(version), { name: "HMAC", hash: "SHA-256", length: 256 }, false, ["sign"]);
+async function deriveIntegrityKey(email: string, version: number, secret = secretForVersion(version)) {
+  return crypto.subtle.deriveKey({ name: "HKDF", hash: "SHA-256", salt: await hkdfSalt(), info: textEncoder.encode(`integrity\n${normalizeEmail(email)}\nv${version}`) }, await hkdfBaseKey(secret), { name: "HMAC", hash: "SHA-256", length: 256 }, false, ["sign"]);
 }
 function aad(email: string, revision: number, version: number) { return textEncoder.encode(`TKLAB|workspace-sync|user=${normalizeEmail(email)}|revision=${revision}|key=v${version}`); }
-async function integrityId(email: string, version: number, revision: number, iv: Uint8Array, ciphertext: Uint8Array) {
+async function integrityId(email: string, version: number, revision: number, iv: Uint8Array, ciphertext: Uint8Array, secret = secretForVersion(version)) {
   const authData = aad(email, revision, version);
   const combined = new Uint8Array(authData.length + iv.length + ciphertext.length);
   combined.set(authData); combined.set(iv, authData.length); combined.set(ciphertext, authData.length + iv.length);
-  return bytesToHex(new Uint8Array(await crypto.subtle.sign("HMAC", await deriveIntegrityKey(email, version), combined)));
+  return bytesToHex(new Uint8Array(await crypto.subtle.sign("HMAC", await deriveIntegrityKey(email, version, secret), combined)));
 }
 async function sealV2(email: string, payload: string, revision: number) {
   const version = WORKSPACE_SYNC_KEY_VERSION;
@@ -60,19 +60,29 @@ async function sealV2(email: string, payload: string, revision: number) {
 }
 async function openV2(email: string, row: { ciphertext: string; iv: string; checksum: string; keyVersion: number; revision: number }) {
   const iv = base64ToBytes(row.iv); const ciphertext = base64ToBytes(row.ciphertext);
-  const expected = await integrityId(email, row.keyVersion, row.revision, iv, ciphertext);
-  if (expected !== row.checksum) throw new WorkspaceSyncUnavailableError();
-  const decrypted = await crypto.subtle.decrypt({ name: "AES-GCM", iv, additionalData: aad(email, row.revision, row.keyVersion) }, await deriveEncryptionKey(email, row.keyVersion), ciphertext);
-  return new TextDecoder().decode(decrypted);
+  const currentSecret = secretForVersion(row.keyVersion);
+  const previousSecret = process.env.WORKSPACE_SYNC_SECRET?.trim();
+  // Before the dedicated V2 secret was configured, V2 writes used the original
+  // secret. Keep those authenticated snapshots readable during that transition.
+  const secrets = [currentSecret];
+  if (previousSecret && previousSecret.length >= 32 && previousSecret !== currentSecret) secrets.push(previousSecret);
+  for (const secret of secrets) {
+    const expected = await integrityId(email, row.keyVersion, row.revision, iv, ciphertext, secret);
+    if (expected !== row.checksum) continue;
+    const decrypted = await crypto.subtle.decrypt({ name: "AES-GCM", iv, additionalData: aad(email, row.revision, row.keyVersion) }, await deriveEncryptionKey(email, row.keyVersion, secret), ciphertext);
+    return { payload: new TextDecoder().decode(decrypted), needsReseal: secret !== currentSecret };
+  }
+  throw new WorkspaceSyncUnavailableError();
 }
 
-async function ensureUserId(emailValue: string) {
+async function resolveUserId(emailValue: string, create: boolean) {
   const email = normalizeEmail(emailValue); if (!email) throw new WorkspaceSyncUnavailableError();
-  const db = getDb(); const id = await termsUserId(email);
-  // onConflictDoNothing: this must stay read-safe. A plain GET calls this too, and an
-  // unconditional onConflictDoUpdate would turn every read into a D1 write.
+  const db = getDb();
   const existing = await db.select({ id: users.id }).from(users).where(eq(users.email, email)).get();
+  if (existing) return { db, id: existing.id, email };
+  if (!create) return null;
   if (!existing) {
+    const id = await termsUserId(email);
     const now = new Date();
     await db.insert(users).values({ id, email, createdAt: now, updatedAt: now }).onConflictDoNothing().run();
   }
@@ -83,29 +93,53 @@ async function ensureUserId(emailValue: string) {
 
 export async function getWorkspaceSnapshot(email: string) {
   try {
-    const { db, id, email: normalized } = await ensureUserId(email);
+    const account = await resolveUserId(email, false);
+    if (!account) return null;
+    const { db, id, email: normalized } = account;
     const row = await db.select().from(workspaceSnapshots).where(eq(workspaceSnapshots.userId, id)).get();
     if (!row) return null;
     let payload: string;
     let checksum = row.checksum;
     let keyVersion = row.keyVersion ?? 1;
+    let needsReseal = keyVersion === 1;
     if (keyVersion === 1) {
       payload = await legacyDecrypt(normalized, row.ciphertext, row.iv);
       if ((await legacyChecksum(payload)) !== row.checksum) throw new WorkspaceSyncUnavailableError();
-      const resealed = await sealV2(normalized, payload, row.revision);
-      await db.update(workspaceSnapshots).set({ ...resealed, updatedAt: row.updatedAt }).where(eq(workspaceSnapshots.userId, id)).run();
-      checksum = resealed.checksum; keyVersion = resealed.keyVersion;
     } else if (keyVersion === WORKSPACE_SYNC_KEY_VERSION) {
-      payload = await openV2(normalized, { ...row, keyVersion });
+      const opened = await openV2(normalized, { ...row, keyVersion });
+      payload = opened.payload; needsReseal = opened.needsReseal;
     } else { throw new WorkspaceSyncUnavailableError(); }
+    if (needsReseal) {
+      const resealed = await sealV2(normalized, payload, row.revision);
+      // Encryption is asynchronous: a PUT may replace this snapshot while it
+      // is being decrypted. Never overwrite a newer revision with ciphertext
+      // authenticated for the old revision (that makes the backup unreadable).
+      const result = await db.update(workspaceSnapshots)
+        .set(resealed)
+        .where(and(
+          eq(workspaceSnapshots.userId, id),
+          eq(workspaceSnapshots.revision, row.revision),
+          eq(workspaceSnapshots.keyVersion, keyVersion),
+          eq(workspaceSnapshots.checksum, row.checksum),
+        ))
+        .run();
+      if (Number(result.meta.changes) === 1) {
+        checksum = resealed.checksum; keyVersion = resealed.keyVersion;
+      }
+      // On a lost race, returning the snapshot we read is safe: its revision
+      // remains stale, so the caller's next conditional PUT cannot overwrite
+      // the concurrent update. Do not claim the migration was persisted.
+    }
     return { payload, revision: row.revision, checksum, keyVersion, updatedAt: row.updatedAt.toISOString() };
   } catch (error) { if (error instanceof WorkspaceSyncUnavailableError) throw error; console.error("Unable to read workspace sync snapshot", error); throw new WorkspaceSyncUnavailableError(); }
 }
 
 export async function putWorkspaceSnapshot(email: string, payload: string, expectedRevision: number | null) {
-  if (!payload || Array.from(payload).length > MAX_SYNC_PAYLOAD_CHARACTERS) throw new Error("workspace_sync_payload_too_large");
+  if (!payload || workspaceSyncPayloadBytes(payload) > MAX_WORKSPACE_SYNC_PAYLOAD_BYTES) throw new Error("workspace_sync_payload_too_large");
   try {
-    const { db, id, email: normalized } = await ensureUserId(email);
+    const account = await resolveUserId(email, true);
+    if (!account) throw new WorkspaceSyncUnavailableError();
+    const { db, id, email: normalized } = account;
     const existing = await db.select().from(workspaceSnapshots).where(eq(workspaceSnapshots.userId, id)).get();
     if (existing && Date.now() - existing.updatedAt.getTime() < MIN_MS_BETWEEN_WRITES) throw new WorkspaceSyncRateLimitedError();
     const currentRevision = existing?.revision ?? 0;
@@ -123,7 +157,17 @@ export async function putWorkspaceSnapshot(email: string, payload: string, expec
       }
     } else {
       const result = await db.insert(workspaceSnapshots)
-        .values({ userId: id, ...sealed, revision, updatedAt })
+        // The account can be deleted or its legacy ID migrated while sealing.
+        // An insert scoped to the live user prevents an orphaned cloud backup.
+        .select(db.select({
+          userId: users.id,
+          ciphertext: sql<string>`${sealed.ciphertext}`.as("ciphertext"),
+          iv: sql<string>`${sealed.iv}`.as("iv"),
+          checksum: sql<string>`${sealed.checksum}`.as("checksum"),
+          keyVersion: sql<number>`${sealed.keyVersion}`.as("key_version"),
+          revision: sql<number>`${revision}`.as("revision"),
+          updatedAt: sql<Date>`${updatedAt.getTime()}`.as("updated_at"),
+        }).from(users).where(eq(users.id, id)))
         .onConflictDoNothing()
         .run();
       const changes = Number((result as { meta?: { changes?: number } }).meta?.changes ?? 0);

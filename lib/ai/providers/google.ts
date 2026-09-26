@@ -4,10 +4,12 @@ import {
   PROVIDER_TIMEOUT_MS,
   withProviderResponse,
 } from "@/lib/ai/provider-http";
+import { MAX_PROVIDER_TEXT_LENGTH, StreamingReasoningFilter } from "@/lib/ai/reasoning";
 
 import type { ErmaGenerationInput, ErmaProviderGenerationResult, ErmaProviderLane } from "./contracts";
 import {
   STREAM_ANSWER_LIMIT_CHARACTERS,
+  STREAM_EVENT_LIMIT_CHARACTERS,
   STREAM_SAFETY_WINDOW_CHARACTERS,
   VISUAL_CONTEXT_NOTICE,
   assertStreamingWindowSafe,
@@ -22,6 +24,7 @@ type GoogleLane = Extract<ErmaProviderLane, "google-fast" | "google-core">;
 type GeminiPart = { text?: string; thought?: boolean };
 type GeminiPayload = {
   candidates?: Array<{ content?: { parts?: GeminiPart[] }; finishReason?: string }>;
+  promptFeedback?: { blockReason?: string };
   usageMetadata?: { promptTokenCount?: number; candidatesTokenCount?: number };
   modelVersion?: string;
 };
@@ -84,6 +87,10 @@ function googleHttpError(status: number) {
 }
 
 function extractParts(payload: GeminiPayload) {
+  const finishReason = payload.candidates?.[0]?.finishReason;
+  if (payload.promptFeedback?.blockReason || (finishReason && ["SAFETY", "BLOCKLIST", "PROHIBITED_CONTENT", "SPII", "IMAGE_SAFETY"].includes(finishReason))) {
+    throw new Error("google_output_blocked");
+  }
   const parts = payload.candidates?.[0]?.content?.parts ?? [];
   let answer = "";
   let thinking = "";
@@ -150,40 +157,55 @@ export async function streamWithGoogle(
     const decoder = new TextDecoder();
     let buffer = "";
     let answer = "";
+    let visibleAnswer = "";
     let thinking = "";
     let actualModel = config.model;
     let usage: GeminiPayload["usageMetadata"];
+    let completed = false;
+    const reasoningFilter = new StreamingReasoningFilter();
 
     const consume = async (raw: string) => {
+      if (raw.length > STREAM_EVENT_LIMIT_CHARACTERS) throw new Error("google_stream_event_too_large");
       const data = parseSsePayload(raw);
       if (!data || data === "[DONE]") return;
       const payload = JSON.parse(data) as GeminiPayload;
       if (payload.modelVersion?.trim()) actualModel = payload.modelVersion.trim();
       if (payload.usageMetadata) usage = payload.usageMetadata;
       const parts = extractParts(payload);
-      if (parts.thinking) thinking += parts.thinking;
+      if (payload.candidates?.[0]?.finishReason) completed = true;
+      if (parts.thinking) thinking = (thinking + parts.thinking).slice(0, MAX_PROVIDER_TEXT_LENGTH);
       if (!parts.answer) return;
       if (answer.length + parts.answer.length > STREAM_ANSWER_LIMIT_CHARACTERS) throw new Error("google_output_too_large");
       answer += parts.answer;
       assertStreamingWindowSafe(answer.slice(-STREAM_SAFETY_WINDOW_CHARACTERS), input.allowCode, "google");
-      await onDelta(parts.answer);
+      const visibleText = reasoningFilter.push(parts.answer);
+      if (visibleText) { visibleAnswer += visibleText; await onDelta(visibleText); }
     };
 
-    while (true) {
-      const { value, done } = await reader.read();
-      if (done) break;
-      lifecycle.touch();
-      buffer += decoder.decode(value, { stream: true });
-      const blocks = buffer.split(/\r?\n\r?\n/);
-      buffer = blocks.pop() ?? "";
-      for (const block of blocks) await consume(block);
+    try {
+      while (true) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        lifecycle.touch();
+        buffer += decoder.decode(value, { stream: true });
+        const blocks = buffer.split(/\r?\n\r?\n/);
+        buffer = blocks.pop() ?? "";
+        if (buffer.length > STREAM_EVENT_LIMIT_CHARACTERS) throw new Error("google_stream_event_too_large");
+        for (const block of blocks) await consume(block);
+      }
+      buffer += decoder.decode();
+      if (buffer.trim()) await consume(buffer);
+      if (!completed) throw new Error("google_stream_incomplete");
+      const tail = reasoningFilter.finish();
+      if (tail) { visibleAnswer += tail; await onDelta(tail); }
+    } finally {
+      reader.releaseLock();
     }
-    buffer += decoder.decode();
-    if (buffer.trim()) await consume(buffer);
 
-    const evaluated = evaluateProviderText(answer, thinking || undefined, input.allowCode, "google");
+    const evaluated = evaluateProviderText(visibleAnswer, thinking || undefined, input.allowCode, "google");
     return {
       ...evaluated,
+      reasoningUsed: evaluated.reasoningUsed || reasoningFilter.reasoningUsed,
       provider: "google",
       actualModel,
       inputTokens: usage?.promptTokenCount,

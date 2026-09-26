@@ -25,7 +25,9 @@ const rewardedAdSmartlinkUrl = process.env.REWARDED_AD_SMARTLINK_URL?.trim() || 
 
 const localWorkerConfig = {
   main: "./worker/index.ts",
-  compatibility_flags: ["nodejs_compat"],
+  // Auth.js and provider adapters read runtime secrets through process.env.
+  // Make that contract explicit instead of relying on the generated date.
+  compatibility_flags: ["nodejs_compat", "nodejs_compat_populate_process_env"],
   durable_objects: {
     bindings: [
       { name: "CLODEX_ACCESS", class_name: "ClodexAccess" },

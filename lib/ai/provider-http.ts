@@ -93,14 +93,20 @@ export async function withProviderResponse<T>(
   const lifecycle = createProviderRequestLifecycle(init.signal, options);
 
   try {
+    lifecycle.signal.throwIfAborted();
     const response = await fetch(input, { ...init, signal: lifecycle.signal });
     lifecycle.touch();
-    return await consume(response, {
+    const result = await consume(response, {
       signal: lifecycle.signal,
       touch: lifecycle.touch,
       abort: lifecycle.abort,
     });
+    lifecycle.signal.throwIfAborted();
+    return result;
   } catch (error) {
+    // Parsing, validation, or a downstream callback may fail while the provider
+    // is still generating. Stop that connection before removing its timers.
+    lifecycle.abort(error);
     throw lifecycle.getTimeoutError() ?? error;
   } finally {
     lifecycle.cleanup();

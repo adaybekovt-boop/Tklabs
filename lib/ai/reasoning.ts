@@ -8,6 +8,69 @@ const INLINE_REASONING_BLOCK = /<(think|thinking|analysis|reasoning|thought)\b[^
 const MIN_DUPLICATE_REASONING_LENGTH = 80;
 export const MAX_PROVIDER_TEXT_LENGTH = 64_000;
 
+const REASONING_TAG_NAMES = ["think", "thinking", "analysis", "reasoning", "thought"];
+const REASONING_TAG_START = /^<(think|thinking|analysis|reasoning|thought)\b[^>]*>/i;
+const INCOMPLETE_REASONING_TAG = /^<(think|thinking|analysis|reasoning|thought)\b[^>]*$/i;
+
+/** Strip inline provider reasoning before any text crosses the SSE boundary. */
+export class StreamingReasoningFilter {
+  private pending = "";
+  private hiddenTag: string | null = null;
+  private separator = false;
+  private visible = false;
+  reasoningUsed = false;
+
+  push(text: string) {
+    this.pending += text;
+    let output = "";
+    const emit = (part: string) => {
+      if (!part) return;
+      if (this.separator && this.visible) output += "\n";
+      this.separator = false;
+      this.visible = true;
+      output += part;
+    };
+
+    while (this.pending) {
+      if (this.hiddenTag) {
+        const close = new RegExp(`</${this.hiddenTag}\\s*>`, "i").exec(this.pending);
+        if (!close) {
+          // Keep a possible split closing tag, discard the hidden body itself.
+          const lastOpen = this.pending.lastIndexOf("<");
+          this.pending = lastOpen >= 0 ? this.pending.slice(lastOpen) : "";
+          break;
+        }
+        this.pending = this.pending.slice(close.index + close[0].length);
+        this.hiddenTag = null;
+        this.separator = true;
+        continue;
+      }
+
+      const open = this.pending.indexOf("<");
+      if (open < 0) { emit(this.pending); this.pending = ""; break; }
+      emit(this.pending.slice(0, open));
+      this.pending = this.pending.slice(open);
+      const tag = REASONING_TAG_START.exec(this.pending);
+      if (tag) {
+        this.hiddenTag = tag[1].toLowerCase();
+        this.reasoningUsed = true;
+        this.pending = this.pending.slice(tag[0].length);
+        continue;
+      }
+      if (REASONING_TAG_NAMES.some((name) => `<${name}`.startsWith(this.pending.toLowerCase())) || INCOMPLETE_REASONING_TAG.test(this.pending)) break;
+      emit("<");
+      this.pending = this.pending.slice(1);
+    }
+    return output;
+  }
+
+  finish() {
+    const output = this.hiddenTag || INCOMPLETE_REASONING_TAG.test(this.pending) ? "" : this.pending;
+    this.pending = "";
+    return output;
+  }
+}
+
 function comparisonText(value: string) {
   return value.replace(/\s+/gu, " ").trim().toLocaleLowerCase();
 }

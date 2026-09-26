@@ -74,6 +74,10 @@ jobs:
           retention-days: 3
       - name: Production build
         run: npm run build
+      - name: Validate Telegram Worker
+        run: npm ci --prefix telegram-bot && npm run check --prefix telegram-bot
+      - name: Built Worker OAuth regression
+        run: npm run test:auth-worker
       - name: Performance budget
         run: npm run perf:budget
       - name: Cloudflare Worker dry-run

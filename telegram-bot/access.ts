@@ -14,6 +14,11 @@ export function isAuthorized(userId: number | undefined, env: Env): boolean {
   return parseAllowedUserIds(env.TELEGRAM_ALLOWED_USER_IDS).has(String(userId));
 }
 
+/** A user's private conversation must never become context for a group reply. */
+export function conversationObjectName(userId: number, chatId: number): string {
+  return `user:${userId}:chat:${chatId}`;
+}
+
 export function userLabel(ctx: Context): string {
   const user = ctx.from;
   if (!user) return "unknown";

@@ -1,6 +1,7 @@
 import { auth } from "@/auth";
 import { parseJsonBody, RequestBodyTooLargeError } from "@/lib/request-body";
 import { isTrustedRequestOrigin } from "@/lib/request-security";
+import { MAX_WORKSPACE_SYNC_PAYLOAD_BYTES, workspaceSyncPayloadBytes } from "@/lib/workspace-sync-limits";
 import { deleteWorkspaceSnapshot, getWorkspaceSnapshot, putWorkspaceSnapshot, WorkspaceSyncConflictError, WorkspaceSyncRateLimitedError, WorkspaceSyncUnavailableError } from "@/lib/workspace-sync-server";
 
 export const runtime = "edge";
@@ -23,10 +24,11 @@ export async function PUT(request: Request) {
   let body: { payload?: unknown; expectedRevision?: unknown } | null;
   try { body = await parseJsonBody<{ payload?: unknown; expectedRevision?: unknown }>(request, 2 * 1024 * 1024); }
   catch (error) { if (error instanceof RequestBodyTooLargeError) return Response.json({ error: "Workspace snapshot is too large." }, noStore({ status: 413 })); throw error; }
-  if (typeof body?.payload !== "string" || Array.from(body.payload).length > 1_800_000) return Response.json({ error: "Workspace snapshot is invalid." }, noStore({ status: 400 }));
+  if (typeof body?.payload !== "string") return Response.json({ error: "Workspace snapshot is invalid." }, noStore({ status: 400 }));
+  if (workspaceSyncPayloadBytes(body.payload) > MAX_WORKSPACE_SYNC_PAYLOAD_BYTES) return Response.json({ error: "Workspace snapshot is too large." }, noStore({ status: 413 }));
   try { const parsed = JSON.parse(body.payload); if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) throw new Error("invalid"); }
   catch { return Response.json({ error: "Workspace snapshot is invalid." }, noStore({ status: 400 })); }
-  const expectedRevision = body.expectedRevision == null ? null : Number.isInteger(body.expectedRevision) && Number(body.expectedRevision) >= 0 ? Number(body.expectedRevision) : NaN;
+  const expectedRevision = body.expectedRevision == null ? null : Number.isSafeInteger(body.expectedRevision) && Number(body.expectedRevision) >= 0 ? Number(body.expectedRevision) : NaN;
   if (Number.isNaN(expectedRevision)) return Response.json({ error: "Workspace revision is invalid." }, noStore({ status: 400 }));
   try { return Response.json({ available: true, snapshot: await putWorkspaceSnapshot(email, body.payload, expectedRevision) }, noStore()); }
   catch (error) {
