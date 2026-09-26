@@ -4,13 +4,13 @@ TK LAB is a bilingual AI workspace built around a small, explicit Cloudflare Wor
 
 ## What is real
 
-- Erma Lite, Erma Core, and Erma Pro are the only public Erma modes. Their provider mappings and system prompts stay server-side.
-- AI routes return one JSON contract: `{ answer, meta }`. The metadata identifies the requested model, actual provider/model, request ID, latency, status, and any fallback reason.
+- Erma Auto routes between Celer, Nova, and Optima. These are product tiers backed by external providers, not TK LAB-trained foundation models. Provider mappings and system prompts stay server-side.
+- AI routes support JSON `{ answer, meta }` and SSE events on `/api/demo`. Metadata identifies the requested tier, actual provider/model, request ID, latency, status, and fallback reason. Incomplete streams are failures, not completed answers.
 - Provider reasoning is evaluated transiently on the server and is never returned, rendered, archived, logged, or sent to analytics. The client may receive only the generic `meta.reasoningUsed` boolean.
 - Fallbacks are visible. A local fallback is labeled `local-fallback`; it is never presented as NVIDIA, Clodex, or the selected Erma model.
 - Chat sessions are local-first browser archives. Optional manual Workspace Sync can store an encrypted-at-rest D1 snapshot; it is not end-to-end encryption or an automatic conversation backup.
 - Voice input uses the browser Web Speech API when available. Authenticated ElevenLabs speech is optional; its key and voice configuration never reach the client.
-- `/status` reads a shared Durable Object snapshot with a 60-second live TTL and a five-minute stale window. It does not claim a historical uptime percentage or fabricate incident history.
+- `/status` reads a shared Durable Object snapshot with a 60-second live TTL and a fifteen-minute stale window. It does not claim a historical uptime percentage or fabricate incident history.
 
 ## Stack and architecture
 
@@ -18,7 +18,7 @@ TK LAB is a bilingual AI workspace built around a small, explicit Cloudflare Wor
 - Cloudflare Durable Objects with SQLite for Clodex entitlement, redemption attempts, reservation-aware usage windows, and HMAC-derived public demo buckets.
 - Cloudflare D1 with Drizzle for authenticated account records and versioned terms consent.
 - Auth.js with Google OAuth for account sessions.
-- NVIDIA Build API for the primary Erma route; optional Clodex and ElevenLabs integrations are server-only.
+- Server-side NVIDIA, Google and OpenAI-compatible provider adapters, with admission scheduling and disclosed fallbacks; optional external API and ElevenLabs integrations.
 - Tailwind CSS, shared theme tokens, and a bilingual editorial UI.
 
 The main responsibilities are separated into:
@@ -53,7 +53,7 @@ The Playground page requires a signed-in account. The `/api/demo` endpoint has a
 
 ## Routes
 
-- `POST /api/demo` — bounded Erma route with same-origin checks, attachment limits, HMAC-derived demo buckets, provider fallback metadata, and JSON responses.
+- `POST /api/demo` — bounded Erma route with same-origin checks, attachment limits, HMAC-derived demo buckets, provider fallback metadata, and JSON or SSE responses.
 - `POST /api/clodex` — optional authenticated Clodex route; returns 404 while `CLODEX_ENABLED` is not `true`.
 - `GET|POST /api/profile/access` — feature-gated Clodex status and redemption.
 - `POST /api/admin/clodex/revoke` — privileged admin revoke for a normalized target email; it remains available while Clodex is disabled so emergency revocation cannot be blocked by the feature flag.
@@ -74,7 +74,7 @@ The Playground page requires a signed-in account. The `/api/demo` endpoint has a
   "answer": "Generated text",
   "meta": {
     "requestId": "request-id",
-    "requestedModel": "Erma Core",
+    "requestedModel": "Erma Nova",
     "actualProvider": "nvidia",
     "actualModel": "server-side-provider-id",
     "latencyMs": 842,
@@ -101,7 +101,7 @@ On provider failure, `meta.fallbackReason` is present and the UI tells the user 
 - Provider keys, OAuth credentials, access codes, model IDs, and system prompts are server-only.
 - User text is rendered as text, not injected as HTML, and user code is never executed by the application.
 - Assistant answers use safe GFM Markdown without raw HTML; links, code blocks, and tables are constrained for safe mobile rendering.
-- The Playground uses a JSON response contract, request ownership, explicit stop/retry behavior, and reader-owned scrolling. It does not implement true token streaming.
+- The Playground supports incremental SSE delivery, request ownership, explicit stop/retry behavior, and reader-owned scrolling. Partial output must remain distinguishable from a completed answer.
 - Regex safety checks are only a heuristic layer. Authentication, allowlists, body/prompt/attachment limits, origin checks, timeouts, and safe output handling are the actual boundaries.
 
 ## Environment variables
@@ -138,7 +138,8 @@ Provider and feature configuration:
 - `npm run test:unit` — behavior tests for policy and pure helpers.
 - `npm run test:integration` — Worker/API contract tests.
 - `npm test` — unit and integration tests.
-- `npm run build` — one production Worker build.
+- `npm run build` — clean generated output and build one production Worker.
+- `npm run test:auth-worker` — exercise the built Worker login action, PKCE callback, session and sign-out with isolated fake Google responses.
 - `npm run test:unit` includes pure chat scroll ownership and policy tests; browser-level QA should use a preview with mocked provider routes because no paid provider or production D1 is used in tests.
 - `npm run check` — typecheck, lint, tests, and build.
 - `npm run db:generate` — generate a reviewed Drizzle migration when the D1 schema changes.
@@ -173,6 +174,8 @@ Cloudflare is the source of truth for runtime Worker secrets. The deployment pre
 - D1 `users` row IDs use HMAC-SHA-256 with `TERMS_USER_ID_SECRET`; rows are looked up by the unique `email` column, so rows created before this migration are backfilled to the HMAC id opportunistically instead of needing a dual-lookup path.
 
 ## Contributing and security
+
+See [the September 2026 system audit](docs/SYSTEM_AUDIT_2026-09-26.md) for verified defects, fixes, product direction, and remaining validation gaps. Historical execution plans are not a description of current capabilities.
 
 Read [CONTRIBUTING.md](CONTRIBUTING.md) before opening a change. Security reports belong in [SECURITY.md](SECURITY.md); do not publish secrets or sensitive account data in issues.
 
