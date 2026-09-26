@@ -51,8 +51,8 @@ export function buildKazakhstanVerificationGuard(language: Language, route: Erma
   };
 }
 
-function shouldUseDirectGoogleGrounding(prompt: string, documents: readonly ChatAttachment[], context: PreparedChatContext) {
-  if (documents.length || !isGoogleDirectGroundingConfigured() || isContextDependentGroundingTurn(prompt, context.originalMessageCount)) return false;
+function shouldUseDirectGoogleGrounding(prompt: string, documents: readonly ChatAttachment[], context: PreparedChatContext, hasImages: boolean) {
+  if (hasImages || documents.length || !isGoogleDirectGroundingConfigured() || isContextDependentGroundingTurn(prompt, context.originalMessageCount)) return false;
   const safety = classifyPromptSafety(prompt);
   if (safety.blocked || safety.category === "high-impact" || safety.category === "restricted") return false;
   const route = routeErmaTask(prompt);
@@ -71,11 +71,11 @@ function directGoogleTrace(requestId: string, language: Language, result: Google
   };
 }
 
-export async function prepareReadOnlyToolAugmentation(input: { request: Request; requestId: string; prompt: string; context: PreparedChatContext; language: Language; model: ErmaModel; localArchive: unknown; documents?: ChatAttachment[]; allowCodeSandbox?: boolean; signal?: AbortSignal }): Promise<ToolAugmentation> {
+export async function prepareReadOnlyToolAugmentation(input: { request: Request; requestId: string; prompt: string; context: PreparedChatContext; language: Language; model: ErmaModel; localArchive: unknown; documents?: ChatAttachment[]; hasImages?: boolean; allowCodeSandbox?: boolean; signal?: AbortSignal }): Promise<ToolAugmentation> {
   const conversationMemory = protectedMemory(input.context.summary);
   const documents = input.documents ?? [];
 
-  if (shouldUseDirectGoogleGrounding(input.prompt, documents, input.context)) {
+  if (shouldUseDirectGoogleGrounding(input.prompt, documents, input.context, input.hasImages === true)) {
     const startedAt = Date.now();
     try {
       const directGrounding = await getGoogleDirectGrounding(input.prompt, input.signal);

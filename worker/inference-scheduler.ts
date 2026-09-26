@@ -284,6 +284,9 @@ export class InferenceScheduler extends DurableObject<SchedulerEnv> {
     ).toArray()[0];
     if (!lease || !isLane(lease.lane)) return;
     this.ctx.storage.sql.exec("DELETE FROM inference_leases WHERE lease_id = ?", outcome.leaseId);
+    // A browser stop/disconnect says nothing about provider health. Releasing
+    // capacity must not put a healthy lane into a global failure cooldown.
+    if (outcome.cancelled) return;
 
     const previous = this.stateFor(lease.lane);
     const latency = Math.max(0, Math.min(120_000, Math.round(outcome.latencyMs)));

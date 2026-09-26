@@ -4,7 +4,9 @@ import test from "node:test";
 
 import { buildAnswerDirective } from "../lib/ai/intelligence/answer.ts";
 import { routeErmaTask } from "../lib/ai/intelligence/router.ts";
-import { buildKazakhstanVerificationGuard, isContextDependentGroundingTurn } from "../lib/ai/tools/route-tools.ts";
+import { buildKazakhstanVerificationGuard, isContextDependentGroundingTurn, prepareReadOnlyToolAugmentation } from "../lib/ai/tools/route-tools.ts";
+import { prepareChatContext } from "../lib/ai/context.ts";
+import { ERMA_MODELS } from "../lib/models/server.ts";
 import { getGoogleDirectGrounding } from "../lib/ai/web/google-direct.ts";
 
 async function source(path) { return readFile(path, "utf8"); }
@@ -51,6 +53,31 @@ function restoreGoogleEnv(previous) {
     else process.env[name] = value;
   }
 }
+
+test("direct grounding cannot bypass vision when images are attached", async () => {
+  const previous = saveGoogleEnv();
+  const previousFetch = globalThis.fetch;
+  process.env.GOOGLE_GEMINI_API_KEY = "test-google-key";
+  let fetches = 0;
+  globalThis.fetch = async () => { fetches += 1; return new Response(JSON.stringify(googlePayload())); };
+  const prompt = "Кто сейчас президент Казахстана?";
+  const input = {
+    request: new Request("https://tklabs.uk/api/demo"), requestId: "vision-routing", prompt,
+    context: prepareChatContext({ currentUserContent: prompt, attachmentCount: 1 }), language: "ru",
+    model: { ...ERMA_MODELS[0], nvidiaModel: null }, localArchive: undefined,
+  };
+  try {
+    const withImage = await prepareReadOnlyToolAugmentation({ ...input, hasImages: true });
+    assert.equal(withImage.directGrounding, undefined);
+    assert.equal(fetches, 0);
+    const textOnly = await prepareReadOnlyToolAugmentation({ ...input, hasImages: false });
+    assert.ok(textOnly.directGrounding);
+    assert.equal(fetches, 1);
+  } finally {
+    globalThis.fetch = previousFetch;
+    restoreGoogleEnv(previous);
+  }
+});
 
 test("v0.24.2 sends the minimized user query directly to Gemini Google Search and preserves its answer", async () => {
   const previous = saveGoogleEnv();

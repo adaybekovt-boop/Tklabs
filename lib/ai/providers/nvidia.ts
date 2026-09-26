@@ -6,10 +6,11 @@ import {
   PROVIDER_TIMEOUT_MS,
   withProviderResponse,
 } from "@/lib/ai/provider-http";
-import { normalizeAiTextPair } from "@/lib/ai/reasoning";
+import { normalizeAiTextPair, StreamingReasoningFilter } from "@/lib/ai/reasoning";
 import { inferResponseLanguage, responseLanguageInstruction, type ResponseLanguage } from "@/lib/ai/response-language";
 import type { ChatContextMessage } from "@/lib/ai/context";
 import type { ChatImageAttachment } from "@/lib/chat-prompt";
+import { STREAM_EVENT_LIMIT_CHARACTERS } from "./shared";
 
 export const NVIDIA_ENDPOINT = "https://integrate.api.nvidia.com/v1/chat/completions";
 const NVIDIA_KEY_COOLDOWN_MS = 15 * 60 * 1000;
@@ -22,6 +23,7 @@ type ReasoningEffort = "low" | "medium" | "high";
 type NvidiaUsage = { prompt_tokens?: number; completion_tokens?: number; total_tokens?: number };
 type NvidiaResponse = {
   choices?: Array<{
+    finish_reason?: string | null;
     message?: { content?: string | null; reasoning_content?: string | null };
     delta?: { content?: string | null; reasoning_content?: string | null };
     text?: string | null;
@@ -249,6 +251,8 @@ async function streamWithKey(
     let safetyWindow = "";
     let reasoningUsed = false;
     let usage: NvidiaUsage | undefined;
+    let completed = false;
+    const reasoningFilter = new StreamingReasoningFilter();
 
     try {
       while (true) {
@@ -257,16 +261,17 @@ async function streamWithKey(
         buffer += decoder.decode(value ?? new Uint8Array(), { stream: !done });
         const blocks = buffer.split(/\r?\n\r?\n/);
         buffer = done ? "" : (blocks.pop() ?? "");
+        if (buffer.length > STREAM_EVENT_LIMIT_CHARACTERS) throw new Error("nvidia_stream_event_too_large");
 
         for (const block of blocks) {
+          if (block.length > STREAM_EVENT_LIMIT_CHARACTERS) throw new Error("nvidia_stream_event_too_large");
           const data = parseSsePayload(block);
-          if (!data || data === "[DONE]") continue;
-          let payload: NvidiaResponse;
-          try {
-            payload = JSON.parse(data) as NvidiaResponse;
-          } catch {
-            continue;
-          }
+          if (!data) continue;
+          if (data === "[DONE]") { completed = true; continue; }
+          const payload = JSON.parse(data) as NvidiaResponse;
+          const finishReason = payload.choices?.[0]?.finish_reason;
+          if (finishReason === "content_filter") throw new Error("nvidia_output_blocked");
+          if (finishReason) completed = true;
           if (payload.usage) usage = payload.usage;
           const delta = payload.choices?.[0]?.delta;
           if (typeof delta?.reasoning_content === "string" && delta.reasoning_content) reasoningUsed = true;
@@ -277,17 +282,20 @@ async function streamWithKey(
             await reader.cancel("nvidia_output_too_large").catch(() => undefined);
             throw new Error("nvidia_output_too_large");
           }
-          answerChunks.push(delta.content);
           safetyWindow = `${safetyWindow}${delta.content}`.slice(-STREAM_SAFETY_WINDOW_CHARACTERS);
           const safety = evaluateAssistantContent({ answer: safetyWindow }, { allowCode: input.allowCode });
           if (safety.verdict === "unsafe") {
             await reader.cancel("nvidia_output_blocked").catch(() => undefined);
             throw new Error("nvidia_output_blocked");
           }
-          await onDelta(delta.content);
+          const visibleText = reasoningFilter.push(delta.content);
+          if (visibleText) { answerChunks.push(visibleText); await onDelta(visibleText); }
         }
         if (done) break;
       }
+      if (!completed) throw new Error("nvidia_stream_incomplete");
+      const tail = reasoningFilter.finish();
+      if (tail) { answerChunks.push(tail); await onDelta(tail); }
     } finally {
       reader.releaseLock();
     }
@@ -300,7 +308,7 @@ async function streamWithKey(
     if (evaluation.verdict === "empty") throw new Error("nvidia_empty_response");
     return {
       answer: evaluation.answer,
-      reasoningUsed: reasoningUsed || evaluation.reasoningUsed,
+      reasoningUsed: reasoningUsed || reasoningFilter.reasoningUsed || evaluation.reasoningUsed,
       inputTokens: usage?.prompt_tokens,
       outputTokens: usage?.completion_tokens,
     };

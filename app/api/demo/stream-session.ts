@@ -33,7 +33,7 @@ export class DemoStreamSession {
   response() {
     const responseStream = new ReadableStream<Uint8Array>({
       start: (controller) => { this.controller = controller; return this.run(); },
-      cancel: async () => { this.detach(); this.providerController.abort("response_cancelled"); if (this.partialAnswer) await this.input.quota.commit(); else await this.input.quota.release(); },
+      cancel: async () => { this.streamClosed = true; this.detach(); this.providerController.abort("response_cancelled"); if (this.partialAnswer) await this.input.quota.commit(); else await this.input.quota.release(); },
     });
     return new Response(responseStream, { status: 200, headers: aiStreamHeaders(this.input.requestId, this.input.rateLimitCookie) });
   }
@@ -48,7 +48,9 @@ export class DemoStreamSession {
     const { request, body, requestId, prompt, context, personalMemoryContext, language, model, requestedReasoning, effort, tone, privilegedAccount, documents, images, quota, startedAt, requestedModel } = this.input;
     this.send("start", this.startPayload());
     try {
-      const toolAugmentation = await prepareReadOnlyToolAugmentation({ request, requestId, prompt, context, language, model, localArchive: body.localArchive, documents, allowCodeSandbox: privilegedAccount, signal: this.providerController.signal });
+      this.providerController.signal.throwIfAborted();
+      const toolAugmentation = await prepareReadOnlyToolAugmentation({ request, requestId, prompt, context, language, model, localArchive: body.localArchive, documents, hasImages: images.length > 0, allowCodeSandbox: privilegedAccount, signal: this.providerController.signal });
+      this.providerController.signal.throwIfAborted();
       this.toolCalls = toolAugmentation.traces;
       this.augmentedSummary = withPersonalMemory(toolAugmentation.summary, personalMemoryContext);
       for (const trace of this.toolCalls) this.send("tool", trace);
@@ -144,7 +146,7 @@ export class DemoStreamSession {
     } catch (error) { await this.handleFailure(error); }
   }
 
-  private async handleFailure(error: unknown) {
+  private async handleFailure(error: unknown): Promise<void> {
     const { requestId, language, model, privilegedAccount, context, images, quota, startedAt, requestedModel } = this.input;
     const aborted = this.providerController.signal.aborted || (error instanceof DOMException && error.name === "AbortError");
     const meshProvider = error instanceof ErmaMeshError && error.provider !== "mesh" ? error.provider : undefined;
@@ -187,7 +189,19 @@ export class DemoStreamSession {
       logAiRequest(meta); this.send("delta", { text: visionResult.answer }); this.send("meta", meta); this.send("done", { requestId, stopped: false }); this.close(); return;
     }
 
-    const fallback = withContextMetadata(withToolCalls(await resolveFallback({ prompt: contextualFallbackPrompt(context, this.augmentedSummary), language, allowCode: privilegedAccount, requestId, requestedModel, primaryReason: reason, signal: this.providerController.signal }), this.toolCalls), context);
+    let fallback;
+    try {
+      fallback = withContextMetadata(withToolCalls(await resolveFallback({ prompt: contextualFallbackPrompt(context, this.augmentedSummary), language, allowCode: privilegedAccount, requestId, requestedModel, primaryReason: reason, signal: this.providerController.signal }), this.toolCalls), context);
+    } catch (fallbackError) {
+      // Fallback runs after the main try/catch. Its cancellation still owns the
+      // same quota reservation and must finish the stream through the stop path.
+      if (this.providerController.signal.aborted) return this.handleFailure(fallbackError);
+      await quota.release();
+      this.send("error", { error: streamInterruptedText(language), requestId, partial: false });
+      this.send("done", { requestId, stopped: false });
+      this.close();
+      return;
+    }
     if (fallback.provider === "clodex") await quota.commit(); else await quota.release();
     const meta = createAiResponseMeta(fallback, requestedModel, requestId, startedAt); logAiRequest(meta); this.send("delta", { text: fallback.answer }); this.send("meta", meta); this.send("done", { requestId, stopped: false }); this.close();
   }
