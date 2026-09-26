@@ -14,7 +14,7 @@ async function fetchJson(path) {
     const response = await fetch(`${baseUrl}${path}`, {
       headers: { "cache-control": "no-cache", "x-tklabs-smoke": "production" },
       signal: controller.signal,
-      redirect: "follow",
+      redirect: "error",
     });
     const body = await response.json().catch(() => null);
     return { response, body };
@@ -32,11 +32,17 @@ async function verify() {
     throw new Error(`release_mismatch:${readiness.body.release || "missing"}`);
   }
 
-  const manifest = await fetch(`${baseUrl}/manifest.webmanifest?smoke=${Date.now()}`, {
-    headers: { "cache-control": "no-cache", "x-tklabs-smoke": "production" },
-    redirect: "follow",
-  });
-  if (!manifest.ok) throw new Error(`manifest_failed:${manifest.status}`);
+  const providers = await fetchJson("/api/auth/providers");
+  const google = providers.body?.google;
+  if (!providers.response.ok || google?.callbackUrl !== `${baseUrl}/api/auth/callback/google`)
+    throw new Error("auth_provider_configuration_failed");
+  const csrf = await fetchJson("/api/auth/csrf");
+  if (!csrf.response.ok || typeof csrf.body?.csrfToken !== "string" || !csrf.body.csrfToken)
+    throw new Error("auth_csrf_failed");
+
+  const manifest = await fetchJson(`/manifest.webmanifest?smoke=${Date.now()}`);
+  if (!manifest.response.ok || !manifest.body?.name)
+    throw new Error(`manifest_failed:${manifest.response.status}`);
 
   return readiness.body;
 }
