@@ -5,6 +5,7 @@ export type AgentRunStepStatus = "pending" | "running" | "completed" | "failed" 
 
 export const AGENT_RUN_EVENT_NAMES = [
   "run.started",
+  "run.status",
   "plan.created",
   "step.started",
   "step.completed",
@@ -169,6 +170,7 @@ export function applyAgentRunEvent(state: AgentRunState, message: AgentRunEvent)
         completedAt: message.timestamp,
       };
     case "tool.started":
+    case "run.status":
     case "tool.completed":
     case "artifact.delta":
     case "artifact.versioned":

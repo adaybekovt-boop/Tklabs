@@ -15,8 +15,10 @@ test("mobile shell presents three clear user goals while keeping runs and trust 
   for (const id of ["chat", "flow", "artifacts"]) assert.match(switcher, new RegExp(`id: \"${id}\"`));
   assert.doesNotMatch(switcher, /id: "runs"|TrustControlSheet/);
   assert.match(switcher, /data-trust-jit-disclosure/);
-  assert.match(workspace, /AgentRunPanel/);
-  assert.match(workspace, /tab === "runs"/);
+  assert.match(workspace, /PlaygroundChat/);
+  const chat = await source("components/playground/PlaygroundChat.tsx");
+  assert.match(chat, /AgentRunPanel/);
+  assert.match(chat, /drawerTab === "activity"/);
   assert.match(trust, /not end-to-end encryption/i);
 });
 

@@ -10,3 +10,8 @@ export function requestWorkspaceSection(section: WorkspaceSection) {
   if (typeof window === "undefined") return;
   window.dispatchEvent(new CustomEvent<WorkspaceSection>(WORKSPACE_SECTION_EVENT, { detail: section }));
 }
+
+export function requestWorkspaceRun(runId: string) {
+  requestWorkspaceSection("runs");
+  if (typeof window !== "undefined") window.dispatchEvent(new CustomEvent<string>("tklabs:workspace-focus-run", { detail: runId }));
+}

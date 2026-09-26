@@ -64,7 +64,7 @@ The Playground page requires a signed-in account. The `/api/demo` endpoint has a
 - `GET|DELETE /api/account/privacy` — authenticated server-data export and explicit TK LAB account-data deletion.
 - `GET /api/status` — safe, no-store shared health snapshot; it never calls an AI generation endpoint and probes Clodex only when enabled.
 - `/api/auth/*` — Auth.js Google OAuth endpoints.
-- `/playground` — authenticated AI workspace with browser-local session archive.
+- `/playground` — authenticated AI workspace. One conversation executor powers chat, tasks, and file revisions; a contextual canvas shows real run activity, context, and versioned local files. Browser-local runs and artifacts can be included in manual Vault export and Workspace Sync snapshots.
 - `/models`, `/access`, `/documentation`, `/developers`, `/patch-notes`, `/truth`, `/status` — product and transparency pages.
 
 ### AI response contract

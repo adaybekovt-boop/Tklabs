@@ -54,7 +54,7 @@ const ARCHIVE_KEY = "tklab.archive.v1";
 const SETTINGS_KEY = "tklab.settings.v1";
 const MAX_SESSIONS = 30;
 const MAX_MESSAGES_PER_SESSION = 80;
-const MAX_MESSAGE_CONTENT_LENGTH = 12_000;
+const MAX_MESSAGE_CONTENT_LENGTH = 200_000;
 const MAX_ARCHIVE_JSON_LENGTH = 1_500_000;
 const MAX_SESSION_JSON_LENGTH = 500_000;
 const MAX_MESSAGE_VERSIONS = 5;
@@ -77,6 +77,22 @@ const AI_TOOL_NAMES = new Set<AiToolName>([
 let archiveCache: ArchivedSession[] | null = null;
 let pendingArchivePayload: string | null = null;
 let archiveWriteTimer: ReturnType<typeof setTimeout> | null = null;
+let listenerWindow: Window | null = null;
+
+export function invalidateArchiveCache() {
+  if (archiveWriteTimer) clearTimeout(archiveWriteTimer);
+  archiveWriteTimer = null;
+  pendingArchivePayload = null;
+  archiveCache = null;
+}
+
+function ensureArchiveListeners() {
+  if (typeof window === "undefined" || typeof window.addEventListener !== "function" || listenerWindow === window) return;
+  listenerWindow = window;
+  window.addEventListener("pagehide", flushArchive);
+  window.addEventListener("tklabs:workspace-data-replaced", invalidateArchiveCache);
+  window.addEventListener("storage", (event) => { if (event.key === ARCHIVE_KEY || event.key === null) invalidateArchiveCache(); });
+}
 
 function isBrowser() {
   return typeof window !== "undefined";
@@ -191,7 +207,7 @@ function sanitizeMeta(value: unknown): AiResponseMeta | undefined {
   if (
     typeof meta.requestId !== "string"
     || typeof meta.requestedModel !== "string"
-    || (meta.actualProvider !== "nvidia" && meta.actualProvider !== "google-grounding" && meta.actualProvider !== "clodex" && meta.actualProvider !== "edge-fallback")
+    || !["nvidia", "google", "cerebras", "groq", "google-grounding", "clodex", "edge-fallback"].includes(meta.actualProvider ?? "")
     || typeof meta.actualModel !== "string"
   ) return undefined;
   const inputTokens = optionalNumber(meta.inputTokens);
@@ -205,7 +221,7 @@ function sanitizeMeta(value: unknown): AiResponseMeta | undefined {
   return {
     requestId: meta.requestId.slice(0, 120),
     requestedModel: meta.requestedModel.slice(0, 120),
-    actualProvider: meta.actualProvider,
+    actualProvider: meta.actualProvider as AiResponseMeta["actualProvider"],
     actualModel: meta.actualModel.slice(0, 160),
     latencyMs: optionalNumber(meta.latencyMs) ?? 0,
     httpStatus: typeof meta.httpStatus === "number" ? Math.round(meta.httpStatus) : 200,
@@ -265,6 +281,9 @@ function sanitizeMessage(value: unknown, sessionId: string): ArchivedMessage | n
     id: typeof message.id === "string" ? message.id.slice(0, 120) : `${sessionId}-${Math.random().toString(36).slice(2, 8)}`,
     role: message.role,
     content: message.content.slice(0, MAX_MESSAGE_CONTENT_LENGTH),
+    ...(typeof message.requestId === "string" ? { requestId: message.requestId.slice(0, 120) } : {}),
+    ...(message.error === true ? { error: true } : {}),
+    ...(typeof message.errorCode === "string" ? { errorCode: message.errorCode.slice(0, 120) } : {}),
     ...(message.excludedFromContext === true ? { excludedFromContext: true } : {}),
     ...(message.stopped === true ? { stopped: true } : {}),
     ...(versions ? { versions } : {}),
@@ -275,6 +294,7 @@ function sanitizeMessage(value: unknown, sessionId: string): ArchivedMessage | n
 
 export function loadArchive(): ArchivedSession[] {
   if (!isBrowser()) return [];
+  ensureArchiveListeners();
   if (archiveCache) return archiveCache;
   try {
     const raw = window.localStorage.getItem(ARCHIVE_KEY);
@@ -342,6 +362,7 @@ function flushArchive() {
 
 function persistArchive(sessions: ArchivedSession[]) {
   if (!isBrowser()) return;
+  ensureArchiveListeners();
   const next = sortSessions(sessions).slice(0, MAX_SESSIONS).map(limitSessionSize);
   let payload = JSON.stringify(next);
   while (next.length > 1 && payload.length > MAX_ARCHIVE_JSON_LENGTH) {

@@ -1,0 +1,3 @@
+# Workspace design decisions
+
+Retain TK's monochrome tokens and Inter/Cyrillic reading typography. Keep assistant replies flat in the transcript, user prompts compact, rail at 224px and contextual canvas near 420px. Desktop panes use separators, not nested decorative cards. On narrow viewports context becomes a focus-trapped sheet. Status comes only from runtime events; there is no decorative staged progress or ambient motion. Reduced motion removes sheet entry transitions. Visible focus, 44px touch targets, bounded code/table scrolling, RU/EN and dark/light are required states. The product's signature is the actual request → tool/source → exact versioned output relationship.

@@ -71,22 +71,25 @@ function directGoogleTrace(requestId: string, language: Language, result: Google
   };
 }
 
-export async function prepareReadOnlyToolAugmentation(input: { request: Request; requestId: string; prompt: string; context: PreparedChatContext; language: Language; model: ErmaModel; localArchive: unknown; documents?: ChatAttachment[]; allowCodeSandbox?: boolean; signal?: AbortSignal }): Promise<ToolAugmentation> {
+export async function prepareReadOnlyToolAugmentation(input: { request: Request; requestId: string; prompt: string; context: PreparedChatContext; language: Language; model: ErmaModel; localArchive: unknown; documents?: ChatAttachment[]; allowCodeSandbox?: boolean; signal?: AbortSignal; onToolStart?: (id: string, name: AiToolCallTrace["name"]) => void; onToolComplete?: (trace: AiToolCallTrace) => void }): Promise<ToolAugmentation> {
   const conversationMemory = protectedMemory(input.context.summary);
   const documents = input.documents ?? [];
 
   if (shouldUseDirectGoogleGrounding(input.prompt, documents, input.context)) {
     const startedAt = Date.now();
+    input.onToolStart?.(`google-grounding-${input.requestId}`.slice(0, 120), "search_web");
     try {
       const directGrounding = await getGoogleDirectGrounding(input.prompt, input.signal);
       const outputSafety = evaluateAssistantOutput(directGrounding.answer, { allowCode: input.allowCodeSandbox === true });
       if (outputSafety.verdict !== "ok") throw new Error(`google_grounding_output_${outputSafety.verdict}`);
+      input.onToolComplete?.(directGoogleTrace(input.requestId, input.language, directGrounding, Date.now() - startedAt));
       return {
         summary: conversationMemory,
         traces: [directGoogleTrace(input.requestId, input.language, directGrounding, Date.now() - startedAt)],
         directGrounding,
       };
     } catch (error) {
+      input.onToolComplete?.({ id: `google-grounding-${input.requestId}`.slice(0, 120), name: "search_web", status: input.signal?.aborted ? "timeout" : "error", durationMs: Date.now() - startedAt, summary: input.language === "ru" ? "Поиск не завершён" : "Search did not complete" });
       if (input.signal?.aborted) throw error;
       console.info("ai.google_direct_grounding", {
         requestId: input.requestId,
@@ -97,7 +100,7 @@ export async function prepareReadOnlyToolAugmentation(input: { request: Request;
   }
 
   try {
-    const result = await runNvidiaToolLoop({ prompt: input.prompt, messages: input.context.messages, summary: input.context.summary, language: input.language, model: input.model, requestId: input.requestId, localArchive: sanitizeLocalArchiveIndex(input.localArchive), documents, allowCodeSandbox: input.allowCodeSandbox === true, signal: input.signal, getServiceStatus: async (signal) => { const statusUrl = new URL("/api/status", input.request.url); const response = await fetch(statusUrl, { method: "GET", signal, headers: { accept: "application/json" }, cache: "no-store" }); if (!response.ok) throw new Error("service_status_unavailable"); return await response.json() as HealthPayload; } });
+    const result = await runNvidiaToolLoop({ prompt: input.prompt, messages: input.context.messages, summary: input.context.summary, language: input.language, model: input.model, requestId: input.requestId, localArchive: sanitizeLocalArchiveIndex(input.localArchive), documents, allowCodeSandbox: input.allowCodeSandbox === true, signal: input.signal, onToolStart: input.onToolStart, onToolComplete: input.onToolComplete, getServiceStatus: async (signal) => { const statusUrl = new URL("/api/status", input.request.url); const response = await fetch(statusUrl, { method: "GET", signal, headers: { accept: "application/json" }, cache: "no-store" }); if (!response.ok) throw new Error("service_status_unavailable"); return await response.json() as HealthPayload; } });
     const untrustedEvidence = result.untrustedContextBlock ? wrapUntrustedExternalText("intelligence-evidence", result.untrustedContextBlock) : undefined;
     return {
       summary: combineSummary(conversationMemory, result.controlBlock, untrustedEvidence),

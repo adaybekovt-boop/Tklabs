@@ -42,17 +42,17 @@ test("Erma Flow capability remains connected while primary navigation says Tasks
   assert.match(layout, /MotionOrchestrator/);
   assert.match(motion, /prefers-reduced-motion/);
   assert.match(orchestrator, /IntersectionObserver/);
-  assert.match(workspace, /workspace-tab-flow/);
-  assert.match(workspace, /ErmaFlowStudio/);
-  assert.match(workspace, /AgentRunPanel/);
-  assert.match(workspace, /WORKSPACE_SECTION_EVENT/);
-  assert.match(workspace, /Задачи|Tasks/);
+  assert.match(workspace, /PlaygroundChat/);
+  const chat = await read("components/playground/PlaygroundChat.tsx");
+  assert.match(chat, /ErmaFlowStudio/);
+  assert.match(chat, /AgentRunPanel/);
+  assert.match(chat, /WORKSPACE_SECTION_EVENT/);
+  assert.match(chat, /Задача|Task/);
   assert.match(mobile, /id: "flow"/);
   assert.match(mobile, /Задачи|Tasks/);
-  assert.match(flow, /text\/event-stream/);
-  assert.match(flow, /saveAsArtifact/);
-  assert.match(flow, /controllerRef\.current\?\.abort/);
-  assert.match(runs, /loadFlowRuns/);
+  assert.match(flow, /onSubmit/);
+  assert.match(chat, /mode: "task"/);
+  assert.match(runs, /useWorkspaceRuns/);
   assert.match(store, /tklabs\.erma-flow\.runs\.v1/);
   assert.match(store, /MAX_RUNS = 16/);
 });
@@ -83,8 +83,9 @@ test("Erma Nova mobile chat keeps dedicated responsive surfaces without duplicat
   assert.doesNotMatch(input, /settingsOpen|CHAT_RESPONSE_MODES/);
   assert.match(messages, /ChatOverlay/);
   assert.match(messages, /startLongPress/);
-  assert.match(artifacts, /data-mobile-artifact-picker/);
-  assert.match(artifacts, /data-mobile-version-history/);
+  assert.match(chat, /workspace-mobile-sheet/);
+  assert.match(artifacts, /data-artifact-studio/);
+  assert.match(artifacts, /<details><summary>/);
 });
 
 test("Agent Run Protocol keeps plans bounded and state explicit", () => {

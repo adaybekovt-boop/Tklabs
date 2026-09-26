@@ -21,9 +21,9 @@ export function useConversationArchive() {
   function reset() { const id = uid(); sessionIdRef.current = id; setSessionIdState(id); return id; }
   function setSessionId(id: string) { sessionIdRef.current = id; setSessionIdState(id); }
 
-  function save(prompt: string, model: string, messages: ArchivedMessage[]) {
+  function save(prompt: string, model: string, messages: ArchivedMessage[], ownerSessionId = sessionIdRef.current) {
     if (!shouldPersistWorkspace(getWorkspacePrivacyMode())) return false;
-    saveSession({ id: sessionIdRef.current, title: titleFrom(prompt), model, updatedAt: Date.now(), messages });
+    saveSession({ id: ownerSessionId, title: titleFrom(prompt), model, updatedAt: Date.now(), messages });
     return true;
   }
 

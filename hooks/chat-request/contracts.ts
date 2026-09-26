@@ -1,5 +1,7 @@
 import type { ArchivedMessageVersion } from "@/lib/local-archive";
 import type { ChatMessage } from "@/components/playground/MessageList";
+import type { ChatInputSubmitAttachment } from "@/components/ui/ai-chat-input";
+import type { WorkspaceMode } from "@/lib/workspace/run";
 
 export type ChatTone = "professional" | "character" | "erma";
 export type ChatRequestStatus =
@@ -39,7 +41,11 @@ export type ActiveConversation = {
   model: string;
   assistantId: string;
   requestId: string;
+  sessionId: string;
+  context?: WorkspaceSubmitContext;
 };
+
+export type WorkspaceSubmitContext = { mode?: WorkspaceMode; artifactId?: string; expectedArtifactContent?: string; attachments?: ChatInputSubmitAttachment[] };
 
 export type RunConfiguration = {
   historyOverride?: ChatMessage[];

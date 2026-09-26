@@ -21,18 +21,18 @@ test("v0.13.1 persists workspace metadata, versions, comparisons, and branches",
   assert.match(archive, /export function setSessionProject/);
 });
 
-test("desktop chat keeps archive, transcript, and a simplified contextual drawer", async () => {
+test("desktop chat keeps archive and transcript beside the unified contextual canvas", async () => {
   const chat = await text("components/playground/PlaygroundChat.tsx");
-  const drawer = await text("components/playground/ChatContextDrawer.tsx");
   assert.match(chat, /data-calm-chat-workspace/);
   assert.match(chat, /chat-desktop-sidebar/);
-  assert.match(chat, /<ChatContextDrawer/);
+  assert.match(chat, /className="workspace-canvas"/);
+  assert.match(chat, /<AgentRunPanel/);
+  assert.match(chat, /<ArtifactStudio/);
+  assert.match(chat, /<ErmaFlowStudio/);
+  assert.match(chat, /role="separator"/);
   assert.match(chat, /drawerOpen/);
-  assert.match(drawer, /data-chat-context-drawer/);
-  assert.match(drawer, /type DrawerTab = "activity" \| "context"/);
-  assert.match(drawer, /What Erma is doing|Что делает Erma/);
-  assert.match(drawer, /onProjectChange/);
-  assert.doesNotMatch(drawer, /GitCompareArrows|CHAT_RESPONSE_MODES|Settings2/);
+  assert.match(chat, /role="tablist"/);
+  assert.match(chat, /updateProject/);
 });
 
 test("conversation workspace preserves search, pinning, rename, duplicate, projects, delete, and safe clearing", async () => {

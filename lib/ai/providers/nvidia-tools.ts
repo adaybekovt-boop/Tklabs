@@ -23,7 +23,7 @@ type Language = "ru" | "en";
 type NvidiaPlannerMessage = { role: "system" | "user" | "assistant" | "tool"; content: string | null; tool_call_id?: string; tool_calls?: RawNvidiaToolCall[] };
 type NvidiaPlannerResponse = { choices?: Array<{ message?: { content?: string | null; tool_calls?: RawNvidiaToolCall[] } }> };
 
-export type NvidiaToolLoopInput = { prompt: string; messages: ChatContextMessage[]; summary?: string; language: Language; model: ErmaModel; requestId: string; localArchive: LocalArchiveSearchEntry[]; documents: ChatAttachment[]; allowCodeSandbox?: boolean; getServiceStatus: (signal: AbortSignal) => Promise<HealthPayload>; signal?: AbortSignal };
+export type NvidiaToolLoopInput = { prompt: string; messages: ChatContextMessage[]; summary?: string; language: Language; model: ErmaModel; requestId: string; localArchive: LocalArchiveSearchEntry[]; documents: ChatAttachment[]; allowCodeSandbox?: boolean; getServiceStatus: (signal: AbortSignal) => Promise<HealthPayload>; signal?: AbortSignal; onToolStart?: (id: string, name: AiToolCallTrace["name"]) => void; onToolComplete?: (trace: AiToolCallTrace) => void };
 export type NvidiaToolLoopResult = { controlBlock?: string; untrustedContextBlock?: string; traces: AiToolCallTrace[]; route?: ErmaIntelligenceRoute; evidence?: ErmaEvidence[]; verification?: ErmaVerificationResult };
 
 function nvidiaKeys() { const primary = process.env.NVIDIA_API_KEY_PRIMARY?.trim() || process.env.NVIDIA_API_KEY_1?.trim() || process.env.NVIDIA_API_KEY?.trim() || ""; const secondary = process.env.NVIDIA_API_KEY_SECONDARY?.trim() || process.env.NVIDIA_API_KEY_2?.trim() || ""; return [primary, secondary].filter((key, index, keys): key is string => Boolean(key) && keys.indexOf(key) === index); }
@@ -54,7 +54,7 @@ export async function runNvidiaToolLoop(input: NvidiaToolLoopInput): Promise<Nvi
   const route = boundRouteToToolCapability(routeErmaTask(prompt), capabilities.toolCalling.maxCalls, capabilities.toolCalling.maxRounds);
   const dynamicContext = buildDynamicContext({ route, query: prompt, messages: input.messages, documents: input.documents });
 
-  const direct = await runDirectToolRecipe({ prompt, language: input.language, requestId: input.requestId, localArchive: input.localArchive, getServiceStatus: input.getServiceStatus });
+  const direct = await runDirectToolRecipe({ prompt, language: input.language, requestId: input.requestId, localArchive: input.localArchive, getServiceStatus: input.getServiceStatus, onToolStart: input.onToolStart, onToolComplete: input.onToolComplete });
   if (direct) {
     const evidence = collectErmaEvidence(direct.toolData);
     const verification = verifyErmaEvidence(route, direct.traces, evidence);
@@ -82,7 +82,9 @@ export async function runNvidiaToolLoop(input: NvidiaToolLoopInput): Promise<Nvi
     const boundedCalls = requestedCalls.slice(0, remaining);
     messages.push({ role: "assistant", content: planned.content ?? null, tool_calls: boundedCalls });
     for (const call of boundedCalls) {
+      if (typeof call.id === "string" && typeof call.function?.name === "string") input.onToolStart?.(call.id.slice(0, 120), call.function.name as AiToolCallTrace["name"]);
       const executed = await executeIntelligenceTool(call, { language: input.language, requestId: input.requestId, localArchive: input.localArchive, documents: input.documents, allowCodeSandbox: input.allowCodeSandbox, signal: input.signal, getServiceStatus: input.getServiceStatus }, webSession);
+      input.onToolComplete?.(executed.trace);
       calls += 1; traces.push(executed.trace); toolData.push({ name: executed.name, content: executed.content }); messages.push({ role: "tool", content: executed.content, tool_call_id: executed.toolCallId });
       if (executed.name === "search_web" && executed.trace.status !== "success") terminalWebFailure = true;
     }

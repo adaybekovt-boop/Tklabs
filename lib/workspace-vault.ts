@@ -9,6 +9,7 @@ const EXACT_STORAGE_KEYS = new Set([
   "tklabs.response-mode",
   "tklabs.pwa-install-dismissed.v1",
   "tklabs.workspace-artifacts.v1",
+  "tklabs.workspace-runs.v1",
   "tklabs.erma-flow.runs.v1",
 ]);
 const STORAGE_PREFIXES = ["tklabs.chat-draft.v1:"];
@@ -187,6 +188,7 @@ export function applyWorkspaceVault(
     window.dispatchEvent(new Event("tklab:archive-updated"));
     window.dispatchEvent(new Event("tklabs:flow-runs-updated"));
     window.dispatchEvent(new Event("tklabs:workspace-vault-imported"));
+    window.dispatchEvent(new Event("tklabs:workspace-data-replaced"));
   }
 }
 
