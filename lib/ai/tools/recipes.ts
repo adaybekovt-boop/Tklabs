@@ -17,11 +17,14 @@ export async function runDirectToolRecipe(input: {
   requestId: string;
   localArchive: LocalArchiveSearchEntry[];
   getServiceStatus: (signal: AbortSignal) => Promise<HealthPayload>;
+  onToolStart?: (id: string, name: AiToolCallTrace["name"]) => void;
+  onToolComplete?: (trace: AiToolCallTrace) => void;
 }) : Promise<DirectToolRecipeResult | null> {
   const recipe = detectDirectToolRecipe(input.prompt);
   if (!recipe) return null;
 
   const callId = `recipe-${crypto.randomUUID()}`;
+  input.onToolStart?.(callId, recipe.name);
   const executed = await executeReadOnlyTool({
     id: callId,
     type: "function",
@@ -32,6 +35,7 @@ export async function runDirectToolRecipe(input: {
     localArchive: input.localArchive,
     getServiceStatus: input.getServiceStatus,
   });
+  input.onToolComplete?.(executed.trace);
 
   return {
     traces: [executed.trace],

@@ -8,9 +8,13 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { ArrowDown, FolderKanban, Gift, GitBranch, Menu, PanelRightOpen, SquarePen, X } from "lucide-react";
 
-import { ChatContextDrawer } from "@/components/playground/ChatContextDrawer";
+import { ChatOverlay } from "@/components/playground/ChatOverlay";
+import { AgentRunPanel } from "@/components/playground/AgentRunPanel";
+import { ArtifactStudio } from "@/components/playground/ArtifactStudio";
+import { ErmaFlowStudio } from "@/components/playground/ErmaFlowStudio";
 import { ConversationArchive } from "@/components/playground/ConversationArchive";
 import { MobileChatDrawer } from "@/components/playground/MobileChatDrawer";
+import { MobileWorkspaceSwitcher } from "@/components/playground/MobileWorkspaceSwitcher";
 import { ResponsiveChatComposer } from "@/components/playground/ResponsiveChatComposer";
 import { ResponsiveMessageList, type ResponsiveMessageListProps } from "@/components/playground/ResponsiveMessageList";
 import { RewardedAdGate } from "@/components/playground/RewardedAdGate";
@@ -31,10 +35,13 @@ import { isClientLocalPreviewEnabled } from "@/lib/local-preview";
 import { CLODEX_MODELS } from "@/lib/models/clodex-public";
 import { DEFAULT_ERMA_MODEL_KEY, PRIVILEGED_MAX_PROMPT_LENGTH, PUBLIC_ERMA_AUTO_MODEL, PUBLIC_ERMA_MODELS, PUBLIC_MAX_PROMPT_LENGTH } from "@/lib/models/public";
 import { cn } from "@/lib/utils";
+import { buildArtifactContextAttachment } from "@/lib/artifacts/workspace-integration";
+import type { WorkspaceArtifact } from "@/lib/artifacts/types";
+import { WORKSPACE_SECTION_EVENT, isWorkspaceSection } from "@/lib/workspace-events";
 
 type ProfileAccess = ClodexAccessStatus & { isAdmin?: boolean; clodexEnabled?: boolean };
 
-type DrawerTab = "activity" | "context";
+type DrawerTab = "activity" | "context" | "task" | "files";
 type PromptEditBranchState = {
   sourceSessionId: string;
   sourceTitle: string;
@@ -72,6 +79,9 @@ export function PlaygroundChat({
   const [showJumpLatest, setShowJumpLatest] = useState(false);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [drawerTab, setDrawerTab] = useState<DrawerTab>("context");
+  const [dockWidth, setDockWidth] = useState(360);
+  const [focusedRunId, setFocusedRunId] = useState("");
+  const [compactCanvas, setCompactCanvas] = useState(false);
   const [composerAttachments, setComposerAttachments] = useState<ChatInputAttachment[]>([]);
   const [currentProject, setCurrentProject] = useState("");
   const [mobileHistoryOpen, setMobileHistoryOpen] = useState(false);
@@ -85,6 +95,7 @@ export function PlaygroundChat({
   const swipeStartRef = useRef<{ x: number; y: number } | null>(null);
   const autoOpenedRewardMessageIdRef = useRef<string | null>(null);
   const restoredSessionParamRef = useRef<string | null | undefined>(undefined);
+  const openedArtifactRunRef = useRef<string | null>(null);
 
   useVisualViewport();
 
@@ -114,8 +125,15 @@ export function PlaygroundChat({
     responseMode: "normal",
     promptLimit,
     currentModel: selectedModelId,
+    sessionId: archive.sessionId,
     saveConversation: archive.save,
   });
+  useEffect(() => {
+    const run = chat.activeRun;
+    if (!run || run.mode !== "task" || run.status !== "completed" || !run.artifactIds.length || openedArtifactRunRef.current === run.id) return;
+    openedArtifactRunRef.current = run.id;
+    setDrawerTab("files"); setDrawerOpen(true);
+  }, [chat.activeRun]);
   const speech = useSpeech(locale, ttsAvailable, {
     voiceUnsupported: text.chat.voiceUnsupported,
     speechFailed: text.chat.speechFailed,
@@ -144,6 +162,24 @@ export function PlaygroundChat({
 
   useEffect(() => {
     setLocalPreview(isClientLocalPreviewEnabled());
+    const media = window.matchMedia("(max-width: 1099px)");
+    const update = () => setCompactCanvas(media.matches);
+    update(); media.addEventListener("change", update);
+    return () => media.removeEventListener("change", update);
+  }, []);
+
+  useEffect(() => {
+    const listener = (event: Event) => {
+      const section = (event as CustomEvent<unknown>).detail;
+      if (!isWorkspaceSection(section)) return;
+      if (section === "chat") { setDrawerOpen(false); return; }
+      setDrawerTab(section === "flow" ? "task" : section === "artifacts" ? "files" : "activity");
+      setDrawerOpen(true);
+    };
+    window.addEventListener(WORKSPACE_SECTION_EVENT, listener);
+    const focus = (event: Event) => setFocusedRunId((event as CustomEvent<string>).detail);
+    window.addEventListener("tklabs:workspace-focus-run", focus);
+    return () => { window.removeEventListener(WORKSPACE_SECTION_EVENT, listener); window.removeEventListener("tklabs:workspace-focus-run", focus); };
   }, []);
 
   useEffect(() => {
@@ -260,6 +296,25 @@ export function PlaygroundChat({
     setDrawerTab(tab);
     setDrawerOpen(true);
   }
+
+  function reviseArtifact(artifact: WorkspaceArtifact, instruction: string) {
+    return chat.handleSubmit(instruction, { model: selectedModelId, effort: "medium", attachments: [] }, {
+      mode: "artifact", artifactId: artifact.id, expectedArtifactContent: artifact.content,
+      attachments: [buildArtifactContextAttachment(artifact)],
+    });
+  }
+
+  const canvas = <div className="workspace-canvas-inner">
+    <div className="workspace-canvas-tabs" role="tablist" aria-label={locale === "ru" ? "Панель Workspace" : "Workspace panel"}>
+      {(["activity", "context", "task", "files"] as const).map((tab) => <button key={tab} type="button" role="tab" aria-selected={drawerTab === tab} onClick={() => setDrawerTab(tab)}>{({ activity: locale === "ru" ? "Ход работы" : "Activity", context: locale === "ru" ? "Контекст" : "Context", task: locale === "ru" ? "Задача" : "Task", files: locale === "ru" ? "Файлы" : "Files" })[tab]}</button>)}
+    </div>
+    <div className="workspace-canvas-body" role="tabpanel">
+      {drawerTab === "activity" && <AgentRunPanel key={focusedRunId} locale={locale} runId={focusedRunId} />}
+      {drawerTab === "context" && <div className="workspace-context"><h3>{locale === "ru" ? "Контекст диалога" : "Conversation context"}</h3><p>{chat.contextStats.messages} {locale === "ru" ? "сообщений" : "messages"} · {Math.round(chat.contextStats.estimatedTokens / Math.max(1, chat.contextStats.limit) * 100)}%</p><progress max={chat.contextStats.limit} value={Math.min(chat.contextStats.limit, chat.contextStats.estimatedTokens)} /><label>{locale === "ru" ? "Проект" : "Project"}<input value={currentProject} onChange={(event) => updateProject(event.target.value.slice(0, 80))} maxLength={80} /></label><p>{locale === "ru" ? "Прикреплённые файлы" : "Attached files"}</p>{composerAttachments.length ? composerAttachments.map((file) => <div key={file.id}>{file.name}</div>) : <p>{locale === "ru" ? "Нет вложений" : "No attachments"}</p>}</div>}
+      {drawerTab === "task" && <ErmaFlowStudio locale={locale} model={selectedModelId} pending={chat.isPending} onSubmit={(prompt, meta) => chat.handleSubmit(prompt, meta, { mode: "task" })} />}
+      {drawerTab === "files" && <ArtifactStudio locale={locale} onRequestRevision={reviseArtifact} isRevising={chat.isPending} />}
+    </div>
+  </div>;
 
   function handleAttachmentsChange(attachments: ChatInputAttachment[]) {
     const addedFile = attachments.length > composerAttachments.length;
@@ -411,7 +466,7 @@ export function PlaygroundChat({
               <p className="truncate text-[13px] font-semibold text-primary">{conversationTitle}</p>
               <div className="mt-0.5 flex min-w-0 items-center justify-center gap-2"><span className={cn("chat-status-dot size-1.5 shrink-0 rounded-full bg-primary", chat.isPending && "animate-pulse")} /><span className="truncate text-[11px] text-on-secondary-container">{statusLabel}</span></div>
             </div>
-            <button type="button" onClick={startNewDialog} disabled={chat.messages.length === 0} className="grid size-11 shrink-0 place-items-center rounded-full text-primary hover:bg-surface-container-low disabled:pointer-events-none disabled:opacity-30" aria-label={text.chat.newDialog}><SquarePen size={18} /></button>
+              <button type="button" onClick={() => openWorkspace(undefined, "activity")} className="grid size-11 shrink-0 place-items-center rounded-full text-primary hover:bg-surface-container-low" aria-label={locale === "ru" ? "Панель Workspace" : "Workspace panel"}><PanelRightOpen size={18} /></button>
           </div>
 
           <div className="hidden min-h-16 items-center justify-between gap-3 px-5 md:flex">
@@ -423,7 +478,7 @@ export function PlaygroundChat({
               </div>
             </div>
             <div className="flex shrink-0 items-center gap-2">
-              <button type="button" onClick={() => openWorkspace(undefined, "activity")} className={cn("hidden size-9 place-items-center rounded-xl border border-outline-variant text-on-secondary-container hover:border-primary hover:bg-surface-container-low hover:text-primary xl:grid", drawerOpen && "border-primary bg-surface-container-low text-primary")} aria-label={locale === "ru" ? "Что делает Erma" : "What Erma is doing"} aria-pressed={drawerOpen}><PanelRightOpen size={15} /></button>
+              <button type="button" onClick={() => openWorkspace(undefined, "activity")} className={cn("grid size-9 place-items-center rounded-xl border border-outline-variant text-on-secondary-container hover:border-primary hover:bg-surface-container-low hover:text-primary", drawerOpen && "border-primary bg-surface-container-low text-primary")} aria-label={locale === "ru" ? "Панель Workspace" : "Workspace panel"} aria-pressed={drawerOpen}><PanelRightOpen size={15} /></button>
               <button type="button" onClick={startNewDialog} disabled={chat.messages.length === 0} className="grid size-9 place-items-center rounded-xl border border-outline-variant text-on-secondary-container hover:border-primary hover:bg-surface-container-low hover:text-primary disabled:pointer-events-none disabled:opacity-30" aria-label={text.chat.newDialog}><SquarePen size={15} /></button>
             </div>
           </div>
@@ -493,18 +548,13 @@ export function PlaygroundChat({
         </div>
       </section>
 
-      <ChatContextDrawer
-        key={drawerTab}
-        open={drawerOpen}
-        initialTab={drawerTab}
-        locale={locale}
-        messages={chat.messages}
-        contextStats={chat.contextStats}
-        attachments={composerAttachments}
-        project={currentProject}
-        onClose={() => setDrawerOpen(false)}
-        onProjectChange={updateProject}
-      />
+      {drawerOpen && !compactCanvas && <aside className="workspace-canvas" style={{ width: dockWidth }} aria-label={locale === "ru" ? "Рабочая панель" : "Workspace canvas"}>
+        <div className="workspace-canvas-resizer" role="separator" aria-orientation="vertical" aria-label={locale === "ru" ? "Ширина панели" : "Panel width"} tabIndex={0} onKeyDown={(event) => { if (event.key === "ArrowLeft") setDockWidth((width) => Math.min(580, width + 24)); if (event.key === "ArrowRight") setDockWidth((width) => Math.max(310, width - 24)); }} onPointerDown={(event) => { const target = event.currentTarget; target.setPointerCapture(event.pointerId); const start = event.clientX, original = dockWidth; target.onpointermove = (move) => setDockWidth(Math.max(310, Math.min(580, original + start - move.clientX))); target.onpointerup = () => { target.onpointermove = null; target.onpointerup = null; }; }} />
+        <div className="workspace-canvas-header"><span>WORKSPACE</span><button type="button" onClick={() => setDrawerOpen(false)} aria-label={text.chat.close}><X size={17} /></button></div>{canvas}
+      </aside>}
+      <ChatOverlay open={drawerOpen && compactCanvas} onClose={() => setDrawerOpen(false)} labelledBy="mobile-workspace-title" className="workspace-mobile-sheet" closeLabel={text.chat.close}>
+        <div className="workspace-canvas-header"><h2 id="mobile-workspace-title">Workspace</h2><button type="button" onClick={() => setDrawerOpen(false)} aria-label={text.chat.close}><X size={18} /></button></div>{canvas}
+      </ChatOverlay>
 
       <MobileChatDrawer
         open={mobileHistoryOpen}
@@ -514,6 +564,7 @@ export function PlaygroundChat({
         onOpenArtifacts={onOpenArtifacts}
         onOpenRuns={onOpenRuns}
       />
+      <MobileWorkspaceSwitcher locale={locale} active={drawerOpen ? drawerTab === "task" ? "flow" : drawerTab === "files" ? "artifacts" : "runs" : "chat"} onSelect={(section) => { if (section === "chat") setDrawerOpen(false); else openWorkspace(undefined, section === "flow" ? "task" : "files"); }} />
 
       <RewardedAdGate
         open={rewardGateOpen && Boolean(rewardQuotaError)}

@@ -1,9 +1,14 @@
 import { ARTIFACT_SCHEMA_VERSION, type ArtifactKind, type ArtifactVersion, type WorkspaceArtifact } from "@/lib/artifacts/types";
+import { getWorkspacePrivacyMode, shouldPersistWorkspace } from "@/lib/privacy-mode";
 
 const STORAGE_KEY = "tklabs.workspace-artifacts.v1";
 const MAX_ARTIFACTS = 24;
 const MAX_VERSIONS = 20;
 const MAX_CONTENT_LENGTH = 200_000;
+export const ARTIFACTS_UPDATED_EVENT = "tklabs:artifacts-updated";
+let ephemeralArtifacts: WorkspaceArtifact[] = [];
+
+function changed() { if (typeof window !== "undefined") window.dispatchEvent(new Event(ARTIFACTS_UPDATED_EVENT)); }
 
 function id() {
   return globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(16).slice(2)}`;
@@ -58,6 +63,7 @@ function sanitizeArtifact(value: unknown): WorkspaceArtifact | null {
 
 export function loadArtifacts(): WorkspaceArtifact[] {
   if (typeof window === "undefined") return [];
+  if (!shouldPersistWorkspace(getWorkspacePrivacyMode())) return ephemeralArtifacts;
   try {
     const parsed = JSON.parse(window.localStorage.getItem(STORAGE_KEY) ?? "[]");
     if (!Array.isArray(parsed)) return [];
@@ -67,15 +73,24 @@ export function loadArtifacts(): WorkspaceArtifact[] {
   }
 }
 
-export function saveArtifacts(artifacts: WorkspaceArtifact[]) {
-  if (typeof window === "undefined") return;
+export function saveArtifacts(artifacts: WorkspaceArtifact[]): boolean {
+  if (typeof window === "undefined") return false;
   const safe = artifacts.map(sanitizeArtifact).filter((entry): entry is WorkspaceArtifact => Boolean(entry)).slice(-MAX_ARTIFACTS);
+  if (!shouldPersistWorkspace(getWorkspacePrivacyMode())) { ephemeralArtifacts = safe; changed(); return true; }
   try {
     window.localStorage.setItem(STORAGE_KEY, JSON.stringify(safe));
+    changed();
+    return true;
   } catch {
-    // A full or restricted storage area must not break the workspace UI.
+    return false;
   }
 }
+
+export function upsertArtifact(artifact: WorkspaceArtifact) {
+  return saveArtifacts([artifact, ...loadArtifacts().filter((entry) => entry.id !== artifact.id)]);
+}
+export function removeArtifact(id: string) { return saveArtifacts(loadArtifacts().filter((artifact) => artifact.id !== id)); }
+export function clearEphemeralArtifacts() { ephemeralArtifacts = []; changed(); }
 
 export function createArtifact(kind: ArtifactKind = "document", title = "Untitled artifact", source?: { sessionId?: string; runId?: string; documentName?: string }): WorkspaceArtifact {
   const now = Date.now();

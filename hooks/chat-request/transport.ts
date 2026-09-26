@@ -1,5 +1,6 @@
 import { announceErmaVoiceReply } from "@/lib/ai/voice-mode";
 import type { AiResponseMeta } from "@/lib/ai/types";
+import { isAgentRunEvent, type AgentRunEvent } from "@/lib/ai/agent-run";
 
 import type { ActiveConversation, ChatContextStats } from "./contracts";
 
@@ -10,6 +11,7 @@ export type StreamOutcome = {
   receivedContent: boolean;
   streamError: string;
   content: string;
+  stopped: boolean;
 };
 
 export type StreamCallbacks = {
@@ -17,6 +19,8 @@ export type StreamCallbacks = {
   connected(stats: ChatContextStats | null, requestId: string): void;
   delta(text: string): void;
   meta(meta: AiResponseMeta): void;
+  agentEvent?(event: AgentRunEvent): void;
+  isCurrent?(): boolean;
   networkError: string;
 };
 
@@ -26,12 +30,15 @@ export function isResponseMeta(value: unknown): value is AiResponseMeta {
   return typeof meta.requestId === "string"
     && typeof meta.requestedModel === "string"
     && (meta.actualProvider === "nvidia"
+      || meta.actualProvider === "google"
+      || meta.actualProvider === "cerebras"
+      || meta.actualProvider === "groq"
       || meta.actualProvider === "google-grounding"
       || meta.actualProvider === "clodex"
       || meta.actualProvider === "edge-fallback")
     && typeof meta.actualModel === "string"
-    && typeof meta.latencyMs === "number"
-    && typeof meta.httpStatus === "number";
+    && typeof meta.latencyMs === "number" && Number.isFinite(meta.latencyMs)
+    && typeof meta.httpStatus === "number" && Number.isFinite(meta.httpStatus);
 }
 
 export function safeRetrySeconds(response: Response, payload: unknown) {
@@ -57,6 +64,7 @@ export function contextStatsFromPayload(payload: unknown): ChatContextStats | nu
     || typeof context.messages !== "number"
     || typeof context.attachments !== "number"
     || typeof context.limit !== "number"
+    || ![context.estimatedTokens, context.messages, context.attachments, context.limit].every(Number.isFinite)
   ) return null;
   return {
     estimatedTokens: Math.max(0, Math.round(context.estimatedTokens)),
@@ -67,7 +75,7 @@ export function contextStatsFromPayload(payload: unknown): ChatContextStats | nu
   };
 }
 
-function parseEventBlock(block: string) {
+function parseEventBlock(block: string): { event: string; payload: unknown } | null {
   let event = "message";
   const data: string[] = [];
   for (const line of block.split(/\r?\n/)) {
@@ -76,7 +84,7 @@ function parseEventBlock(block: string) {
   }
   if (!data.length) return null;
   try {
-    return { event, payload: JSON.parse(data.join("\n")) as StreamPayload };
+    return { event, payload: JSON.parse(data.join("\n")) as unknown };
   } catch {
     return null;
   }
@@ -95,34 +103,54 @@ export async function consumeAiEventStream(
   let receivedContent = false;
   let streamError = "";
   let content = "";
+  let stopped = false;
+  let named = false;
+  let runId = "";
+  let lastSequence = -1;
+  let terminal = false;
 
-  while (true) {
-    const { done, value } = await reader.read();
-    buffer += decoder.decode(value ?? new Uint8Array(), { stream: !done });
-    const blocks = buffer.split(/\r?\n\r?\n/);
-    buffer = done ? "" : (blocks.pop() ?? "");
+  try {
+    while (!terminal) {
+      const { done, value } = await reader.read();
+      buffer += decoder.decode(value ?? new Uint8Array(), { stream: !done });
+      if (buffer.length > 262_144) throw new Error("Stream frame exceeded its limit.");
+      const blocks = buffer.split(/\r?\n\r?\n/);
+      buffer = done ? "" : (blocks.pop() ?? "");
 
-    for (const block of blocks) {
-      const parsed = parseEventBlock(block);
-      if (!parsed) continue;
-      callbacks.heartbeat();
+      for (const block of blocks) {
+        if (callbacks.isCurrent?.() === false) { terminal = true; break; }
+        const parsed = parseEventBlock(block);
+        if (!parsed) continue;
+        const payload = parsed.payload && typeof parsed.payload === "object" && !Array.isArray(parsed.payload) ? parsed.payload as StreamPayload : {};
+        if (parsed.event.includes(".")) {
+          if (!isAgentRunEvent(parsed.payload) || parsed.payload.event !== parsed.event) continue;
+          const message = parsed.payload;
+          if (runId && message.runId !== runId || message.sequence <= lastSequence) continue;
+          runId = message.runId; lastSequence = message.sequence; named = true;
+          callbacks.heartbeat();
+          callbacks.agentEvent?.(message);
+          const data = message.payload && typeof message.payload === "object" ? message.payload as StreamPayload : {};
+          if (message.event === "answer.delta" && typeof data.text === "string") deliver(data.text);
+          if (message.event === "run.failed") { streamError = typeof data.error === "string" ? data.error : callbacks.networkError; receivedDone = true; terminal = true; }
+          if (message.event === "run.completed") { receivedDone = true; terminal = true; }
+          if (message.event === "run.cancelled") { receivedDone = true; stopped = true; terminal = true; }
+          if (terminal) break;
+          continue;
+        }
+        callbacks.heartbeat();
 
       if (parsed.event === "start") {
         callbacks.connected(
-          contextStatsFromPayload(parsed.payload.context),
-          typeof parsed.payload.requestId === "string"
-            ? parsed.payload.requestId
+          contextStatsFromPayload(payload.context),
+          typeof payload.requestId === "string"
+            ? payload.requestId
             : conversation.requestId,
         );
         continue;
       }
 
       if (parsed.event === "delta") {
-        const delta = typeof parsed.payload.text === "string" ? parsed.payload.text : "";
-        if (!delta) continue;
-        receivedContent = true;
-        content += delta;
-        callbacks.delta(delta);
+        if (!named && typeof payload.text === "string") deliver(payload.text);
         continue;
       }
 
@@ -132,18 +160,26 @@ export async function consumeAiEventStream(
       }
 
       if (parsed.event === "error") {
-        streamError = typeof parsed.payload.error === "string"
-          ? parsed.payload.error
+        streamError = typeof payload.error === "string"
+          ? payload.error
           : callbacks.networkError;
       }
-      if (parsed.event === "done") receivedDone = true;
+      if (parsed.event === "done") { receivedDone = true; stopped = payload.stopped === true; terminal = true; break; }
     }
-
-    if (done) break;
+      if (done) break;
+    }
+  } finally {
+    if (terminal) await reader.cancel().catch(() => undefined);
+    reader.releaseLock();
   }
 
-  if (receivedDone && !streamError && content.trim()) {
+  function deliver(delta: string) {
+    if (!delta || content.length + delta.length > 200_000) throw new Error("Response exceeded its limit.");
+    receivedContent = true; content += delta; callbacks.delta(delta);
+  }
+
+  if (receivedDone && !stopped && !streamError && content.trim()) {
     announceErmaVoiceReply({ id: conversation.assistantId, role: "assistant", content });
   }
-  return { receivedDone, receivedContent, streamError, content };
+  return { receivedDone, receivedContent, streamError, content, stopped };
 }
