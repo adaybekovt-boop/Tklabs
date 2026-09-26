@@ -177,6 +177,16 @@ test("alternate-host login redirects before host-only PKCE cookies can be create
   assert.equal(post.headers.get("location"), "https://tklabs.uk/login");
 });
 
+test("auth canonicalization preserves route matching for long slash runs", () => {
+  const slashes = "/".repeat(32_768);
+  const malformedPath = `/login${slashes}other`;
+  assert.equal(getAuthCanonicalRedirect(new Request(`https://alias-worker.test${malformedPath}`), environment), null);
+  const trailingSlashes = `/login${slashes}`;
+  const redirect = getAuthCanonicalRedirect(new Request(`https://alias-worker.test${trailingSlashes}`), environment);
+  assert.equal(redirect.status, 307);
+  assert.equal(redirect.headers.get("location"), `https://tklabs.uk${trailingSlashes}`);
+});
+
 test("Worker URL overrides spoofed forwarded headers without losing the request body", async () => {
   const request = withTrustedForwardedHeaders(new Request("https://tklabs.uk/login", {
     method: "POST", body: "preserved-action-body",

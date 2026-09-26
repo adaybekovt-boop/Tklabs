@@ -105,8 +105,9 @@ for (const streaming of [false, true]) {
     process.env.CLODEX_MODEL_REASONING = "test-reasoning";
     process.env.CLODEX_MODEL_PRO = "test-pro";
     globalThis.fetch = async (url, init) => {
-      if (String(url).includes("nvidia.com")) return new Response("Unavailable", { status: 503 });
-      assert.ok(String(url).includes("clodex.xyz"));
+      const requestUrl = url instanceof Request ? url.url : String(url);
+      if (requestUrl === "https://integrate.api.nvidia.com/v1/chat/completions") return new Response("Unavailable", { status: 503 });
+      assert.equal(requestUrl, "https://clodex.xyz/v1/messages");
       controller.abort(new DOMException("Browser stopped fallback", "AbortError"));
       throw init.signal.reason;
     };

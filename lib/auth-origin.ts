@@ -3,7 +3,11 @@ import { getConfiguredAuthOrigin, getRuntimeAuthEnvironment, type AuthEnvironmen
 /** Keep host-only PKCE and session cookies on the same origin as the callback. */
 export function getAuthCanonicalRedirect(request: Request, environment: AuthEnvironment = getRuntimeAuthEnvironment()) {
   const current = new URL(request.url);
-  const path = current.pathname.replace(/\/+$/, "");
+  const pathname = current.pathname;
+  let pathEnd = pathname.length;
+  // Scan once: an unanchored suffix regex can backtrack over long slash runs.
+  while (pathEnd > 0 && pathname.charCodeAt(pathEnd - 1) === 47) pathEnd -= 1;
+  const path = pathname.slice(0, pathEnd);
   if (path !== "/login" && path !== "/api/auth" && !path.startsWith("/api/auth/")) return null;
   const origin = getConfiguredAuthOrigin(environment);
   if (!origin || current.origin === origin) return null;
