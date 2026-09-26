@@ -133,7 +133,12 @@ async function executeTool(env: Env, name: string, args: Record<string, unknown>
 
 function compactHistory(history: ChatMessage[]): ChatMessage[] {
   const system = history.find((message) => message.role === "system") ?? initialHistory()[0];
-  return [system, ...history.filter((message) => message.role !== "system").slice(-24)];
+  const messages = history.filter((message) => message.role !== "system");
+  // Trim whole user turns: slicing an assistant tool call away from its tool
+  // results produces an invalid provider request on the following message.
+  const cutoff = Math.max(0, messages.length - 24);
+  const firstUser = messages.findIndex((message, index) => index >= cutoff && message.role === "user");
+  return [system, ...(firstUser < 0 ? [] : messages.slice(firstUser))];
 }
 
 export async function chatWithClodex(
@@ -141,7 +146,7 @@ export async function chatWithClodex(
   history: ChatMessage[],
   userMessage: string,
 ): Promise<{ reply: string; history: ChatMessage[] }> {
-  const nextHistory = [...(history.length > 0 ? history : initialHistory()), { role: "user" as const, content: userMessage }];
+  const nextHistory = [...compactHistory(history), { role: "user" as const, content: userMessage }];
 
   for (let iteration = 0; iteration < 4; iteration += 1) {
     const response = await callClodex(env, nextHistory);

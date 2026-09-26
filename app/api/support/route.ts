@@ -1,4 +1,5 @@
 import { isTrustedRequestOrigin } from "@/lib/request-security";
+import { parseJsonBody, RequestBodyTooLargeError } from "@/lib/request-body";
 import { getSupportAvailability, revealSupportMethod, type SupportMethod } from "@/lib/support-config";
 
 export const runtime = "edge";
@@ -25,13 +26,14 @@ export async function GET() {
 
 export async function POST(request: Request) {
   if (!isTrustedRequestOrigin(request)) return json({ error: "Request origin is not allowed." }, 403);
-  let body: { method?: unknown } = {};
+  let body: { method?: unknown } | null;
   try {
-    body = (await request.json()) as { method?: unknown };
-  } catch {
+    body = await parseJsonBody<{ method?: unknown }>(request, 2_048);
+  } catch (error) {
+    if (error instanceof RequestBodyTooLargeError) return json({ error: "Request body is too large." }, 413);
     return json({ error: "Invalid request body." }, 400);
   }
-  if (!isMethod(body.method)) return json({ error: "Unsupported support method." }, 400);
+  if (!isMethod(body?.method)) return json({ error: "Unsupported support method." }, 400);
   const method = revealSupportMethod(body.method);
   if (!method) return json({ error: "This support method is not configured." }, 404);
   return json(method);
