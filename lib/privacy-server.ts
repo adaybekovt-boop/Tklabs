@@ -1,9 +1,9 @@
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 
 import { getDb } from "@/db";
 import { legalAcceptances, users, workspaceSnapshots } from "@/db/schema";
 import { revokeClodexAccess } from "@/lib/account-access";
-import { recordAuditEvent } from "@/lib/audit-events";
+import { auditEventStatements, recordAuditEvent } from "@/lib/audit-events";
 import { getWorkspaceSnapshot } from "@/lib/workspace-sync-server";
 
 function normalizeEmail(value: string) { return value.trim().toLowerCase(); }
@@ -32,11 +32,14 @@ export async function deleteAccountData(emailValue: string) {
       console.error("Unable to revoke external account access before privacy deletion", error instanceof Error ? error.name : "unknown");
       throw new PrivacyDataUnavailableError();
     }
-    await recordAuditEvent(user.id, "privacy.deleted");
+    // Resolve the ID inside the transaction: terms reads can migrate legacy
+    // IDs while external access revocation is in flight.
+    const currentId = sql<string>`(${db.select({ id: users.id }).from(users).where(eq(users.email, email))})`;
     await db.batch([
-      db.delete(legalAcceptances).where(eq(legalAcceptances.userId, user.id)),
-      db.delete(workspaceSnapshots).where(eq(workspaceSnapshots.userId, user.id)),
-      db.delete(users).where(eq(users.id, user.id)),
+      ...auditEventStatements(db, currentId, "privacy.deleted"),
+      db.delete(legalAcceptances).where(eq(legalAcceptances.userId, currentId)),
+      db.delete(workspaceSnapshots).where(eq(workspaceSnapshots.userId, currentId)),
+      db.delete(users).where(eq(users.email, email)),
     ]);
     return { deleted: true, accessRevocationAttempted: true };
   } catch (error) { console.error("Unable to delete account privacy data", error); throw new PrivacyDataUnavailableError(); }

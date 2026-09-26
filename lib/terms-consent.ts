@@ -1,8 +1,8 @@
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 
 import { getDb } from "@/db";
 import { auditEvents, legalAcceptances, users, workspaceSnapshots } from "@/db/schema";
-import { recordAuditEvent } from "@/lib/audit-events";
+import { auditEventStatements } from "@/lib/audit-events";
 import { CURRENT_LEGAL_BUNDLE_DIGEST, CURRENT_LEGAL_BUNDLE_VERSION } from "@/lib/legal-documents";
 import type { TermsLanguage } from "@/lib/terms";
 import { legacyTermsUserId, termsUserId } from "@/lib/terms-user-id";
@@ -33,13 +33,14 @@ async function ensureUser(user: TermsUser) {
     if (!row) throw new TermsStorageUnavailableError();
     if (row.id !== id && row.id === (await legacyTermsUserId(email))) {
       const legacyId = row.id;
-      // Related rows now exist, so migrate them before changing the users PK.
-      // Keeping the user row on the legacy id until the final statement makes
-      // a partial failure retryable instead of silently orphaning linked data.
-      await db.update(workspaceSnapshots).set({ userId: id }).where(eq(workspaceSnapshots.userId, legacyId)).run();
-      await db.update(legalAcceptances).set({ userId: id }).where(eq(legalAcceptances.userId, legacyId)).run();
-      await db.update(auditEvents).set({ userId: id }).where(eq(auditEvents.userId, legacyId)).run();
-      await db.update(users).set({ id }).where(eq(users.email, email)).run();
+      // D1 batch is transactional. A partial identity migration would hide
+      // snapshots/consent from reads and account deletion until a later retry.
+      await db.batch([
+        db.update(workspaceSnapshots).set({ userId: id }).where(eq(workspaceSnapshots.userId, legacyId)),
+        db.update(legalAcceptances).set({ userId: id }).where(eq(legalAcceptances.userId, legacyId)),
+        db.update(auditEvents).set({ userId: id }).where(eq(auditEvents.userId, legacyId)),
+        db.update(users).set({ id }).where(eq(users.id, legacyId)),
+      ]);
       row = { ...row, id };
     }
     return { db, row };
@@ -54,8 +55,13 @@ export async function getTermsConsentStatus(user: TermsUser): Promise<TermsConse
 export async function acceptTerms(user: TermsUser, language: TermsLanguage, version: string) {
   if (version !== CURRENT_LEGAL_BUNDLE_VERSION) throw new Error("Terms version is not current.");
   const { db, row } = await ensureUser(user); const now = new Date();
-  await db.update(users).set({ termsAccepted: true, termsAcceptedAt: now, termsVersion: CURRENT_LEGAL_BUNDLE_VERSION, language, updatedAt: now }).where(eq(users.id, row.id)).run();
-  await db.insert(legalAcceptances).values({ id: crypto.randomUUID(), userId: row.id, bundleVersion: CURRENT_LEGAL_BUNDLE_VERSION, bundleDigest: CURRENT_LEGAL_BUNDLE_DIGEST, language, acceptedAt: now }).run();
-  await recordAuditEvent(row.id, "legal.accepted");
+  const liveUserId = sql<string>`(${db.select({ id: users.id }).from(users).where(eq(users.id, row.id))})`;
+  await db.batch([
+    db.update(users).set({ termsAccepted: true, termsAcceptedAt: now, termsVersion: CURRENT_LEGAL_BUNDLE_VERSION, language, updatedAt: now }).where(eq(users.id, row.id)),
+    db.insert(legalAcceptances).values({ id: crypto.randomUUID(), userId: row.id, bundleVersion: CURRENT_LEGAL_BUNDLE_VERSION, bundleDigest: CURRENT_LEGAL_BUNDLE_DIGEST, language, acceptedAt: now }),
+    // The NOT NULL audit identity also aborts the batch if this account was
+    // deleted/migrated after ensureUser, instead of creating orphaned evidence.
+    ...auditEventStatements(db, liveUserId, "legal.accepted", now),
+  ]);
   return getTermsConsentStatus(user);
 }
