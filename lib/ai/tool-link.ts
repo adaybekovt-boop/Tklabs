@@ -11,4 +11,3 @@ export function isSafeToolLink(href: string, toolName: string) {
     return false;
   }
 }
-

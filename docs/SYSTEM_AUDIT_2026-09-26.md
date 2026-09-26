@@ -93,9 +93,9 @@ HTTP-обработчики теперь передают исходный ст�
 
 Production-секреты, D1-данные и платные AI-запросы не менялись. Ветка сама по себе не обновляет рабочий сайт.
 
-Проверки итогового состояния:
+Проверки кода на `b21a4726` (последующая правка уточняет этот отчёт и убирает пустую строку в конце файла):
 
-- `npm run check`: PASS — typecheck, ESLint (0 ошибок, 5 существующих предупреждений в persistence.ts), secret scan, migration/policy/legal/release checks, 22 unit и 372 integration tests, production build, built-Worker OAuth и performance budget.
+- `npm run check`: PASS — typecheck, ESLint (0 ошибок, 5 существующих предупреждений в persistence.ts), secret scan, migration/policy/legal/release checks, 22 unit и 373 integration tests в итоговом CI, production build, built-Worker OAuth и performance budget.
 - `npm audit --omit=dev --audit-level=high`: PASS, 0 известных production-уязвимостей на момент проверки.
 - `wrangler deploy --dry-run` для основного Worker: PASS. Это проверка упаковки, не деплой.
 - Telegram: `npm run check` (types + dry-run): PASS; 14 целевых support/Telegram регрессий PASS. Отдельная проверка в workerd: три одинаковых подписанных webhook приняты, mocked sendMessage выполнен один раз, повтор после completed receipt не отправляет ответ снова.
@@ -107,9 +107,9 @@ Telegram использует существующий binding BOT_STATE. Оче
 
 Публичные GET-пробы tklabs.uk вернули 200 для `/login`, `/api/ready`, `/api/auth/providers`, `/api/auth/csrf`; сайт сообщил v0.25.0. Это подтверждает начало входа, не callback. Production smoke из Node в этой среде завершился по сетевому timeout, поэтому не считается пройденным.
 
-Локальная браузерная регрессия остановилась до открытия браузера: Cloudflare Vite plugin не смог вызвать os.networkInterfaces (`uv_interface_addresses`, EPERM). Браузерная проверка выполнена в GitHub Actions: [Browser Assurance](https://github.com/adaybekovt-boop/Tklabs/actions/runs/36263678542) на `ccc41fe4` — 51 passed, 63 пропущены по условиям профилей; desktop Chromium, mobile Chromium и mobile WebKit. Это CI с тестовым окружением, не проверка production Google-аккаунта.
+Локальная браузерная регрессия остановилась до открытия браузера: Cloudflare Vite plugin не смог вызвать os.networkInterfaces (`uv_interface_addresses`, EPERM). Браузерная проверка выполнена в GitHub Actions: [Browser Assurance](https://github.com/adaybekovt-boop/Tklabs/actions/runs/36264375533) на `b21a4726` — 51 passed, 63 пропущены по условиям профилей; desktop Chromium, mobile Chromium и mobile WebKit. Это CI с тестовым окружением, не проверка production Google-аккаунта.
 
-Первый прогон CodeQL выявил сравнение URL по подстроке в новом fetch-mock теста отмены. Mock переведён на точный URL; предупреждение не подавлялось. При дополнительном review устранён указанный выше квадратичный разбор auth URL. Целевые проверки auth и отмены провайдера после этих правок: 15/15 PASS. Результаты повторного CI фиксируются в [PR #84](https://github.com/adaybekovt-boop/Tklabs/pull/84).
+Первый прогон CodeQL выявил сравнение URL по подстроке в новом fetch-mock теста отмены. Mock переведён на точный URL; предупреждение не подавлялось. При дополнительном review устранён указанный выше квадратичный разбор auth URL. Целевые проверки auth и отмены провайдера после этих правок: 15/15 PASS. Повторный CI на `b21a4726`: Validate, CodeQL (включая security check), Dependency Review и Browser Assurance — PASS. Результаты и ссылки на проверки есть в [PR #84](https://github.com/adaybekovt-boop/Tklabs/pull/84).
 
 ## Первичные источники ограничений
 
