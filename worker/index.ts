@@ -1,6 +1,7 @@
 /** Cloudflare Worker entry point for the backend API. */
 import handler from "vinext/server/app-router-entry";
 
+import { getAuthCanonicalRedirect, withTrustedForwardedHeaders } from "@/lib/auth-origin";
 import { countryRestrictedResponse, isRequestCountryRestricted } from "@/lib/country-access";
 
 export { ClodexAccess } from "./clodex-access";
@@ -12,9 +13,13 @@ type AppRequest = Parameters<AppFetch>[0];
 type AppEnvironment = Parameters<AppFetch>[1];
 type AppContext = Parameters<AppFetch>[2];
 
-export default {
+const worker = {
   async fetch(request: AppRequest, environment: AppEnvironment, context: AppContext) {
     if (isRequestCountryRestricted(request)) return countryRestrictedResponse();
-    return handler.fetch(request, environment, context);
+    const authRedirect = getAuthCanonicalRedirect(request);
+    if (authRedirect) return authRedirect;
+    return handler.fetch(withTrustedForwardedHeaders(request), environment, context);
   },
 };
+
+export default worker;

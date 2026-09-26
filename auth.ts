@@ -1,29 +1,14 @@
 import NextAuth from "next-auth";
-import Google from "next-auth/providers/google";
 
+import { getAuthConfig } from "@/lib/auth-config";
+import { handleAuthRequest } from "@/lib/auth-http";
 import { isLocalPreviewEnabled } from "@/lib/local-preview";
 
-const nextAuth = NextAuth({
-  // Pass the runtime Worker binding explicitly. Relying on Auth.js env
-  // inference here can produce a different PKCE sealing context between the
-  // RSC sign-in action and the OAuth callback in the vinext Worker runtime.
-  secret: process.env.AUTH_SECRET?.trim(),
-  providers: [
-    Google({
-      authorization: {
-        params: {
-          prompt: "select_account",
-          scope: "openid email profile",
-        },
-      },
-    }),
-  ],
-  session: { strategy: "jwt" },
-  pages: { signIn: "/login" },
-  trustHost: process.env.AUTH_TRUST_HOST === "true",
-});
+// Both server actions and callbacks resolve the same explicit runtime config.
+// Do not capture secrets/providers while the RSC module graph is imported.
+const nextAuth = NextAuth(() => getAuthConfig());
 
-export const handlers = nextAuth.handlers;
+export const handlers = { GET: handleAuthRequest, POST: handleAuthRequest };
 export const signIn = nextAuth.signIn;
 export const signOut = nextAuth.signOut;
 
