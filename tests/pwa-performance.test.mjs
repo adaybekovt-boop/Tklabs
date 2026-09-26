@@ -48,13 +48,16 @@ test("manifest and offline fallback expose installable application metadata", as
   assert.match(offline, /AI requests/);
 });
 
-test("home artwork is local and does not depend on Google image delivery", async () => {
+test("home product illustration and fonts do not depend on external asset delivery", async () => {
   const home = await source("app/page.tsx");
-  assert.match(home, /\/images\/home\/hero-editorial\.jpg/);
-  assert.match(home, /\/images\/home\/lab-monolith\.jpg/);
+  const css = await source("app/home.css");
+  const illustration = await source("components/home/TaskWorkspace.tsx");
+  assert.match(home, /ErmaHomeExperience/);
+  assert.match(illustration, /PUBLIC_ERMA_MODELS/);
   assert.doesNotMatch(home, /googleusercontent\.com/);
-  assert.match(home, /fetchPriority="high"/);
-  assert.match(home, /loading="lazy"/);
+  assert.doesNotMatch(css, /https?:\/\//);
+  assert.match(css, /\/fonts\/home\/oswald-cyrillic\.woff2/);
+  assert.match(css, /font-display:swap/);
 });
 
 test("production validation enforces explicit client asset budgets", async () => {

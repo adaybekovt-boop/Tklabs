@@ -10,6 +10,11 @@ The AI chat workspace remains an exception. `StitchHeader` is called with `chatM
 
 Landing and login pages should not add generic “Open chat”, “Start chat”, or “Back home” buttons when the same destination is already available in the dock. Contextual links are still appropriate when they explain a nearby feature, such as model documentation or release details.
 
+The cinematic Erma homepage is an explicit product-entry exception: its primary
+**Open Erma** CTA links to `/playground`, retaining that route's existing login
+gate. `HomeHeader` replaces the floating desktop navigation on this page only;
+`StitchHeader` still renders AppDock and TermsGate. Other pages are unchanged.
+
 ## Motion contract
 
 `MotionOrchestrator` owns route intent and route-entry state. Internal same-origin links set `data-route-transition="leaving"` before navigation. A pathname change sets `data-route-transition="entering"` for the entry animation.
@@ -19,6 +24,21 @@ Landing and login pages should not add generic “Open chat”, “Start chat”
 External links, downloads, modified clicks, hash-only navigation, and links targeting another browsing context do not trigger route-leave animation.
 
 All navigation animation must honor `prefers-reduced-motion: reduce`; content must remain fully usable with motion disabled.
+
+## Homepage film ownership
+
+`[data-home-motion]` is excluded from generic MotionOrchestrator reveals and
+spatial route transitions. `useHomeFilm` owns its single native-scroll timeline.
+It enables a CSS sticky stage only at 600px/600px or larger and with motion
+allowed. Geometry is cached on resize/font readiness; one demand-driven RAF
+settles progress and then stops. All listeners, frames, observers, inline styles,
+and inert states are cleared on unmount, locale change, or a media-query change.
+Smaller screens use unpinned scroll entrances; reduced motion and no-JS get the complete
+sequential document. `home.css` overrides body overflow only while the home shell
+exists, avoiding the app's nested scroll container capturing sticky positioning.
+
+The homepage uses shared monochrome light/dark tokens and the stored theme preference. See PRODUCT.md, DESIGN.md, and docs/HOME_SHOT_LIST.md for its
+content evidence, composition and timing contract.
 
 ## Accessibility
 

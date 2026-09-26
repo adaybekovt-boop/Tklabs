@@ -1,6 +1,7 @@
 import Link from "next/link";
 
 import { auth } from "@/auth";
+import { HomeHeader } from "@/components/home/HomeHeader";
 import { TermsGate } from "@/components/legal/TermsGate";
 import { AppDock } from "@/components/site/AppDock";
 import { LanguageToggle } from "@/components/site/LanguageToggle";
@@ -81,6 +82,7 @@ export async function StitchHeader({ active, chatMode = false, transparent = fal
     <>
       {!chatMode && (
         <>
+          {active === "home" ? <HomeHeader locale={locale} signedIn={signedIn}/> : <>
           <AnimatedNavFramer locale={locale} />
           <header
             className={cn(
@@ -116,6 +118,7 @@ export async function StitchHeader({ active, chatMode = false, transparent = fal
               </div>
             </div>
           </header>
+          </>}
           <AppDock locale={locale} signedIn={signedIn} labels={dockLabels} />
         </>
       )}

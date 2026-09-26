@@ -66,7 +66,7 @@ test("secondary surfaces keep branding restrained and the mobile footer is group
   assert.match(developers, /data-engineering-system-map/);
   assert.doesNotMatch(developers, /text-\[100px\]|text-\[120px\]/);
   assert.match(home, /getCurrentRelease/);
-  assert.match(home, /aspect-\[16\/10\]/);
+  assert.match(home, /<HomeEnding locale=\{locale\} release=\{release\}/);
   assert.doesNotMatch(home, /FlaskConical/);
 });
 
