@@ -1,9 +1,22 @@
+import { isSafeToolLink } from "@/lib/ai/tool-link";
 import { createAiProvenance } from "@/lib/ai/provenance";
 import type { AiGenerationResult, AiGroundingMeta, AiResponseMeta, AiToolCallTrace } from "@/lib/ai/types";
 
+
 function safeToolCalls(value: AiToolCallTrace[] | undefined) {
   if (!value?.length) return undefined;
-  const calls = value.slice(0, 6).map((call) => ({ id: call.id.slice(0, 120), name: call.name, status: call.status, durationMs: Math.max(0, Math.round(call.durationMs)), summary: call.summary.slice(0, 180), ...(call.links?.length ? { links: call.links.filter((link) => link.href.startsWith("/") && !link.href.startsWith("//")).slice(0, 5).map((link) => ({ label: link.label.slice(0, 120), href: link.href.slice(0, 240) })) } : {}) }));
+  const calls = value.slice(0, 6).map((call) => {
+    const links = call.links?.filter((link) => isSafeToolLink(link.href, call.name)).slice(0, 5)
+      .map((link) => ({ label: link.label.slice(0, 120), href: link.href }));
+    return {
+      id: call.id.slice(0, 120),
+      name: call.name,
+      status: call.status,
+      durationMs: Math.max(0, Math.round(call.durationMs)),
+      summary: call.summary.slice(0, 180),
+      ...(links?.length ? { links } : {}),
+    };
+  });
   return calls.length ? calls : undefined;
 }
 

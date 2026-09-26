@@ -9,7 +9,6 @@ import "@/app/mobile-workspace.css";
 import "@/lib/public-branding";
 import { PwaRuntime } from "@/components/pwa/PwaRuntime";
 import { MotionOrchestrator } from "@/components/site/MotionOrchestrator";
-import { PublicBrandingGuard } from "@/components/site/PublicBrandingGuard";
 import { getLocale } from "@/lib/locale";
 
 const THEME_INIT_SCRIPT = `try {
@@ -32,7 +31,7 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
   return (
     <html lang={locale} suppressHydrationWarning>
       <head><script dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }} /></head>
-      <body><MotionOrchestrator /><PublicBrandingGuard />{children}<PwaRuntime /></body>
+      <body><MotionOrchestrator />{children}<PwaRuntime /></body>
     </html>
   );
 }

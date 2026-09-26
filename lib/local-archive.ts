@@ -1,5 +1,6 @@
 "use client";
 
+import { isSafeToolLink } from "@/lib/ai/tool-link";
 import type { AiResponseMeta, AiToolCallTrace, AiToolName } from "@/lib/ai/types";
 
 // Everything here is stored only in this browser's localStorage. Nothing is
@@ -105,10 +106,9 @@ function sanitizeToolCalls(value: unknown): AiToolCallTrace[] | undefined {
           if (
             typeof candidate.label !== "string"
             || typeof candidate.href !== "string"
-            || !candidate.href.startsWith("/")
-            || candidate.href.startsWith("//")
+            || !isSafeToolLink(candidate.href, trace.name as AiToolName)
           ) return [];
-          return [{ label: candidate.label.slice(0, 120), href: candidate.href.slice(0, 240) }];
+          return [{ label: candidate.label.slice(0, 120), href: candidate.href }];
         }).slice(0, 5)
       : [];
     return [{
