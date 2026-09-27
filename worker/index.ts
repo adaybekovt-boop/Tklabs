@@ -2,6 +2,7 @@
 import handler from "vinext/server/app-router-entry";
 
 import { countryRestrictedResponse, isRequestCountryRestricted } from "@/lib/country-access";
+import { guardWorkerRequest, type AbuseGuardEnvironment } from "@/lib/abuse-guard";
 
 export { ClodexAccess } from "./clodex-access";
 export { HealthStatus } from "./health-status";
@@ -15,6 +16,8 @@ type AppContext = Parameters<AppFetch>[2];
 export default {
   async fetch(request: AppRequest, environment: AppEnvironment, context: AppContext) {
     if (isRequestCountryRestricted(request)) return countryRestrictedResponse();
+    const abuseResponse = await guardWorkerRequest(request, environment as AbuseGuardEnvironment);
+    if (abuseResponse) return abuseResponse;
     return handler.fetch(request, environment, context);
   },
 };

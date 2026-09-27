@@ -1,4 +1,6 @@
 import { auth } from "@/auth";
+import { env } from "cloudflare:workers";
+import { guardAccountAiRequest, type AbuseGuardEnvironment } from "@/lib/abuse-guard";
 import { generateWithClodex } from "@/lib/ai/providers/clodex";
 import { logAiProviderFailure, logAiRequest } from "@/lib/ai/logging";
 import { newRequestId } from "@/lib/ai/provider-http";
@@ -63,6 +65,8 @@ export async function POST(request: Request) {
   const email = session?.user?.email?.trim().toLowerCase() ?? "";
   if (!email) return jsonResponse({ error: "Authentication required.", requestId }, requestId, 401);
   if (!isAdminEmail(email)) return jsonResponse({ error: "Premium models are available to administrators only.", requestId }, requestId, 403);
+  const abuseResponse = await guardAccountAiRequest(email, env as AbuseGuardEnvironment);
+  if (abuseResponse) return abuseResponse;
   const privilegedAccount = isPrivilegedAiEmail(email);
 
   let body: ChatRequest | null;

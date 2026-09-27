@@ -1,4 +1,6 @@
 import { auth } from "@/auth";
+import { env } from "cloudflare:workers";
+import { guardAccountAiRequest, type AbuseGuardEnvironment } from "@/lib/abuse-guard";
 import { ChatContextValidationError, prepareChatContext, type PreparedChatContext } from "@/lib/ai/context";
 import { parsePersonalMemoryPacket, renderPersonalMemoryContext } from "@/lib/ai/personal-memory";
 import { newRequestId } from "@/lib/ai/provider-http";
@@ -58,6 +60,10 @@ export async function prepareDemoRequest(request: Request): Promise<DemoRequestP
   if (!isTrustedRequestOrigin(request)) return { response: jsonResponse({ error: "Request origin is not allowed.", requestId }, requestId, 403) };
 
   const email = await sessionEmail();
+  if (email) {
+    const abuseResponse = await guardAccountAiRequest(email, env as AbuseGuardEnvironment);
+    if (abuseResponse) return { response: abuseResponse };
+  }
   const privilegedAccount = isPrivilegedAiEmail(email);
 
   const quotaResult = await createDemoQuota({ request, requestId, language: languageFromHeader(request), sessionEmail: email, privileged: privilegedAccount });
