@@ -23,9 +23,9 @@ function rejection(status: 429 | 503, reason: "rate_limited" | "unavailable") {
 }
 
 function gatedPath(pathname: string) {
-  // OAuth redirects and health probes must remain available even if one NAT
-  // address is abusive. An edge WAF rule can separately protect login.
-  if (pathname.startsWith("/api/auth/callback/") || EXEMPT_PATHS.has(pathname)) return false;
+  // Health probes must stay available during an incident so a deployment can
+  // report its binding status. The edge WAF still protects this API route.
+  if (EXEMPT_PATHS.has(pathname)) return false;
   if (/^\/(?:_next|assets|images|fonts)(?:\/|$)/.test(pathname) || /\.(?:css|js|mjs|png|jpe?g|webp|avif|woff2?|svg|ico|map)$/i.test(pathname)) return false;
   return true;
 }

@@ -46,7 +46,9 @@ const localWorkerConfig = {
     { tag: "v2", new_sqlite_classes: ["HealthStatus"] },
     { tag: "v3", new_sqlite_classes: ["InferenceScheduler"] },
   ],
-  workers_dev: true,
+  // The public workers.dev hostname would bypass zone WAF rules on tklabs.uk.
+  // Cloudflare preview and version URLs remain available with this disabled.
+  workers_dev: false,
   vars: {
     // Only inject AUTH_URL when it was explicitly configured. If it is absent,
     // Auth.js derives the origin from the forwarded request host, which keeps
