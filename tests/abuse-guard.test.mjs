@@ -45,6 +45,7 @@ test("write and traffic ceilings also cover cheap endpoints and page refreshes",
   assert.equal(await guardWorkerRequest(request("/models"), env, true), null);
   assert.equal((await guardWorkerRequest(request("/models"), env, true)).status, 429);
   assert.equal(await guardWorkerRequest(request("/api/auth/callback/google", "POST"), env, true), null);
+  assert.equal((await guardWorkerRequest(request("/api/auth/session"), env, true)).status, 429);
   assert.equal(await guardWorkerRequest(request("/images/logo.svg"), env, true), null);
 });
 
