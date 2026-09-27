@@ -245,7 +245,7 @@ test("desktop popovers stay in the viewport and model navigation stays scoped", 
   await expect(modelMenu).toHaveCount(0);
 });
 
-test("desktop workspace exposes Runs as an honest tab and keeps the shell usable at each desktop width", async ({ page }, testInfo) => {
+test("desktop workspace opens task history and keeps the shell usable at each desktop width", async ({ page }, testInfo) => {
   test.skip(!testInfo.project.name.includes("desktop"), "Desktop workspace contract");
   await page.goto(PLAYGROUND_HARNESS);
   await waitForClientShell(page);
@@ -257,8 +257,9 @@ test("desktop workspace exposes Runs as an honest tab and keeps the shell usable
     expect(overflow).toBeLessThanOrEqual(1);
   }
 
-  await page.getByRole("tab", { name: /Запуски|Runs/i }).click();
-  await expect(page.getByRole("tabpanel", { name: /Запуски|Runs/i })).toBeVisible();
+  await page.getByRole("button", { name: /Панель Workspace|Workspace panel/i }).click();
+  await expect(page.getByRole("tab", { name: /Ход работы|Activity/i })).toHaveAttribute("aria-selected", "true");
+  await expect(page.locator("[data-agent-run-panel]")).toBeVisible();
 });
 
 test("mobile playground stays inside the viewport and exposes the mobile composer", async ({ page }, testInfo) => {

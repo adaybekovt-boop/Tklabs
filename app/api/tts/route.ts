@@ -1,4 +1,6 @@
 import { auth } from "@/auth";
+import { env } from "cloudflare:workers";
+import { guardAccountAiRequest, type AbuseGuardEnvironment } from "@/lib/abuse-guard";
 import { AccountAccessUnavailableError, commitTts, releaseTts, reserveTts } from "@/lib/account-access";
 import { TTS_MAX_TEXT_LENGTH } from "@/lib/tts-rate-limit";
 import { isPrivilegedAiEmail } from "@/lib/privileged-access";
@@ -139,6 +141,8 @@ export async function handleTtsPost(request: Request, readSession: SessionReader
   const email = await sessionEmail(readSession);
   if (email === null) return errorResponse("Speech service is temporarily unavailable.", 503, requestId);
   if (!email) return errorResponse("Authentication required.", 401, requestId);
+  const abuseResponse = await guardAccountAiRequest(email, env as AbuseGuardEnvironment);
+  if (abuseResponse) return abuseResponse;
 
   let body: SpeechRequest | null;
   try {

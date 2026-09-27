@@ -26,6 +26,14 @@ const rewardedAdSmartlinkUrl = process.env.REWARDED_AD_SMARTLINK_URL?.trim() || 
 const localWorkerConfig = {
   main: "./worker/index.ts",
   compatibility_flags: ["nodejs_compat"],
+  // Distinct namespaces prevent traffic, mutation, model and account counters
+  // from changing one another's effective thresholds.
+  ratelimits: [
+    { name: "WORKSPACE_TRAFFIC_LIMIT", namespace_id: "26092701", simple: { limit: 120, period: 60 as const } },
+    { name: "WORKSPACE_WRITE_LIMIT", namespace_id: "26092702", simple: { limit: 30, period: 60 as const } },
+    { name: "WORKSPACE_AI_LIMIT", namespace_id: "26092703", simple: { limit: 20, period: 60 as const } },
+    { name: "ACCOUNT_AI_LIMIT", namespace_id: "26092704", simple: { limit: 6, period: 60 as const } },
+  ],
   durable_objects: {
     bindings: [
       { name: "CLODEX_ACCESS", class_name: "ClodexAccess" },
@@ -38,7 +46,9 @@ const localWorkerConfig = {
     { tag: "v2", new_sqlite_classes: ["HealthStatus"] },
     { tag: "v3", new_sqlite_classes: ["InferenceScheduler"] },
   ],
-  workers_dev: true,
+  // The public workers.dev hostname would bypass zone WAF rules on tklabs.uk.
+  // Cloudflare preview and version URLs remain available with this disabled.
+  workers_dev: false,
   vars: {
     // Only inject AUTH_URL when it was explicitly configured. If it is absent,
     // Auth.js derives the origin from the forwarded request host, which keeps
