@@ -34,7 +34,7 @@ test("early gate rejects a rapid model burst before handler with a bounded retry
   assert.equal((await rejected.json()).code, "rate_limited");
   assert.equal(await guardWorkerRequest(request("/api/demo", "POST", "203.0.113.9"), env, true), null);
   assert.equal(env.WORKSPACE_AI_LIMIT.keys.size, 2);
-  assert.ok([...env.WORKSPACE_AI_LIMIT.keys.keys()].every((key) => !key.includes("203.0.113")));
+  assert.ok([...env.WORKSPACE_AI_LIMIT.keys.keys()].every((key) => /^ai:[a-f0-9]{64}$/.test(key)));
 });
 
 test("write and traffic ceilings also cover cheap endpoints and page refreshes", async () => {
@@ -56,7 +56,7 @@ test("account ceiling is shared across expensive routes and normalizes email", a
   assert.equal(response.status, 429);
   assert.equal(await guardAccountAiRequest("other@example.com", env, true), null);
   assert.equal(env.ACCOUNT_AI_LIMIT.keys.size, 2);
-  assert.ok([...env.ACCOUNT_AI_LIMIT.keys.keys()].every((key) => !key.includes("example.com")));
+  assert.ok([...env.ACCOUNT_AI_LIMIT.keys.keys()].every((key) => /^[a-f0-9]{64}$/.test(key)));
 });
 
 test("missing identity or binding fails closed in production and local tests remain usable", async () => {
